@@ -46,7 +46,7 @@ rootCommand.Subcommands.Add (CreatePollCommand ());
 rootCommand.Subcommands.Add (CreateConfigCommand ());
 
 rootCommand.SetAction ((parseResult, cancellationToken) =>
-	RunWithConnectionAsync (parseResult, InteractiveSession.RunAsync, cancellationToken));
+	RunInteractiveAsync (parseResult, cancellationToken));
 
 return await rootCommand.Parse (args).InvokeAsync ().ConfigureAwait (false);
 
@@ -67,7 +67,7 @@ static Command CreateInteractiveCommand ()
 	{
 	var command = new Command ("interactive", "Start an interactive REPL session (the default when no subcommand is given).");
 	command.SetAction ((parseResult, cancellationToken) =>
-		RunWithConnectionAsync (parseResult, InteractiveSession.RunAsync, cancellationToken));
+		RunInteractiveAsync (parseResult, cancellationToken));
 
 	return command;
 	}
@@ -112,9 +112,9 @@ static Command CreateSetModeCommand ()
 
 static Command CreateChangeSiteCommand ()
 	{
-	var siteArgument = new Argument<string> ("site-id")
+	var siteArgument = new Argument<string> ("site")
 		{
-		Description = "Tesla energy site identifier to switch to (cloud mode)."
+		Description = "Tesla energy site identifier or site name to switch to (cloud mode)."
 		};
 
 	var command = new Command ("changesite", "Switch the active Tesla energy site without reconnecting (cloud mode).");
@@ -252,6 +252,59 @@ static Command CreateConfigCommand ()
 		});
 
 	return command;
+	}
+
+static async Task<int> RunInteractiveAsync (ParseResult parseResult, CancellationToken cancellationToken)
+	{
+	var resolved = CliOptions.Resolve (parseResult);
+	if (resolved.Verbose)
+		VerboseLogging.Enable ();
+
+	Powerwall powerwall;
+	try
+		{
+		powerwall = new Powerwall (resolved.Options);
+		}
+	catch (Exception exc) when (exc is PowerwallInvalidConfigurationException or ArgumentException)
+		{
+		ConsoleHelpers.WriteError ($"Configuration error: {exc.Message}");
+		return 2;
+		}
+
+	try
+		{
+		if (!await powerwall.ConnectAsync (cancellationToken).ConfigureAwait (false))
+			{
+			var hint = resolved.Options.CloudMode
+				? "Failed to connect to the Tesla cloud. Check the access/refresh tokens, email, and network connectivity."
+				: "Failed to connect to the Powerwall. Check the host, password, and network connectivity.";
+			ConsoleHelpers.WriteError (hint);
+			powerwall.Dispose ();
+			return 1;
+			}
+		}
+	catch (PowerwallCloudNoTeslaAuthFileException exc)
+		{
+		ConsoleHelpers.WriteError ($"Cloud authentication error: {exc.Message}");
+		ConsoleHelpers.WriteError ("Supply tokens with --access-token and --refresh-token (or PW_ACCESS_TOKEN / PW_REFRESH_TOKEN).");
+		powerwall.Dispose ();
+		return 2;
+		}
+	catch (OperationCanceledException)
+		{
+		ConsoleHelpers.WriteError ("Operation cancelled.");
+		powerwall.Dispose ();
+		return 130;
+		}
+	catch (PowerwallException exc)
+		{
+		ConsoleHelpers.WriteError ($"Error: {exc.Message}");
+		powerwall.Dispose ();
+		return 1;
+		}
+
+	using var session = new InteractiveConnection (powerwall, resolved.Options, resolved.Region, resolved.NoSave);
+	return await InteractiveSession.RunAsync (session, cancellationToken).ConfigureAwait (false);
 	}
 
 static async Task<int> RunWithConnectionAsync (

@@ -166,15 +166,47 @@ internal static class PowerwallActions
 			}
 		}
 
-	/// <summary>Switches the active Tesla energy site and prints the result (cloud mode only).</summary>
-	public static async Task ChangeSiteAsync (Powerwall powerwall, string siteId, CancellationToken cancellationToken)
+	/// <summary>
+	/// Switches the active Tesla energy site and prints the result (cloud mode only). The supplied value may be
+	/// either the Tesla energy site identifier or the human-readable site name shown by the <c>sites</c> command.
+	/// </summary>
+	public static async Task ChangeSiteAsync (Powerwall powerwall, string siteIdOrName, CancellationToken cancellationToken)
 		{
-		var changed = await powerwall.ChangeSiteAsync (siteId, cancellationToken).ConfigureAwait (false);
 		ConsoleHelpers.WriteHeading ("Change Site");
+		if (string.IsNullOrWhiteSpace (siteIdOrName))
+			{
+			ConsoleHelpers.WriteError ("  No site identifier or name supplied.");
+			return;
+			}
+
+		var site = await ResolveSiteAsync (powerwall, siteIdOrName, cancellationToken).ConfigureAwait (false);
+		if (site is null)
+			{
+			ConsoleHelpers.WriteError ($"  Site '{siteIdOrName}' was not found for this account.");
+			return;
+			}
+
+		var changed = await powerwall.ChangeSiteAsync (site.SiteId, cancellationToken).ConfigureAwait (false);
 		if (changed)
-			ConsoleHelpers.WriteSuccess ($"  Active site changed to {siteId}.");
+			{
+			var label = string.IsNullOrWhiteSpace (site.SiteName) ? Constants.TEXT_UNKNOWN : site.SiteName!.Trim ();
+			ConsoleHelpers.WriteSuccess ($"  Active site changed to {label} ({site.SiteId}).");
+			}
 		else
-			ConsoleHelpers.WriteError ($"  Site {siteId} was not found for this account.");
+			ConsoleHelpers.WriteError ($"  Site '{siteIdOrName}' was not found for this account.");
+		}
+
+	/// <summary>
+	/// Resolves a user-supplied value to a known <see cref="CloudSite"/>, matching the Tesla energy site
+	/// identifier first and then falling back to a trimmed, case-insensitive site-name match.
+	/// </summary>
+	static async Task<CloudSite?> ResolveSiteAsync (Powerwall powerwall, string siteIdOrName, CancellationToken cancellationToken)
+		{
+		var sites = await powerwall.GetSitesAsync (cancellationToken).ConfigureAwait (false);
+		var trimmed = siteIdOrName.Trim ();
+
+		return sites.FirstOrDefault (site => string.Equals (site.SiteId, trimmed, StringComparison.Ordinal))
+			?? sites.FirstOrDefault (site => string.Equals (site.SiteName?.Trim (), trimmed, StringComparison.OrdinalIgnoreCase));
 		}
 
 	/// <summary>Prints the current grid charging and grid export settings (cloud mode only).</summary>

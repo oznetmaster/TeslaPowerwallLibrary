@@ -186,7 +186,7 @@ internal static class CliOptions
 		if (!parseResult.GetValue (NoSave))
 			Persist (options, timeout, cacheExpire, NormalizeRegion (region));
 
-		return new ResolvedConnection (options, parseResult.GetValue (Verbose));
+		return new ResolvedConnection (options, parseResult.GetValue (Verbose), NormalizeRegion (region), parseResult.GetValue (NoSave));
 		}
 
 	// Prompts the user to launch the Tesla browser login and returns the captured tokens, or null
@@ -201,6 +201,16 @@ internal static class CliOptions
 		if (answer is { Length: > 0 } && answer.StartsWith ("n", StringComparison.OrdinalIgnoreCase))
 			return null;
 
+		return LaunchTeslaLogin (region);
+		}
+
+	/// <summary>
+	/// Launches the Tesla browser login (handled by the WebView2 setup app) and returns the captured
+	/// tokens, or <see langword="null"/> when the user cancels or the setup application is unavailable.
+	/// Used both at startup and by the interactive <c>login cloud</c> command.
+	/// </summary>
+	internal static CloudTokens? LaunchTeslaLogin (string? region)
+		{
 		Console.WriteLine ("  Launching Tesla login. Complete the sign-in in the window that opens...");
 		var result = SetupLauncher.AcquireTokens (NormalizeRegion (region), TimeSpan.FromMinutes (5));
 
@@ -225,8 +235,41 @@ internal static class CliOptions
 			}
 		}
 
-	private static string NormalizeRegion (string? region) =>
+	/// <summary>
+	/// Prompts for a Powerwall host and password for the interactive <c>login local</c> command,
+	/// returning <see langword="null"/> when no host is entered.
+	/// </summary>
+	internal static (string Host, string Password)? PromptLocalCredentials ()
+		{
+		var host = ConsoleHelpers.Prompt ("Powerwall host or IP")?.Trim ();
+		if (string.IsNullOrWhiteSpace (host))
+			{
+			ConsoleHelpers.WriteError ("  No host entered; local login cancelled.");
+			return null;
+			}
+
+		var password = ConsoleHelpers.ReadPassword ("Powerwall password");
+		return (host!, password);
+		}
+
+	internal static string NormalizeRegion (string? region) =>
 		string.Equals (region?.Trim (), "cn", StringComparison.OrdinalIgnoreCase) ? "cn" : "us";
+
+	/// <summary>
+	/// Persists resolved options after a mid-session account switch, deriving the timeout and cache-expiry
+	/// overrides only when they differ from the defaults so it mirrors startup persistence behavior.
+	/// </summary>
+	internal static void PersistOptions (PowerwallOptions options, string region)
+		{
+		var timeoutSeconds = (int) options.Timeout.TotalSeconds == Constants.DEFAULT_TIMEOUT_SECONDS
+			? (int?) null
+			: (int) options.Timeout.TotalSeconds;
+		var cacheExpireSeconds = options.CacheExpireSeconds == Constants.DEFAULT_CACHE_EXPIRE_SECONDS
+			? (int?) null
+			: options.CacheExpireSeconds;
+
+		Persist (options, timeoutSeconds, cacheExpireSeconds, NormalizeRegion (region));
+		}
 
 	private static void Persist (PowerwallOptions options, int? timeoutSeconds, int? cacheExpireSeconds, string region)
 		{
@@ -258,7 +301,9 @@ internal static class CliOptions
 		int.TryParse (value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var result) ? result : null;
 	}
 
-/// <summary>Resolved connection options together with the verbose-logging flag.</summary>
+/// <summary>Resolved connection options together with the verbose-logging flag and session metadata.</summary>
 /// <param name="Options">The resolved <see cref="PowerwallOptions"/>.</param>
 /// <param name="Verbose">Whether verbose library logging was requested.</param>
-internal sealed record ResolvedConnection (PowerwallOptions Options, bool Verbose);
+/// <param name="Region">The normalized Tesla region (<c>us</c> or <c>cn</c>) used for cloud browser login.</param>
+/// <param name="NoSave">Whether persistence of resolved settings is suppressed for the session.</param>
+internal sealed record ResolvedConnection (PowerwallOptions Options, bool Verbose, string Region, bool NoSave);

@@ -12,12 +12,12 @@ namespace TeslaPowerwallLibrary.TestConsole;
 internal static class InteractiveSession
 	{
 	/// <summary>Runs the interactive loop until the user types <c>exit</c> or cancellation is requested.</summary>
-	/// <param name="powerwall">The connected Powerwall instance.</param>
+	/// <param name="session">The session that owns the current connection and supports account switching.</param>
 	/// <param name="cancellationToken">Token used to cancel the session.</param>
 	/// <returns>A process exit code.</returns>
-	public static async Task<int> RunAsync (Powerwall powerwall, CancellationToken cancellationToken)
+	public static async Task<int> RunAsync (InteractiveConnection session, CancellationToken cancellationToken)
 		{
-		ConsoleHelpers.WriteSuccess ($"Connected in {powerwall.Mode} mode. Type 'help' for commands, 'exit' to quit.");
+		ConsoleHelpers.WriteSuccess ($"Connected in {session.Powerwall.Mode} mode. Type 'help' for commands, 'exit' to quit.");
 
 		while (!cancellationToken.IsCancellationRequested)
 			{
@@ -39,7 +39,7 @@ internal static class InteractiveSession
 
 			try
 				{
-				if (!await DispatchAsync (powerwall, command, argument, cancellationToken).ConfigureAwait (false))
+				if (!await DispatchAsync (session, command, argument, cancellationToken).ConfigureAwait (false))
 					ConsoleHelpers.WriteError ($"Unknown command '{command}'. Type 'help' for the list of commands.");
 				}
 			catch (PowerwallException exc)
@@ -55,8 +55,9 @@ internal static class InteractiveSession
 		return 0;
 		}
 
-	private static async Task<bool> DispatchAsync (Powerwall powerwall, string command, string? argument, CancellationToken cancellationToken)
+	private static async Task<bool> DispatchAsync (InteractiveConnection session, string command, string? argument, CancellationToken cancellationToken)
 		{
+		var powerwall = session.Powerwall;
 		switch (command)
 			{
 			case "help":
@@ -128,12 +129,84 @@ internal static class InteractiveSession
 				await SetGridExportAsync (powerwall, argument, cancellationToken).ConfigureAwait (false);
 				return true;
 
+			case "login":
+				await LoginAsync (session, argument, cancellationToken).ConfigureAwait (false);
+				return true;
+
+			case "switchaccount":
+				await SwitchAccountAsync (session, argument, cancellationToken).ConfigureAwait (false);
+				return true;
+
 			case "poll":
 				await PollAsync (powerwall, argument, cancellationToken).ConfigureAwait (false);
 				return true;
 
 			default:
 				return false;
+			}
+		}
+
+	private static async Task LoginAsync (InteractiveConnection session, string? argument, CancellationToken cancellationToken)
+		{
+		var target = argument?.Trim ().ToLowerInvariant ();
+		switch (target)
+			{
+			case "cloud":
+				var tokens = CliOptions.LaunchTeslaLogin (session.Region);
+				if (tokens is null)
+					return;
+
+				if (await session.SwitchCloudAsync (tokens, cancellationToken).ConfigureAwait (false))
+					ConsoleHelpers.WriteSuccess ($"Switched to cloud account ({tokens.Email}).");
+				return;
+
+			case "local":
+				var credentials = CliOptions.PromptLocalCredentials ();
+				if (credentials is null)
+					return;
+
+				if (await session.SwitchLocalAsync (credentials.Value.Host, credentials.Value.Password, cancellationToken).ConfigureAwait (false))
+					ConsoleHelpers.WriteSuccess ($"Switched to local gateway ({credentials.Value.Host}).");
+				return;
+
+			default:
+				ConsoleHelpers.WriteError ("Usage: login <cloud|local>");
+				return;
+			}
+		}
+
+	private static async Task SwitchAccountAsync (InteractiveConnection session, string? argument, CancellationToken cancellationToken)
+		{
+		var target = argument?.Trim ().ToLowerInvariant ();
+		var options = session.Options;
+		switch (target)
+			{
+			case "cloud":
+				if (string.IsNullOrWhiteSpace (options.AccessToken) && string.IsNullOrWhiteSpace (options.RefreshToken))
+					{
+					ConsoleHelpers.WriteError ("No cloud tokens are available for this session. Use 'login cloud' to sign in first.");
+					return;
+					}
+
+				var tokens = new CloudTokens (options.RefreshToken ?? string.Empty, options.AccessToken ?? string.Empty, options.Email);
+				if (await session.SwitchCloudAsync (tokens, cancellationToken).ConfigureAwait (false))
+					ConsoleHelpers.WriteSuccess ($"Switched to cloud account ({options.Email}).");
+				return;
+
+			case "local":
+				if (string.IsNullOrWhiteSpace (options.Host))
+					{
+					ConsoleHelpers.WriteError ("No local gateway is configured for this session. Use 'login local' to set one first.");
+					return;
+					}
+
+				if (await session.SwitchLocalAsync (options.Host, options.Password, cancellationToken).ConfigureAwait (false))
+					ConsoleHelpers.WriteSuccess ($"Switched to local gateway ({options.Host}).");
+				return;
+
+			default:
+				ConsoleHelpers.WriteError ("Usage: switchaccount <cloud|local>");
+				return;
 			}
 		}
 
@@ -163,7 +236,7 @@ internal static class InteractiveSession
 		{
 		if (string.IsNullOrWhiteSpace (argument))
 			{
-			ConsoleHelpers.WriteError ("Usage: changesite <site-id>");
+			ConsoleHelpers.WriteError ("Usage: changesite <site-id or site name>");
 			return;
 			}
 
@@ -225,10 +298,12 @@ internal static class InteractiveSession
 		Console.WriteLine ("  setreserve <n>    Set backup reserve level (0-100)");
 		Console.WriteLine ("  setmode <mode>    Set mode (self_consumption|backup|autonomous)");
 		Console.WriteLine ("  sites             List Tesla energy sites (cloud mode)");
-		Console.WriteLine ("  changesite <id>   Switch the active site (cloud mode)");
+		Console.WriteLine ("  changesite <id|name>   Switch the active site by id or name (cloud mode)");
 		Console.WriteLine ("  gridconfig        Show grid charging and export settings (cloud mode)");
 		Console.WriteLine ("  setgridcharging <on|off>              Enable/disable grid charging (cloud mode)");
 		Console.WriteLine ("  setgridexport <battery_ok|pv_only|never>  Set grid export rule (cloud mode)");
+		Console.WriteLine ("  login <cloud|local>       Sign in to a new account and reconnect");
+		Console.WriteLine ("  switchaccount <cloud|local>  Reconnect using this session's known cloud/local credentials");
 		Console.WriteLine ("  poll <api>        GET a raw API endpoint and print the response");
 		Console.WriteLine ("  help              Show this list");
 		Console.WriteLine ("  exit              Quit the interactive session");
