@@ -169,4 +169,83 @@ public sealed class PowerwallTests
 		await Assert.ThrowsExactlyAsync<ArgumentException> (
 			async () => await powerwall.SetGridExportAsync (mode));
 		}
+
+	[TestMethod]
+	public async Task WhenNotConnectedThenVitalsThrowsInvalidOperation ()
+		{
+		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
+			async () => await powerwall.VitalsAsync ());
+		}
+
+	[TestMethod]
+	public async Task WhenNotConnectedThenAlertsThrowsInvalidOperation ()
+		{
+		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
+			async () => await powerwall.AlertsAsync ());
+		}
+
+	[TestMethod]
+	[DataRow ("power")]
+	[DataRow ("energy")]
+	[DataRow ("backup")]
+	[DataRow ("self_consumption")]
+	public async Task WhenHistoryKindIsValidThenGetHistoryReachesConnectionGuard (string kind)
+		{
+		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
+			async () => await powerwall.GetHistoryAsync (kind));
+		}
+
+	[TestMethod]
+	[DataRow ("bogus")]
+	[DataRow ("")]
+	[DataRow ("POWER")]
+	[DataRow ("soe")]
+	public async Task WhenHistoryKindIsInvalidThenGetHistoryThrowsArgumentException (string kind)
+		{
+		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
+
+		await Assert.ThrowsExactlyAsync<ArgumentException> (
+			async () => await powerwall.GetHistoryAsync (kind));
+		}
+
+	[TestMethod]
+	[DataRow ("hour")]
+	[DataRow ("DAY")]
+	public async Task WhenHistoryPeriodIsInvalidThenGetHistoryThrowsArgumentException (string period)
+		{
+		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
+
+		await Assert.ThrowsExactlyAsync<ArgumentException> (
+			async () => await powerwall.GetHistoryAsync ("power", period));
+		}
+
+	[TestMethod]
+	[DataRow ("power")]
+	[DataRow ("soe")]
+	[DataRow ("time_of_use_energy")]
+	[DataRow ("savings")]
+	public async Task WhenCalendarHistoryKindIsValidThenGetCalendarHistoryReachesConnectionGuard (string kind)
+		{
+		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
+			async () => await powerwall.GetCalendarHistoryAsync (kind));
+		}
+
+	[TestMethod]
+	[DataRow ("bogus")]
+	[DataRow ("")]
+	public async Task WhenCalendarHistoryKindIsInvalidThenGetCalendarHistoryThrowsArgumentException (string kind)
+		{
+		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
+
+		await Assert.ThrowsExactlyAsync<ArgumentException> (
+			async () => await powerwall.GetCalendarHistoryAsync (kind));
+		}
 	}

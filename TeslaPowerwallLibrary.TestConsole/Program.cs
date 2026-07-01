@@ -36,12 +36,16 @@ rootCommand.Subcommands.Add (CreateReadCommand ("system", "Show the full system 
 rootCommand.Subcommands.Add (CreateReadCommand ("summary", "Show a combined dashboard of all readings.", PowerwallActions.SummaryAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("sites", "List the Tesla energy sites for the account (cloud mode).", PowerwallActions.SitesAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("gridconfig", "Show the grid charging and export settings (cloud mode).", PowerwallActions.GridConfigAsync));
+rootCommand.Subcommands.Add (CreateReadCommand ("vitals", "Show device vitals (cloud mode, or local firmware that exposes vitals).", PowerwallActions.VitalsAsync));
+rootCommand.Subcommands.Add (CreateReadCommand ("alerts", "Show the active device alerts.", PowerwallActions.AlertsAsync));
 rootCommand.Subcommands.Add (CreateInteractiveCommand ());
 rootCommand.Subcommands.Add (CreateSetReserveCommand ());
 rootCommand.Subcommands.Add (CreateSetModeCommand ());
 rootCommand.Subcommands.Add (CreateChangeSiteCommand ());
 rootCommand.Subcommands.Add (CreateSetGridChargingCommand ());
 rootCommand.Subcommands.Add (CreateSetGridExportCommand ());
+rootCommand.Subcommands.Add (CreateHistoryCommand ());
+rootCommand.Subcommands.Add (CreateCalendarHistoryCommand ());
 rootCommand.Subcommands.Add (CreatePollCommand ());
 rootCommand.Subcommands.Add (CreateConfigCommand ());
 
@@ -170,6 +174,58 @@ static Command CreateSetGridExportCommand ()
 		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
 			{
 			await PowerwallActions.SetGridExportAsync (powerwall, parseResult.GetValue (modeArgument) ?? string.Empty, token).ConfigureAwait (false);
+			return 0;
+			}, cancellationToken));
+
+	return command;
+	}
+
+static Command CreateHistoryCommand ()
+	{
+	var kindArgument = new Argument<string> ("kind")
+		{
+		Description = $"History kind ({ConsoleHelpers.FormatChoices (Powerwall.HistoryKinds)})."
+		};
+
+	var periodArgument = new Argument<string?> ("period")
+		{
+		Description = $"Aggregation period ({ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DefaultHistoryPeriod)}). Optional; {ConsoleHelpers.DefaultChoiceLegend}.",
+		Arity = ArgumentArity.ZeroOrOne
+		};
+
+	var command = new Command ("history", "Show raw energy history for the active site (cloud mode).");
+	command.Arguments.Add (kindArgument);
+	command.Arguments.Add (periodArgument);
+	command.SetAction ((parseResult, cancellationToken) =>
+		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
+			{
+			await PowerwallActions.HistoryAsync (powerwall, parseResult.GetValue (kindArgument) ?? string.Empty, parseResult.GetValue (periodArgument), token).ConfigureAwait (false);
+			return 0;
+			}, cancellationToken));
+
+	return command;
+	}
+
+static Command CreateCalendarHistoryCommand ()
+	{
+	var kindArgument = new Argument<string> ("kind")
+		{
+		Description = $"History kind ({ConsoleHelpers.FormatChoices (Powerwall.CalendarHistoryKinds)})."
+		};
+
+	var periodArgument = new Argument<string?> ("period")
+		{
+		Description = $"Aggregation period ({ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DefaultHistoryPeriod)}). Optional; {ConsoleHelpers.DefaultChoiceLegend}.",
+		Arity = ArgumentArity.ZeroOrOne
+		};
+
+	var command = new Command ("calendarhistory", "Show raw calendar-aligned energy history for the active site (cloud mode).");
+	command.Arguments.Add (kindArgument);
+	command.Arguments.Add (periodArgument);
+	command.SetAction ((parseResult, cancellationToken) =>
+		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
+			{
+			await PowerwallActions.CalendarHistoryAsync (powerwall, parseResult.GetValue (kindArgument) ?? string.Empty, parseResult.GetValue (periodArgument), token).ConfigureAwait (false);
 			return 0;
 			}, cancellationToken));
 

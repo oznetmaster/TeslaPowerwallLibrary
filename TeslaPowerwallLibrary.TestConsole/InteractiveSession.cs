@@ -46,6 +46,10 @@ internal static class InteractiveSession
 				{
 				ConsoleHelpers.WriteError ($"Error: {exc.Message}");
 				}
+			catch (ArgumentException exc)
+				{
+				ConsoleHelpers.WriteError ($"Error: {exc.Message}");
+				}
 			catch (InvalidOperationException exc)
 				{
 				ConsoleHelpers.WriteError ($"Error: {exc.Message}");
@@ -127,6 +131,22 @@ internal static class InteractiveSession
 
 			case "setgridexport":
 				await SetGridExportAsync (powerwall, argument, cancellationToken).ConfigureAwait (false);
+				return true;
+
+			case "vitals":
+				await PowerwallActions.VitalsAsync (powerwall, cancellationToken).ConfigureAwait (false);
+				return true;
+
+			case "alerts":
+				await PowerwallActions.AlertsAsync (powerwall, cancellationToken).ConfigureAwait (false);
+				return true;
+
+			case "history":
+				await HistoryAsync (powerwall, argument, calendar: false, cancellationToken).ConfigureAwait (false);
+				return true;
+
+			case "calendarhistory":
+				await HistoryAsync (powerwall, argument, calendar: true, cancellationToken).ConfigureAwait (false);
 				return true;
 
 			case "login":
@@ -274,6 +294,30 @@ internal static class InteractiveSession
 		await PowerwallActions.SetGridExportAsync (powerwall, mode, cancellationToken).ConfigureAwait (false);
 		}
 
+	private static async Task HistoryAsync (Powerwall powerwall, string? argument, bool calendar, CancellationToken cancellationToken)
+		{
+		var command = calendar ? "calendarhistory" : "history";
+		var kinds = calendar ? Powerwall.CalendarHistoryKinds : Powerwall.HistoryKinds;
+
+		if (string.IsNullOrWhiteSpace (argument))
+			{
+			ConsoleHelpers.WriteError ($"Usage: {command} <kind> [period]");
+			ConsoleHelpers.WriteError ($"  kind:   {ConsoleHelpers.FormatChoices (kinds)}");
+			ConsoleHelpers.WriteError ($"  period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DefaultHistoryPeriod)} (optional; {ConsoleHelpers.DefaultChoiceLegend})");
+			ConsoleHelpers.WriteError ($"  example: {command} {kinds[0]} {Powerwall.HistoryPeriods[0]}");
+			return;
+			}
+
+		var tokens = argument!.Split ((char[]?) null, StringSplitOptions.RemoveEmptyEntries);
+		var kind = tokens[0];
+		var period = tokens.Length > 1 ? tokens[1] : null;
+
+		if (calendar)
+			await PowerwallActions.CalendarHistoryAsync (powerwall, kind, period, cancellationToken).ConfigureAwait (false);
+		else
+			await PowerwallActions.HistoryAsync (powerwall, kind, period, cancellationToken).ConfigureAwait (false);
+		}
+
 	private static async Task PollAsync (Powerwall powerwall, string? argument, CancellationToken cancellationToken)
 		{
 		if (string.IsNullOrWhiteSpace (argument))
@@ -304,6 +348,15 @@ internal static class InteractiveSession
 		Console.WriteLine ("  gridconfig        Show grid charging and export settings (cloud mode)");
 		Console.WriteLine ("  setgridcharging <on|off>              Enable/disable grid charging (cloud mode)");
 		Console.WriteLine ("  setgridexport <battery_ok|pv_only|never>  Set grid export rule (cloud mode)");
+		Console.WriteLine ("  vitals            Device vitals (cloud mode, or local firmware that exposes vitals)");
+		Console.WriteLine ("  alerts            Active device alerts");
+		Console.WriteLine ("  history <kind> [period]           Raw energy history (cloud mode)");
+		Console.WriteLine ($"                      kind:   {ConsoleHelpers.FormatChoices (Powerwall.HistoryKinds)}");
+		Console.WriteLine ($"                      period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DefaultHistoryPeriod)}");
+		Console.WriteLine ("  calendarhistory <kind> [period]   Calendar-aligned energy history (cloud mode)");
+		Console.WriteLine ($"                      kind:   {ConsoleHelpers.FormatChoices (Powerwall.CalendarHistoryKinds)}");
+		Console.WriteLine ($"                      period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DefaultHistoryPeriod)}");
+		Console.WriteLine ($"                      ({ConsoleHelpers.DefaultChoiceLegend})");
 		Console.WriteLine ("  login <cloud|local>       Sign in to a new account and reconnect");
 		Console.WriteLine ("  switchaccount <cloud|local>  Reconnect using this session's known cloud/local credentials");
 		Console.WriteLine ("  poll <api>        GET a raw API endpoint and print the response");

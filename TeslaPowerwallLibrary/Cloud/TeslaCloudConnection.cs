@@ -169,6 +169,61 @@ internal sealed class TeslaCloudConnection : IDisposable
 	public Task<JObject?> GetBackupTimeRemainingAsync (string siteId, CancellationToken cancellationToken = default) =>
 		GetSiteEndpointAsync (siteId, "backup_time_remaining", new Dictionary<string, string> { ["language"] = "en" }, cancellationToken);
 
+	/// <summary>Retrieves energy history (<c>history</c>) for the specified site.</summary>
+	/// <param name="siteId">The Tesla energy site identifier.</param>
+	/// <param name="kind">The history kind (for example <c>power</c>, <c>energy</c>, <c>backup</c>, or <c>self_consumption</c>).</param>
+	/// <param name="period">The aggregation period (for example <c>day</c>, <c>week</c>, <c>month</c>, <c>year</c>, or <c>lifetime</c>).</param>
+	/// <param name="timeZone">IANA time zone name (for example <c>America/Los_Angeles</c>).</param>
+	/// <param name="startDate">Inclusive RFC 3339 start timestamp.</param>
+	/// <param name="endDate">Inclusive RFC 3339 end timestamp.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The full response envelope, or <see langword="null"/> when unavailable.</returns>
+	public Task<JObject?> GetHistoryAsync (
+		string siteId,
+		string? kind = null,
+		string? period = null,
+		string? timeZone = null,
+		string? startDate = null,
+		string? endDate = null,
+		CancellationToken cancellationToken = default) =>
+		GetSiteEndpointAsync (siteId, "history", BuildHistoryQuery (kind, period, timeZone, startDate, endDate), cancellationToken);
+
+	/// <summary>Retrieves calendar-aligned energy history (<c>calendar_history</c>) for the specified site.</summary>
+	/// <param name="siteId">The Tesla energy site identifier.</param>
+	/// <param name="kind">The history kind (for example <c>power</c>, <c>energy</c>, <c>soe</c>, <c>backup</c>, <c>self_consumption</c>, <c>time_of_use_energy</c>, or <c>savings</c>).</param>
+	/// <param name="period">The aggregation period (for example <c>day</c>, <c>week</c>, <c>month</c>, <c>year</c>, or <c>lifetime</c>).</param>
+	/// <param name="timeZone">IANA time zone name (for example <c>America/Los_Angeles</c>).</param>
+	/// <param name="startDate">Inclusive RFC 3339 start timestamp.</param>
+	/// <param name="endDate">Inclusive RFC 3339 end timestamp.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The full response envelope, or <see langword="null"/> when unavailable.</returns>
+	public Task<JObject?> GetCalendarHistoryAsync (
+		string siteId,
+		string? kind = null,
+		string? period = null,
+		string? timeZone = null,
+		string? startDate = null,
+		string? endDate = null,
+		CancellationToken cancellationToken = default) =>
+		GetSiteEndpointAsync (siteId, "calendar_history", BuildHistoryQuery (kind, period, timeZone, startDate, endDate), cancellationToken);
+
+	private static Dictionary<string, string> BuildHistoryQuery (string? kind, string? period, string? timeZone, string? startDate, string? endDate)
+		{
+		var query = new Dictionary<string, string> ();
+		if (!string.IsNullOrWhiteSpace (kind))
+			query["kind"] = kind!;
+		if (!string.IsNullOrWhiteSpace (period))
+			query["period"] = period!;
+		if (!string.IsNullOrWhiteSpace (timeZone))
+			query["time_zone"] = timeZone!;
+		if (!string.IsNullOrWhiteSpace (startDate))
+			query["start_date"] = startDate!;
+		if (!string.IsNullOrWhiteSpace (endDate))
+			query["end_date"] = endDate!;
+
+		return query;
+		}
+
 	/// <summary>Sets the backup reserve percentage for the specified site.</summary>
 	/// <param name="siteId">The Tesla energy site identifier.</param>
 	/// <param name="percent">The reserve percentage to apply (0 - 100).</param>

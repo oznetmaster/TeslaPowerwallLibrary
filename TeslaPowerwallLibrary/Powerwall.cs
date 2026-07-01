@@ -4,6 +4,8 @@
 
 using log4net;
 
+using Newtonsoft.Json.Linq;
+
 using TeslaPowerwallLibrary.Cloud;
 using TeslaPowerwallLibrary.Local;
 using TeslaPowerwallLibrary.Models;
@@ -23,6 +25,27 @@ namespace TeslaPowerwallLibrary;
 public sealed class Powerwall : IDisposable
 	{
 	private static readonly ILog _log = LogManager.GetLogger (typeof (Powerwall));
+
+	/// <summary>Gets the valid <c>kind</c> values accepted by <see cref="GetHistoryAsync"/>.</summary>
+	public static IReadOnlyList<string> HistoryKinds { get; } =
+		["power", "energy", "backup", "self_consumption"];
+
+	/// <summary>Gets the valid <c>kind</c> values accepted by <see cref="GetCalendarHistoryAsync"/>.</summary>
+	public static IReadOnlyList<string> CalendarHistoryKinds { get; } =
+		["power", "soe", "energy", "backup", "self_consumption", "time_of_use_energy", "savings"];
+
+	/// <summary>Gets the valid <c>period</c> values accepted by the energy-history methods.</summary>
+	public static IReadOnlyList<string> HistoryPeriods { get; } =
+		["day", "week", "month", "year", "lifetime"];
+
+	/// <summary>Gets the default <c>period</c> applied by the energy-history methods when the caller does not specify one.</summary>
+	public const string DefaultHistoryPeriod = "day";
+
+	private static readonly HashSet<string> _historyKinds = new (HistoryKinds, StringComparer.Ordinal);
+
+	private static readonly HashSet<string> _calendarHistoryKinds = new (CalendarHistoryKinds, StringComparer.Ordinal);
+
+	private static readonly HashSet<string> _historyPeriods = new (HistoryPeriods, StringComparer.Ordinal);
 
 	private readonly PowerwallOptions _options;
 	private PowerwallClientBase? _client;
@@ -468,6 +491,155 @@ public sealed class Powerwall : IDisposable
 	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
 	public Task<string?> GetGridExportAsync (bool force = false, CancellationToken cancellationToken = default) =>
 		RequireCloudClient ().GetGridExportAsync (force, cancellationToken);
+
+	/// <summary>
+	/// Returns raw energy history for the active site (cloud mode only).
+	/// </summary>
+	/// <param name="kind">The history kind: <c>power</c>, <c>energy</c>, <c>backup</c>, or <c>self_consumption</c>.</param>
+	/// <param name="period">The aggregation period: <c>day</c>, <c>week</c>, <c>month</c>, <c>year</c>, or <c>lifetime</c>. Defaults to <c>day</c> when not specified.</param>
+	/// <param name="timeZone">Optional IANA time zone name (for example <c>America/Los_Angeles</c>).</param>
+	/// <param name="startDate">Optional inclusive RFC 3339 start timestamp.</param>
+	/// <param name="endDate">Optional inclusive RFC 3339 end timestamp.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The raw history JSON, or <see langword="null"/> when unavailable.</returns>
+	/// <exception cref="ArgumentException">Thrown when <paramref name="kind"/> or <paramref name="period"/> is not valid.</exception>
+	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	public Task<string?> GetHistoryAsync (
+		string kind,
+		string? period = null,
+		string? timeZone = null,
+		string? startDate = null,
+		string? endDate = null,
+		CancellationToken cancellationToken = default)
+		{
+		period ??= DefaultHistoryPeriod;
+		ValidateHistoryArguments (kind, period, _historyKinds);
+		return RequireCloudClient ().GetHistoryAsync (kind, period, timeZone, startDate, endDate, cancellationToken);
+		}
+
+	/// <summary>
+	/// Returns raw calendar-aligned energy history for the active site (cloud mode only).
+	/// </summary>
+	/// <param name="kind">The history kind: <c>power</c>, <c>soe</c>, <c>energy</c>, <c>backup</c>, <c>self_consumption</c>, <c>time_of_use_energy</c>, or <c>savings</c>.</param>
+	/// <param name="period">The aggregation period: <c>day</c>, <c>week</c>, <c>month</c>, <c>year</c>, or <c>lifetime</c>. Defaults to <c>day</c> when not specified.</param>
+	/// <param name="timeZone">Optional IANA time zone name (for example <c>America/Los_Angeles</c>).</param>
+	/// <param name="startDate">Optional inclusive RFC 3339 start timestamp.</param>
+	/// <param name="endDate">Optional inclusive RFC 3339 end timestamp.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The raw calendar history JSON, or <see langword="null"/> when unavailable.</returns>
+	/// <exception cref="ArgumentException">Thrown when <paramref name="kind"/> or <paramref name="period"/> is not valid.</exception>
+	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	public Task<string?> GetCalendarHistoryAsync (
+		string kind,
+		string? period = null,
+		string? timeZone = null,
+		string? startDate = null,
+		string? endDate = null,
+		CancellationToken cancellationToken = default)
+		{
+		period ??= DefaultHistoryPeriod;
+		ValidateHistoryArguments (kind, period, _calendarHistoryKinds);
+		return RequireCloudClient ().GetCalendarHistoryAsync (kind, period, timeZone, startDate, endDate, cancellationToken);
+		}
+
+	/// <summary>
+	/// Returns device vitals as a nested map of device name to that device's telemetry values.
+	/// Vitals are available in cloud mode and on local firmware that still exposes the vitals payload.
+	/// </summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The vitals map, or <see langword="null"/> when vitals are unavailable.</returns>
+	public Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>>?> VitalsAsync (CancellationToken cancellationToken = default) =>
+		RequireClient ().VitalsAsync (cancellationToken);
+
+	/// <summary>
+	/// Returns the distinct set of active alerts reported across all devices. Faithfully adapts the upstream
+	/// pypowerwall <c>alerts()</c> method: alerts are collected from device vitals, and when vitals are
+	/// unavailable (for example on newer local firmware) alerts fall back to the <c>/api/solar_powerwall</c> endpoint.
+	/// </summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The distinct alert names, ordered as first encountered; empty when none are active.</returns>
+	public async Task<IReadOnlyList<string>> AlertsAsync (CancellationToken cancellationToken = default)
+		{
+		var alerts = new List<string> ();
+		var seen = new HashSet<string> (StringComparer.Ordinal);
+
+		var devices = await VitalsAsync (cancellationToken).ConfigureAwait (false);
+		if (devices is { Count: > 0 })
+			{
+			foreach (var device in devices.Values)
+				{
+				if (!device.TryGetValue ("alerts", out var deviceAlerts) || deviceAlerts is null)
+					continue;
+
+				foreach (var alert in EnumerateAlertValues (deviceAlerts))
+					{
+					if (!string.IsNullOrEmpty (alert) && seen.Add (alert))
+						alerts.Add (alert);
+					}
+				}
+
+			return alerts;
+			}
+
+		// Vitals are not present on local firmware after 23.44; fall back to /api/solar_powerwall.
+		var payload = await RequireClient ().PollAsync ("/api/solar_powerwall", cancellationToken: cancellationToken).ConfigureAwait (false);
+		var solar = JsonHelper.DeserializeOrNull<JObject> (payload);
+		if (solar is null)
+			return alerts;
+
+		foreach (var group in new[] { "pvac_alerts", "pvs_alerts" })
+			{
+			if (solar[group] is not JObject flags)
+				continue;
+
+			foreach (var flag in flags.Properties ())
+				{
+				if (flag.Value.Type == JTokenType.Boolean && flag.Value.Value<bool> () && seen.Add (flag.Name))
+					alerts.Add (flag.Name);
+				}
+			}
+
+		return alerts;
+		}
+
+	private static IEnumerable<string> EnumerateAlertValues (object deviceAlerts)
+		{
+		// Vitals attribute values are loosely typed; alerts is normally a JArray of strings.
+		if (deviceAlerts is JArray array)
+			{
+			foreach (var item in array)
+				{
+				var value = item.Type == JTokenType.String ? item.Value<string> () : item.ToString ();
+				if (value is not null)
+					yield return value;
+				}
+
+			yield break;
+			}
+
+		if (deviceAlerts is IEnumerable<string> strings)
+			{
+			foreach (var value in strings)
+				yield return value;
+
+			yield break;
+			}
+
+		if (deviceAlerts is string single)
+			yield return single;
+		}
+
+	private static void ValidateHistoryArguments (string kind, string? period, HashSet<string> allowedKinds)
+		{
+		if (string.IsNullOrWhiteSpace (kind))
+			throw new ArgumentException ("A history kind is required.", nameof (kind));
+
+		if (!allowedKinds.Contains (kind))
+			throw new ArgumentException ($"Invalid history kind '{kind}'. Allowed values: {string.Join (", ", allowedKinds)}.", nameof (kind));
+
+		if (period is not null && !_historyPeriods.Contains (period))
+			throw new ArgumentException ($"Invalid history period '{period}'. Allowed values: {string.Join (", ", _historyPeriods)}.", nameof (period));
+		}
 
 	private async Task<OperationResponse?> GetOperationAsync (bool force, CancellationToken cancellationToken)
 		{

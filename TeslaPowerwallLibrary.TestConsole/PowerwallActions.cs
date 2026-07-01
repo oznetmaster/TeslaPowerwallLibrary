@@ -240,6 +240,56 @@ internal static class PowerwallActions
 		ConsoleHelpers.WriteField ("Response", result);
 		}
 
+	/// <summary>Prints device vitals as a per-device map of telemetry values.</summary>
+	public static async Task VitalsAsync (Powerwall powerwall, CancellationToken cancellationToken)
+		{
+		var vitals = await powerwall.VitalsAsync (cancellationToken).ConfigureAwait (false);
+		ConsoleHelpers.WriteHeading ("Device Vitals");
+		if (vitals is null || vitals.Count == 0)
+			{
+			ConsoleHelpers.WriteError ("  No vitals available.");
+			return;
+			}
+
+		foreach (var device in vitals)
+			{
+			ConsoleHelpers.WriteField (device.Key, $"{device.Value.Count} value(s)");
+			foreach (var value in device.Value)
+				ConsoleHelpers.WriteField ($"    {value.Key}", value.Value?.ToString () ?? "null");
+			}
+		}
+
+	/// <summary>Prints the distinct set of active alerts reported across all devices.</summary>
+	public static async Task AlertsAsync (Powerwall powerwall, CancellationToken cancellationToken)
+		{
+		var alerts = await powerwall.AlertsAsync (cancellationToken).ConfigureAwait (false);
+		ConsoleHelpers.WriteHeading ("Alerts");
+		if (alerts.Count == 0)
+			{
+			ConsoleHelpers.WriteSuccess ("  No active alerts.");
+			return;
+			}
+
+		foreach (var alert in alerts)
+			ConsoleHelpers.WriteField ("Alert", alert);
+		}
+
+	/// <summary>Prints raw energy history for the active site (cloud mode only).</summary>
+	public static async Task HistoryAsync (Powerwall powerwall, string kind, string? period, CancellationToken cancellationToken)
+		{
+		var body = await powerwall.GetHistoryAsync (kind, period, cancellationToken: cancellationToken).ConfigureAwait (false);
+		ConsoleHelpers.WriteHeading ($"Energy History ({kind}{(period is null ? string.Empty : $", {period}")})");
+		Console.WriteLine (Prettify (body));
+		}
+
+	/// <summary>Prints raw calendar-aligned energy history for the active site (cloud mode only).</summary>
+	public static async Task CalendarHistoryAsync (Powerwall powerwall, string kind, string? period, CancellationToken cancellationToken)
+		{
+		var body = await powerwall.GetCalendarHistoryAsync (kind, period, cancellationToken: cancellationToken).ConfigureAwait (false);
+		ConsoleHelpers.WriteHeading ($"Calendar History ({kind}{(period is null ? string.Empty : $", {period}")})");
+		Console.WriteLine (Prettify (body));
+		}
+
 	/// <summary>Polls an arbitrary API endpoint and prints the raw response body.</summary>
 	public static async Task PollAsync (Powerwall powerwall, string api, CancellationToken cancellationToken)
 		{

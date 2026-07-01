@@ -12,6 +12,9 @@ namespace TeslaPowerwallLibrary.TestConsole;
 /// </summary>
 internal static class ConsoleHelpers
 	{
+	/// <summary>Legend explaining the trailing <c>*</c> marker used by <see cref="FormatChoices"/>.</summary>
+	public const string DefaultChoiceLegend = "* = default";
+
 	/// <summary>Writes a label and reads a line of input from the console.</summary>
 	public static string? Prompt (string label)
 		{
@@ -62,6 +65,16 @@ internal static class ConsoleHelpers
 		WriteColor (text, ConsoleColor.Cyan);
 		WriteColor (new string ('-', text.Length), ConsoleColor.DarkGray);
 		}
+
+	/// <summary>
+	/// Formats a list of choice values as <c>a | b | c</c>, appending <c>*</c> to the default value
+	/// so help text can indicate which value applies when the option is omitted.
+	/// </summary>
+	/// <param name="values">The valid choice values.</param>
+	/// <param name="defaultValue">The value marked as the default with a trailing <c>*</c>, or <see langword="null"/> when there is no default.</param>
+	public static string FormatChoices (IReadOnlyList<string> values, string? defaultValue = null) =>
+		string.Join (" | ", values.Select (value =>
+			string.Equals (value, defaultValue, StringComparison.Ordinal) ? value + "*" : value));
 
 	/// <summary>Writes an aligned <c>label : value</c> pair, substituting <c>n/a</c> for missing values.</summary>
 	public static void WriteField (string label, string? value) =>

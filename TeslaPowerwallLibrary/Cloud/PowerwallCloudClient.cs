@@ -278,6 +278,54 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		return components.Value<string> ("customer_preferred_export_rule") ?? "battery_ok";
 		}
 
+	/// <summary>
+	/// Returns raw energy history for the active site (cloud mode only). Faithfully adapts the upstream
+	/// pypowerwall/FleetAPI <c>get_history()</c> method.
+	/// </summary>
+	/// <param name="kind">The history kind (for example <c>power</c>, <c>energy</c>, <c>backup</c>, or <c>self_consumption</c>).</param>
+	/// <param name="period">The aggregation period (for example <c>day</c>, <c>week</c>, <c>month</c>, <c>year</c>, or <c>lifetime</c>).</param>
+	/// <param name="timeZone">IANA time zone name (for example <c>America/Los_Angeles</c>).</param>
+	/// <param name="startDate">Inclusive RFC 3339 start timestamp.</param>
+	/// <param name="endDate">Inclusive RFC 3339 end timestamp.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The raw <c>response</c> body, or <see langword="null"/> when unavailable.</returns>
+	public async Task<string?> GetHistoryAsync (
+		string? kind = null,
+		string? period = null,
+		string? timeZone = null,
+		string? startDate = null,
+		string? endDate = null,
+		CancellationToken cancellationToken = default)
+		{
+		EnsureConnected ();
+		var response = await _connection!.GetHistoryAsync (_resolvedSiteId!, kind, period, timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
+		return Serialize (response?["response"] ?? response);
+		}
+
+	/// <summary>
+	/// Returns raw calendar-aligned energy history for the active site (cloud mode only). Faithfully adapts
+	/// the upstream pypowerwall/FleetAPI <c>get_calendar_history()</c> method.
+	/// </summary>
+	/// <param name="kind">The history kind (for example <c>power</c>, <c>soe</c>, <c>energy</c>, <c>backup</c>, <c>self_consumption</c>, <c>time_of_use_energy</c>, or <c>savings</c>).</param>
+	/// <param name="period">The aggregation period (for example <c>day</c>, <c>week</c>, <c>month</c>, <c>year</c>, or <c>lifetime</c>).</param>
+	/// <param name="timeZone">IANA time zone name (for example <c>America/Los_Angeles</c>).</param>
+	/// <param name="startDate">Inclusive RFC 3339 start timestamp.</param>
+	/// <param name="endDate">Inclusive RFC 3339 end timestamp.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The raw <c>response</c> body, or <see langword="null"/> when unavailable.</returns>
+	public async Task<string?> GetCalendarHistoryAsync (
+		string? kind = null,
+		string? period = null,
+		string? timeZone = null,
+		string? startDate = null,
+		string? endDate = null,
+		CancellationToken cancellationToken = default)
+		{
+		EnsureConnected ();
+		var response = await _connection!.GetCalendarHistoryAsync (_resolvedSiteId!, kind, period, timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
+		return Serialize (response?["response"] ?? response);
+		}
+
 	/// <inheritdoc/>
 	public override Task<string?> PollAsync (string api, bool force = false, bool recursive = false, CancellationToken cancellationToken = default)
 		{
@@ -307,8 +355,28 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		}
 
 	/// <inheritdoc/>
-	public override Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>>?> VitalsAsync (CancellationToken cancellationToken = default) =>
-		Task.FromResult<IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>>?> (null);
+	public override async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>>?> VitalsAsync (CancellationToken cancellationToken = default)
+		{
+		EnsureConnected ();
+		var vitals = await GetVitalsAsync (force: false, cancellationToken).ConfigureAwait (false);
+		if (vitals is not JObject devices)
+			return null;
+
+		var result = new Dictionary<string, IReadOnlyDictionary<string, object?>> (StringComparer.Ordinal);
+		foreach (var device in devices.Properties ())
+			{
+			if (device.Value is not JObject telemetry)
+				continue;
+
+			var values = new Dictionary<string, object?> (StringComparer.Ordinal);
+			foreach (var attribute in telemetry.Properties ())
+				values[attribute.Name] = attribute.Value.Type == JTokenType.Null ? null : attribute.Value.ToObject<object?> ();
+
+			result[device.Name] = values;
+			}
+
+		return result;
+		}
 
 	/// <inheritdoc/>
 	public override async Task<double?> GetTimeRemainingAsync (CancellationToken cancellationToken = default)
