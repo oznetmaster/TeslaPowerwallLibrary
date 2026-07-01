@@ -170,30 +170,33 @@ internal static class PowerwallActions
 	/// Switches the active Tesla energy site and prints the result (cloud mode only). The supplied value may be
 	/// either the Tesla energy site identifier or the human-readable site name shown by the <c>sites</c> command.
 	/// </summary>
-	public static async Task ChangeSiteAsync (Powerwall powerwall, string siteIdOrName, CancellationToken cancellationToken)
+	/// <returns>The selected <see cref="CloudSite"/> when the switch succeeds; otherwise <see langword="null"/>.</returns>
+	public static async Task<CloudSite?> ChangeSiteAsync (Powerwall powerwall, string siteIdOrName, CancellationToken cancellationToken)
 		{
 		ConsoleHelpers.WriteHeading ("Change Site");
 		if (string.IsNullOrWhiteSpace (siteIdOrName))
 			{
 			ConsoleHelpers.WriteError ("  No site identifier or name supplied.");
-			return;
+			return null;
 			}
 
 		var site = await ResolveSiteAsync (powerwall, siteIdOrName, cancellationToken).ConfigureAwait (false);
 		if (site is null)
 			{
 			ConsoleHelpers.WriteError ($"  Site '{siteIdOrName}' was not found for this account.");
-			return;
+			return null;
 			}
 
 		var changed = await powerwall.ChangeSiteAsync (site.SiteId, cancellationToken).ConfigureAwait (false);
-		if (changed)
+		if (!changed)
 			{
-			var label = string.IsNullOrWhiteSpace (site.SiteName) ? Constants.TEXT_UNKNOWN : site.SiteName!.Trim ();
-			ConsoleHelpers.WriteSuccess ($"  Active site changed to {label} ({site.SiteId}).");
-			}
-		else
 			ConsoleHelpers.WriteError ($"  Site '{siteIdOrName}' was not found for this account.");
+			return null;
+			}
+
+		var label = string.IsNullOrWhiteSpace (site.SiteName) ? Constants.TEXT_UNKNOWN : site.SiteName!.Trim ();
+		ConsoleHelpers.WriteSuccess ($"  Active site changed to {label} ({site.SiteId}).");
+		return site;
 		}
 
 	/// <summary>

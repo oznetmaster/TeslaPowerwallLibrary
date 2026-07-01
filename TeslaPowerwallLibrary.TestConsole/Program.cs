@@ -122,7 +122,9 @@ static Command CreateChangeSiteCommand ()
 	command.SetAction ((parseResult, cancellationToken) =>
 		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
 			{
-			await PowerwallActions.ChangeSiteAsync (powerwall, parseResult.GetValue (siteArgument) ?? string.Empty, token).ConfigureAwait (false);
+			var site = await PowerwallActions.ChangeSiteAsync (powerwall, parseResult.GetValue (siteArgument) ?? string.Empty, token).ConfigureAwait (false);
+			if (site is not null && !parseResult.GetValue (CliOptions.NoSave))
+				CliOptions.PersistSelectedSite (site.SiteId);
 			return 0;
 			}, cancellationToken));
 

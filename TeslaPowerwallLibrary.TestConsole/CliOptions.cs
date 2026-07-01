@@ -271,7 +271,20 @@ internal static class CliOptions
 		Persist (options, timeoutSeconds, cacheExpireSeconds, NormalizeRegion (region));
 		}
 
-	private static void Persist (PowerwallOptions options, int? timeoutSeconds, int? cacheExpireSeconds, string region)
+	/// <summary>
+	/// Persists only the selected Tesla energy site to the settings store so it becomes the default site on
+	/// the next run, leaving every other saved value untouched. Used after a mid-session <c>changesite</c>.
+	/// </summary>
+	/// <param name="siteId">The Tesla energy site identifier to remember.</param>
+	internal static void PersistSelectedSite (string siteId)
+		{
+		if (string.IsNullOrWhiteSpace (siteId))
+			return;
+
+		var settings = SettingsStore.Load ();
+		settings.SiteId = siteId.Trim ();
+		SettingsStore.Save (settings);
+		}
 		{
 		// Persist when there is a host (local) or a usable cloud token worth remembering;
 		// the password and tokens are always stored encrypted.

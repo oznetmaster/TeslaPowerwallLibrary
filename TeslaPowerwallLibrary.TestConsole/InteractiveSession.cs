@@ -114,7 +114,7 @@ internal static class InteractiveSession
 				return true;
 
 			case "changesite":
-				await ChangeSiteAsync (powerwall, argument, cancellationToken).ConfigureAwait (false);
+				await ChangeSiteAsync (session, argument, cancellationToken).ConfigureAwait (false);
 				return true;
 
 			case "gridconfig":
@@ -232,7 +232,7 @@ internal static class InteractiveSession
 		await PowerwallActions.SetModeAsync (powerwall, argument!, cancellationToken).ConfigureAwait (false);
 		}
 
-	private static async Task ChangeSiteAsync (Powerwall powerwall, string? argument, CancellationToken cancellationToken)
+	private static async Task ChangeSiteAsync (InteractiveConnection session, string? argument, CancellationToken cancellationToken)
 		{
 		if (string.IsNullOrWhiteSpace (argument))
 			{
@@ -240,7 +240,9 @@ internal static class InteractiveSession
 			return;
 			}
 
-		await PowerwallActions.ChangeSiteAsync (powerwall, argument!, cancellationToken).ConfigureAwait (false);
+		var site = await PowerwallActions.ChangeSiteAsync (session.Powerwall, argument!, cancellationToken).ConfigureAwait (false);
+		if (site is not null)
+			session.UpdateSelectedSite (site.SiteId);
 		}
 
 	private static async Task SetGridChargingAsync (Powerwall powerwall, string? argument, CancellationToken cancellationToken)
