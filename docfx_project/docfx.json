@@ -1,0 +1,66 @@
+{
+  "metadata": [
+    {
+      "src": [
+        {
+          "files": [
+            "WiserHeatAPIv2/WiserHeatAPIv2.csproj"
+          ],
+          "src": ".."
+        }
+      ],
+      "dest": "api",
+      "disableGitFeatures": false
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": [
+          "api/**.yml"
+        ]
+      },
+      {
+        "files": [
+          "api/**.md"
+        ]
+      },
+      {
+        "files": [
+          "articles/**.md"
+        ]
+      },
+      {
+        "files": [
+          "index.md"
+        ]
+      },
+      {
+        "files": [
+          "toc.yml"
+        ]
+      }
+    ],
+    "globalMetadata": {
+      "_appTitle": "WiserHeatAPIv2 API"
+    },
+    "template": [
+      "default",
+      "modern"
+    ]
+  },
+  "pdf": {
+    "content": [
+      {
+        "files": [
+          "api/**.yml"
+        ]
+      }
+    ],
+    "dest": "pdf",
+    "wkhtmltopdf": {
+      "path": "C:/Program Files/wkhtmltopdf/bin/wkhtmltopdf.exe",
+      "additionalArguments": "--enable-local-file-access"
+    }
+  }
+}

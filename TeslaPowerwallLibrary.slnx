@@ -1,0 +1,10 @@
+<Solution>
+  <Project Path="TeslaPowerwallLibrary.Setup/TeslaPowerwallLibrary.Setup.csproj">
+    <Build Solution="Debug|*" Project="false" />
+  </Project>
+  <Project Path="TeslaPowerwallLibrary.TestConsole/TeslaPowerwallLibrary.TestConsole.csproj">
+    <Build Solution="Debug|*" Project="false" />
+  </Project>
+  <Project Path="TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj" />
+  <Project Path="TeslaPowerwallLibrary/TeslaPowerwallLibrary.csproj" />
+</Solution>

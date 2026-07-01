@@ -1,0 +1,869 @@
+// Copyright © 2026 Neil Colvin.
+// Adapted from the Python pypowerwall project Copyright © 2022 Jason A. Cox.
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+
+using System.Diagnostics;
+using System.Globalization;
+
+using log4net;
+
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
+namespace TeslaPowerwallLibrary.Cloud;
+
+/// <summary>
+/// Tesla Owners (cloud) mode client. Communicates with the Tesla Owners API to retrieve Powerwall data
+/// and maps the cloud responses onto the same local-gateway API shapes used by the rest of the library.
+/// Faithfully adapts the behavior of the Python <c>PyPowerwallCloud</c> class using an async,
+/// strongly-typed, cancellable API surface.
+/// </summary>
+/// <remarks>
+/// OAuth tokens must be supplied programmatically via <see cref="PowerwallOptions.AccessToken"/> and
+/// <see cref="PowerwallOptions.RefreshToken"/>. This client refreshes an expired access token but does not
+/// perform interactive browser login; obtain the initial tokens with an external setup tool.
+/// </remarks>
+public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
+	{
+	private const int CounterMax = 64;
+	private const int SiteConfigTtlSeconds = 59;
+	private const double ReserveScaleBuffer = 5.0 / 0.95;
+
+	private static readonly ILog _log = LogManager.GetLogger (typeof (PowerwallCloudClient));
+
+	private readonly Stopwatch _clock = Stopwatch.StartNew ();
+	private readonly Dictionary<string, JToken> _cloudCache = [];
+	private readonly Dictionary<string, double> _cloudCacheTimes = [];
+	private readonly string? _accessToken;
+	private readonly string? _refreshToken;
+
+	private TeslaCloudConnection? _connection;
+	private string? _resolvedSiteId;
+	private int _counter;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="PowerwallCloudClient"/> class.
+	/// </summary>
+	/// <param name="email">Customer email used for Tesla Owners API authentication.</param>
+	/// <param name="cacheExpireSeconds">Number of seconds before cached responses expire.</param>
+	/// <param name="timeout">Per-request HTTP timeout.</param>
+	/// <param name="accessToken">Tesla Owners API OAuth access token.</param>
+	/// <param name="refreshToken">Tesla Owners API OAuth refresh token used to renew the access token.</param>
+	/// <param name="siteId">Optional site identifier to select when an account has multiple sites.</param>
+	/// <param name="authPath">Path to cloud authentication and site cache files.</param>
+	public PowerwallCloudClient (
+		string email,
+		int cacheExpireSeconds,
+		TimeSpan timeout,
+		string? accessToken = null,
+		string? refreshToken = null,
+		string? siteId = null,
+		string authPath = "")
+		: base (email)
+		{
+		CacheExpireSeconds = cacheExpireSeconds;
+		Timeout = timeout;
+		SiteId = siteId;
+		AuthPath = authPath ?? string.Empty;
+		_accessToken = accessToken;
+		_refreshToken = refreshToken;
+		}
+
+	/// <summary>Gets the configured site identifier, when one was supplied.</summary>
+	public string? SiteId { get; private set; }
+
+	/// <summary>Gets the number of seconds before cached responses expire.</summary>
+	public int CacheExpireSeconds { get; }
+
+	/// <summary>Gets the per-request HTTP timeout.</summary>
+	public TimeSpan Timeout { get; }
+
+	/// <summary>Gets the path to cloud authentication and site cache files.</summary>
+	public string AuthPath { get; }
+
+	private double NowSeconds => _clock.Elapsed.TotalSeconds;
+
+	/// <inheritdoc/>
+	public override async Task AuthenticateAsync (CancellationToken cancellationToken = default)
+		{
+		_log.Debug ("Tesla cloud mode enabled");
+
+		_connection = new TeslaCloudConnection (_accessToken, _refreshToken, Timeout);
+		if (!_connection.HasToken)
+			{
+			_connection.Dispose ();
+			_connection = null;
+			throw new PowerwallCloudNoTeslaAuthFileException (
+				"No Tesla cloud authentication tokens were provided. Run setup to create a Tesla auth file and supply "
+				+ "the access and refresh tokens via PowerwallOptions before connecting in cloud mode.");
+			}
+
+		// When only a refresh token is available, obtain an initial access token up front.
+		if (_connection.AccessToken is null && !await _connection.RefreshAccessTokenAsync (cancellationToken).ConfigureAwait (false))
+			{
+			_connection.Dispose ();
+			_connection = null;
+			throw new PowerwallCloudNoTeslaAuthFileException (
+				"Unable to obtain a Tesla cloud access token from the supplied refresh token. Run setup to renew the Tesla auth file.");
+			}
+
+		var sites = await FetchEnergySitesAsync (cancellationToken).ConfigureAwait (false);
+		if (sites is null)
+			{
+			_connection.Dispose ();
+			_connection = null;
+			throw new PowerwallCloudNoTeslaAuthFileException (
+				"Unable to retrieve Tesla cloud product list. The access token may be expired or rejected - run setup to renew the Tesla auth file.");
+			}
+
+		if (sites.Count == 0)
+			{
+			_connection.Dispose ();
+			_connection = null;
+			throw new PowerwallCloudTeslaNotConnectedException ($"No Tesla energy sites were found for {Email}.");
+			}
+
+		_resolvedSiteId = SelectSite (sites);
+		SiteId ??= _resolvedSiteId;
+		_log.Debug ($"Connected to Tesla cloud - using site {_resolvedSiteId} for {Email}");
+		}
+
+	/// <inheritdoc/>
+	public override Task CloseSessionAsync (CancellationToken cancellationToken = default)
+		{
+		_connection?.Dispose ();
+		_connection = null;
+		_resolvedSiteId = null;
+		return Task.CompletedTask;
+		}
+
+	/// <summary>
+	/// Returns the list of Tesla energy sites (Powerwall and solar) available to the authenticated account.
+	/// Faithfully adapts the upstream pypowerwall <c>getsites()</c> method.
+	/// </summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The available sites, or an empty list when none are found.</returns>
+	public async Task<IReadOnlyList<CloudSite>> GetSitesAsync (CancellationToken cancellationToken = default)
+		{
+		EnsureConnected ();
+		var sites = await FetchEnergySitesAsync (cancellationToken).ConfigureAwait (false);
+		if (sites is null)
+			return [];
+
+		return sites
+			.Select (static site => new CloudSite
+				{
+				SiteId = GetSiteId (site),
+				SiteName = site.Value<string> ("site_name"),
+				ResourceType = site.Value<string> ("resource_type")
+				})
+			.ToList ();
+		}
+
+	/// <summary>
+	/// Switches the active site to the one matching <paramref name="siteId"/> without reconnecting.
+	/// Faithfully adapts the upstream pypowerwall <c>change_site()</c> method, additionally clearing the
+	/// cloud cache so subsequent reads reflect the newly selected site.
+	/// </summary>
+	/// <param name="siteId">The Tesla energy site identifier to switch to.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns><see langword="true"/> when the site was found and selected; otherwise <see langword="false"/>.</returns>
+	public async Task<bool> ChangeSiteAsync (string siteId, CancellationToken cancellationToken = default)
+		{
+		EnsureConnected ();
+		if (string.IsNullOrWhiteSpace (siteId))
+			{
+			_log.Error ("Invalid siteid - value is null or empty.");
+			return false;
+			}
+
+		var sites = await FetchEnergySitesAsync (cancellationToken).ConfigureAwait (false);
+		if (sites is null || sites.Count == 0)
+			{
+			_log.Error ($"No sites found for {Email}.");
+			return false;
+			}
+
+		foreach (var site in sites)
+			{
+			if (GetSiteId (site) != siteId)
+				continue;
+
+			_resolvedSiteId = siteId;
+			SiteId = siteId;
+			ClearCloudCache ();
+			var siteName = site.Value<string> ("site_name") ?? "Unknown";
+			_log.Debug ($"Changed site to {siteId} ({siteName}) for {Email}");
+			return true;
+			}
+
+		_log.Error ($"Site {siteId} not found for {Email}.");
+		return false;
+		}
+
+	/// <summary>
+	/// Enables or disables charging the battery from the grid. Faithfully adapts the upstream
+	/// pypowerwall <c>set_grid_charging()</c> method.
+	/// </summary>
+	/// <param name="enabled"><see langword="true"/> to allow grid charging; <see langword="false"/> to disallow it.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The raw response body, or <see langword="null"/> when the call fails.</returns>
+	public async Task<string?> SetGridChargingAsync (bool enabled, CancellationToken cancellationToken = default)
+		{
+		EnsureConnected ();
+
+		// Upstream inverts the flag: enabling grid charging clears "disallow_charge_from_grid_with_solar_installed".
+		var settings = new JObject { ["disallow_charge_from_grid_with_solar_installed"] = !enabled };
+		var response = await _connection!.SetGridImportExportAsync (_resolvedSiteId!, settings, cancellationToken).ConfigureAwait (false);
+		InvalidateCloudCache ("SITE_CONFIG");
+		return Serialize (response);
+		}
+
+	/// <summary>
+	/// Sets the grid export rule. Faithfully adapts the upstream pypowerwall <c>set_grid_export()</c> method.
+	/// </summary>
+	/// <param name="mode">The export rule: <c>battery_ok</c>, <c>pv_only</c>, or <c>never</c>.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The raw response body, or <see langword="null"/> when the call fails.</returns>
+	public async Task<string?> SetGridExportAsync (string mode, CancellationToken cancellationToken = default)
+		{
+		EnsureConnected ();
+
+		var settings = new JObject { ["customer_preferred_export_rule"] = mode };
+		var response = await _connection!.SetGridImportExportAsync (_resolvedSiteId!, settings, cancellationToken).ConfigureAwait (false);
+		InvalidateCloudCache ("SITE_CONFIG");
+		return Serialize (response);
+		}
+
+	/// <summary>
+	/// Returns whether charging the battery from the grid is currently allowed. Faithfully adapts the
+	/// upstream pypowerwall <c>get_grid_charging()</c> method.
+	/// </summary>
+	/// <param name="force">When <see langword="true"/>, bypasses the cache.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns><see langword="true"/> when grid charging is allowed, <see langword="false"/> when disallowed, or <see langword="null"/> when unavailable.</returns>
+	public async Task<bool?> GetGridChargingAsync (bool force = false, CancellationToken cancellationToken = default)
+		{
+		EnsureConnected ();
+
+		var config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
+		var components = config?["response"]?["components"];
+		if (components is null)
+			return null;
+
+		var disallow = components.Value<bool?> ("disallow_charge_from_grid_with_solar_installed") ?? false;
+		return !disallow;
+		}
+
+	/// <summary>
+	/// Returns the current grid export rule. Faithfully adapts the upstream pypowerwall
+	/// <c>get_grid_export()</c> method.
+	/// </summary>
+	/// <param name="force">When <see langword="true"/>, bypasses the cache.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The export rule (<c>battery_ok</c>, <c>pv_only</c>, or <c>never</c>), or <see langword="null"/> when unavailable.</returns>
+	public async Task<string?> GetGridExportAsync (bool force = false, CancellationToken cancellationToken = default)
+		{
+		EnsureConnected ();
+
+		var config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
+		var components = config?["response"]?["components"];
+		if (components is null)
+			return null;
+
+		// A pre-PTO "non_export_configured" flag overrides the preferred export rule.
+		if (components.Value<bool?> ("non_export_configured") == true)
+			return "never";
+
+		return components.Value<string> ("customer_preferred_export_rule") ?? "battery_ok";
+		}
+
+	/// <inheritdoc/>
+	public override Task<string?> PollAsync (string api, bool force = false, bool recursive = false, CancellationToken cancellationToken = default)
+		{
+		if (string.IsNullOrWhiteSpace (api))
+			throw new ArgumentException ("API endpoint is required.", nameof (api));
+
+		EnsureConnected ();
+		return MapPollAsync (api, force, cancellationToken);
+		}
+
+	/// <inheritdoc/>
+	public override Task<byte[]?> PollRawAsync (string api, bool force = false, bool recursive = false, CancellationToken cancellationToken = default)
+		{
+		// Cloud mode has no protobuf vitals path; mirror upstream by returning no binary payload.
+		_log.Debug ($"Raw poll is not supported in cloud mode for {api}");
+		return Task.FromResult<byte[]?> (null);
+		}
+
+	/// <inheritdoc/>
+	public override Task<string?> PostAsync (string api, object? payload, string? din = null, bool recursive = false, CancellationToken cancellationToken = default)
+		{
+		if (string.IsNullOrWhiteSpace (api))
+			throw new ArgumentException ("API endpoint is required.", nameof (api));
+
+		EnsureConnected ();
+		return MapPostAsync (api, payload, din, cancellationToken);
+		}
+
+	/// <inheritdoc/>
+	public override Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>>?> VitalsAsync (CancellationToken cancellationToken = default) =>
+		Task.FromResult<IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>>?> (null);
+
+	/// <inheritdoc/>
+	public override async Task<double?> GetTimeRemainingAsync (CancellationToken cancellationToken = default)
+		{
+		EnsureConnected ();
+		var response = await GetCachedSiteDataAsync (
+			"ENERGY_SITE_BACKUP_TIME_REMAINING",
+			CacheExpireSeconds,
+			(c, ct) => c.GetBackupTimeRemainingAsync (_resolvedSiteId!, ct),
+			force: false,
+			cancellationToken).ConfigureAwait (false);
+
+		var hours = response?["response"]?["time_remaining_hours"];
+		if (hours is null)
+			return 0.0;
+
+		return hours.Type is JTokenType.Float or JTokenType.Integer ? hours.Value<double> () : 0.0;
+		}
+
+	private async Task<string?> MapPollAsync (string api, bool force, CancellationToken cancellationToken)
+		{
+		_log.Debug ($" -- cloud: Request for {api}");
+
+		JToken? data = api switch
+			{
+			"/api/devices/vitals" => GetApiDevicesVitals (),
+			"/api/meters/aggregates" => await GetApiMetersAggregatesAsync (force, cancellationToken).ConfigureAwait (false),
+			"/api/operation" => await GetApiOperationAsync (force, cancellationToken).ConfigureAwait (false),
+			"/api/site_info" => await GetApiSiteInfoAsync (force, cancellationToken).ConfigureAwait (false),
+			"/api/site_info/site_name" => await GetApiSiteInfoSiteNameAsync (force, cancellationToken).ConfigureAwait (false),
+			"/api/status" => await GetApiStatusAsync (force, cancellationToken).ConfigureAwait (false),
+			"/api/system_status" => await GetApiSystemStatusAsync (force, cancellationToken).ConfigureAwait (false),
+			"/api/system_status/grid_status" => await GetApiSystemStatusGridStatusAsync (force, cancellationToken).ConfigureAwait (false),
+			"/api/system_status/soe" => await GetApiSystemStatusSoeAsync (force, cancellationToken).ConfigureAwait (false),
+			"/vitals" => await GetVitalsAsync (force, cancellationToken).ConfigureAwait (false),
+			"/api/login/Basic" => MockObject ("api_login_basic", static () => new JObject { ["status"] = "ok" }),
+			"/api/logout" => MockObject ("api_logout", static () => new JObject { ["status"] = "ok" }),
+			"/api/auth/toggle/supported" => MockObject ("get_api_auth_toggle_supported", static () => new JObject { ["toggle_auth_supported"] = true }),
+			"/api/customer" => MockObject ("get_api_customer", static () => new JObject { ["registered"] = true }),
+			"/api/customer/registration" => MockParse ("get_api_customer_registration", """{"privacy_notice":null,"limited_warranty":null,"grid_services":null,"marketing":null,"registered":true,"timed_out_registration":false}"""),
+			"/api/installer" => MockParse ("get_api_installer", CloudMockData.INSTALLER),
+			"/api/meters" => MockParse ("get_api_meters", CloudMockData.METERS),
+			"/api/meters/readings" => MockValue ("get_api_unimplemented_timeout", "TIMEOUT!"),
+			"/api/meters/site" => MockParse ("get_api_meters_site", CloudMockData.METERS_SITE),
+			"/api/meters/solar" => null,
+			"/api/networks" => MockValue ("get_api_unimplemented_timeout", "TIMEOUT!"),
+			"/api/powerwalls" => MockParse ("get_api_powerwalls", CloudMockData.POWERWALLS),
+			"/api/site_info/grid_codes" => MockValue ("get_api_unimplemented_timeout", "TIMEOUT!"),
+			"/api/sitemaster" => MockObject ("get_api_sitemaster", static () => new JObject
+				{
+				["status"] = "StatusUp",
+				["running"] = true,
+				["connected_to_tesla"] = true,
+				["power_supply_mode"] = false,
+				["can_reboot"] = "Yes"
+				}),
+			"/api/solar_powerwall" => MockObject ("get_api_solar_powerwall", static () => new JObject ()),
+			"/api/solars" => MockParse ("get_api_solars", """[{"brand":"Tesla","model":"Solar Inverter 7.6","power_rating_watts":7600}]"""),
+			"/api/solars/brands" => MockParse ("get_api_solars_brands", CloudMockData.SOLARS_BRANDS),
+			"/api/synchrometer/ct_voltage_references" => MockParse ("get_api_synchrometer_ct_voltage_references", """{"ct1":"Phase1","ct2":"Phase2","ct3":"Phase1"}"""),
+			"/api/system/update/status" => MockParse ("get_api_system_update_status", """{"state":"/update_succeeded","info":{"status":["nonactionable"]},"current_time":1702756114429,"last_status_time":1702753309227,"version":"23.28.2 27626f98","offline_updating":false,"offline_update_error":"","estimated_bytes_per_second":null}"""),
+			"/api/system_status/grid_faults" => MockParse ("get_api_system_status_grid_faults", "[]"),
+			"/api/troubleshooting/problems" => MockParse ("get_api_troubleshooting_problems", """{"problems":[]}"""),
+			_ => new JObject { ["ERROR"] = $"Unknown API: {api}" }
+			};
+
+		return Serialize (data);
+		}
+
+	private async Task<string?> MapPostAsync (string api, object? payload, string? din, CancellationToken cancellationToken)
+		{
+		_log.Debug ($" -- cloud: Request for {api}");
+
+		if (api != "/api/operation")
+			return Serialize (new JObject { ["ERROR"] = $"Unknown API: {api}" });
+
+		var result = await PostApiOperationAsync (payload, din, cancellationToken).ConfigureAwait (false);
+		if (result is not null)
+			InvalidateCache (api);
+
+		return Serialize (result);
+		}
+
+	private JToken? GetApiDevicesVitals ()
+		{
+		_log.Warn ("Protobuf payload - not implemented for /api/devices/vitals - use /vitals instead");
+		return null;
+		}
+
+	private async Task<JToken?> GetApiSystemStatusSoeAsync (bool force, CancellationToken cancellationToken)
+		{
+		var battery = await GetBatteryAsync (force, cancellationToken).ConfigureAwait (false);
+		if (battery is null)
+			return null;
+
+		var percentageCharged = battery["response"]?.Value<double?> ("percentage_charged") ?? 0;
+		var soe = (percentageCharged + ReserveScaleBuffer) * 0.95;
+		return new JObject { ["percentage"] = soe };
+		}
+
+	private async Task<JToken?> GetApiStatusAsync (bool force, CancellationToken cancellationToken)
+		{
+		var config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
+		var response = config?["response"];
+		if (response is null)
+			return null;
+
+		return new JObject
+			{
+			["din"] = response["id"],
+			["start_time"] = response["installation_date"],
+			["up_time_seconds"] = null,
+			["is_new"] = false,
+			["version"] = response["version"],
+			["git_hash"] = "27626f98a66cad5c665bbe1d4d788cdb3e94fd34",
+			["commission_count"] = 0,
+			["device_type"] = response["components"]?["gateway"],
+			["teg_type"] = "unknown",
+			["sync_type"] = "v2.1",
+			["cellular_disabled"] = false,
+			["can_reboot"] = true
+			};
+		}
+
+	private async Task<JToken?> GetApiSystemStatusGridStatusAsync (bool force, CancellationToken cancellationToken)
+		{
+		var power = await GetSitePowerAsync (force, cancellationToken).ConfigureAwait (false);
+		var response = power?["response"];
+		if (response is null)
+			return null;
+
+		var gridStatusValue = response.Value<string> ("grid_status");
+		var gridStatus = gridStatusValue is "Active" or "Unknown" or null or ""
+			? "SystemGridConnected"
+			: "SystemIslandedActive";
+
+		return new JObject
+			{
+			["grid_status"] = gridStatus,
+			["grid_services_active"] = response["grid_services_active"]
+			};
+		}
+
+	private async Task<JToken?> GetApiSiteInfoSiteNameAsync (bool force, CancellationToken cancellationToken)
+		{
+		var config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
+		var response = config?["response"];
+		if (response is null)
+			return null;
+
+		return new JObject
+			{
+			["site_name"] = response["site_name"],
+			["timezone"] = response["installation_time_zone"]
+			};
+		}
+
+	private async Task<JToken?> GetApiSiteInfoAsync (bool force, CancellationToken cancellationToken)
+		{
+		var config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
+		var response = config?["response"];
+		if (response is null)
+			return null;
+
+		var nameplatePower = ParseLong (response["nameplate_power"]) / 1000.0;
+		var nameplateEnergy = ParseLong (response["nameplate_energy"]) / 1000.0;
+
+		return new JObject
+			{
+			["max_system_energy_kWh"] = nameplateEnergy,
+			["max_system_power_kW"] = nameplatePower,
+			["site_name"] = response["site_name"],
+			["timezone"] = response["installation_time_zone"],
+			["max_site_meter_power_kW"] = response["max_site_meter_power_ac"],
+			["min_site_meter_power_kW"] = response["min_site_meter_power_ac"],
+			["nominal_system_energy_kWh"] = nameplateEnergy,
+			["nominal_system_power_kW"] = nameplatePower,
+			["panel_max_current"] = null,
+			["grid_code"] = new JObject
+				{
+				["grid_code"] = null,
+				["grid_voltage_setting"] = null,
+				["grid_freq_setting"] = null,
+				["grid_phase_setting"] = null,
+				["country"] = null,
+				["state"] = null,
+				["utility"] = response["tariff_content"]?["utility"]
+				}
+			};
+		}
+
+	private async Task<JToken?> GetVitalsAsync (bool force, CancellationToken cancellationToken)
+		{
+		var config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
+		var power = await GetSitePowerAsync (force, cancellationToken).ConfigureAwait (false);
+		var configResponse = config?["response"];
+		var powerResponse = power?["response"];
+		if (configResponse is null || powerResponse is null)
+			return null;
+
+		var din = configResponse.Value<string> ("id");
+		string? partNumber = null;
+		string? serialNumber = null;
+		if (din is not null)
+			{
+			var parts = din.Split (["--"], StringSplitOptions.None);
+			if (parts.Length == 2)
+				{
+				partNumber = parts[0];
+				serialNumber = parts[1];
+				}
+			}
+
+		var islandStatus = powerResponse.Value<string> ("island_status");
+		var alert = islandStatus switch
+			{
+			"on_grid" => "SystemConnectedToGrid",
+			"off_grid_intentional" => "ScheduledIslandContactorOpen",
+			"off_grid" => "UnscheduledIslandContactorOpen",
+			_ => powerResponse.Value<string> ("grid_status") is "Active" or "Unknown" ? "SystemConnectedToGrid" : ""
+			};
+
+		var deviceKey = $"STSTSM--{partNumber}--{serialNumber}";
+		return new JObject
+			{
+			[deviceKey] = new JObject
+				{
+				["partNumber"] = partNumber,
+				["serialNumber"] = serialNumber,
+				["manufacturer"] = "Simulated",
+				["firmwareVersion"] = configResponse["version"],
+				["lastCommunicationTime"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds (),
+				["teslaEnergyEcuAttributes"] = new JObject { ["ecuType"] = 207 },
+				["STSTSM-Location"] = "Simulated",
+				["alerts"] = new JArray { alert }
+				}
+			};
+		}
+
+	private async Task<JToken?> GetApiMetersAggregatesAsync (bool force, CancellationToken cancellationToken)
+		{
+		var config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
+		var power = await GetSitePowerAsync (force, cancellationToken).ConfigureAwait (false);
+		var configResponse = config?["response"];
+		var powerResponse = power?["response"];
+		if (configResponse is null || powerResponse is null)
+			return null;
+
+		var timestamp = powerResponse["timestamp"];
+		var batteryCount = configResponse["battery_count"];
+
+		int solarInverters;
+		if (configResponse["components"]?["inverters"] is JArray inverters)
+			solarInverters = inverters.Count;
+		else if (configResponse["components"]?["solar"] is { } solar && solar.Type != JTokenType.Null)
+			solarInverters = 1;
+		else
+			solarInverters = 0;
+
+		var data = JObject.Parse (CloudMockData.METERS_AGGREGATES_TEMPLATE);
+		MergeInto ((JObject) data["site"]!, new JObject
+			{
+			["last_communication_time"] = timestamp,
+			["instant_power"] = powerResponse["grid_power"]
+			});
+		MergeInto ((JObject) data["battery"]!, new JObject
+			{
+			["last_communication_time"] = timestamp,
+			["instant_power"] = powerResponse["battery_power"],
+			["num_meters_aggregated"] = batteryCount
+			});
+		MergeInto ((JObject) data["load"]!, new JObject
+			{
+			["last_communication_time"] = timestamp,
+			["instant_power"] = powerResponse["load_power"]
+			});
+		MergeInto ((JObject) data["solar"]!, new JObject
+			{
+			["last_communication_time"] = timestamp,
+			["instant_power"] = powerResponse["solar_power"],
+			["num_meters_aggregated"] = solarInverters
+			});
+
+		return data;
+		}
+
+	private async Task<JToken?> GetApiOperationAsync (bool force, CancellationToken cancellationToken)
+		{
+		var config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
+		var response = config?["response"];
+		if (response is null)
+			return null;
+
+		var backupReservePercent = response.Value<double?> ("backup_reserve_percent") ?? 0;
+		var backup = (backupReservePercent + ReserveScaleBuffer) * 0.95;
+		return new JObject
+			{
+			["real_mode"] = response["default_real_mode"],
+			["backup_reserve_percent"] = backup
+			};
+		}
+
+	private async Task<JToken?> GetApiSystemStatusAsync (bool force, CancellationToken cancellationToken)
+		{
+		var power = await GetSitePowerAsync (force, cancellationToken).ConfigureAwait (false);
+		var config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
+		var battery = await GetBatteryAsync (force, cancellationToken).ConfigureAwait (false);
+		var powerResponse = power?["response"];
+		var configResponse = config?["response"];
+		var batteryResponse = battery?["response"];
+		if (powerResponse is null || configResponse is null || batteryResponse is null)
+			return null;
+
+		var batteryCount = configResponse["battery_count"];
+		var nameplatePower = configResponse["nameplate_power"];
+
+		string gridStatus;
+		if (powerResponse.Value<string> ("island_status") == "on_grid")
+			gridStatus = "SystemGridConnected";
+		else
+			gridStatus = powerResponse.Value<string> ("grid_status") is "Active" or "Unknown"
+				? "SystemGridConnected"
+				: "SystemIslandedActive";
+
+		var data = JObject.Parse (CloudMockData.SYSTEM_STATUS_TEMPLATE);
+		MergeInto (data, new JObject
+			{
+			["nominal_full_pack_energy"] = batteryResponse["total_pack_energy"],
+			["nominal_energy_remaining"] = batteryResponse["energy_left"],
+			["max_charge_power"] = nameplatePower,
+			["max_discharge_power"] = nameplatePower,
+			["max_apparent_power"] = nameplatePower,
+			["grid_services_power"] = powerResponse["grid_services_power"],
+			["system_island_state"] = gridStatus,
+			["available_blocks"] = batteryCount,
+			["solar_real_power_limit"] = powerResponse["solar_power"],
+			["blocks_controlled"] = batteryCount
+			});
+
+		return data;
+		}
+
+	private async Task<JObject?> PostApiOperationAsync (object? payload, string? din, CancellationToken cancellationToken)
+		{
+		var payloadObject = payload is null ? new JObject () : JObject.FromObject (payload);
+		var reserveToken = payloadObject["backup_reserve_percent"];
+		var hasReserve = reserveToken is not null && reserveToken.Type != JTokenType.Null && reserveToken.Type != JTokenType.Boolean;
+		var realMode = payloadObject.Value<string> ("real_mode");
+
+		if (!hasReserve && string.IsNullOrEmpty (realMode))
+			{
+			throw new PowerwallCloudInvalidPayloadException (
+				"/api/operation payload missing required parameters. Either 'backup_reserve_percent' or 'real_mode', or both, must be present.");
+			}
+
+		if (string.IsNullOrWhiteSpace (din))
+			_log.Warn ("No valid DIN provided, will adjust the configured site battery.");
+
+		var reservePercent = (int) Math.Round (payloadObject.Value<double?> ("backup_reserve_percent") ?? 0);
+
+		try
+			{
+			var levelResult = await _connection!.SetBackupReserveAsync (_resolvedSiteId!, reservePercent, cancellationToken).ConfigureAwait (false);
+			var modeResult = realMode is null
+				? null
+				: await _connection.SetOperationModeAsync (_resolvedSiteId!, realMode, cancellationToken).ConfigureAwait (false);
+
+			return new JObject
+				{
+				["set_backup_reserve_percent"] = new JObject
+					{
+					["backup_reserve_percent"] = reservePercent,
+					["din"] = din,
+					["result"] = ExtractCommandResult (levelResult)
+					},
+				["set_operation"] = new JObject
+					{
+					["real_mode"] = realMode,
+					["din"] = din,
+					["result"] = ExtractCommandResult (modeResult)
+					}
+				};
+			}
+		catch (Exception exc) when (exc is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+			{
+			return new JObject { ["error"] = exc.Message };
+			}
+		}
+
+	private Task<JObject?> GetSiteConfigAsync (bool force, CancellationToken cancellationToken) =>
+		GetCachedSiteDataAsync (
+			"SITE_CONFIG",
+			SiteConfigTtlSeconds,
+			(c, ct) => c.GetSiteConfigAsync (_resolvedSiteId!, ct),
+			force,
+			cancellationToken);
+
+	private async Task<JObject?> GetSitePowerAsync (bool force, CancellationToken cancellationToken)
+		{
+		var cachedBefore = IsCloudCacheValid ("SITE_DATA", CacheExpireSeconds);
+		var counter = _counter + 1;
+		var response = await GetCachedSiteDataAsync (
+			"SITE_DATA",
+			CacheExpireSeconds,
+			(c, ct) => c.GetSitePowerAsync (_resolvedSiteId!, counter, ct),
+			force,
+			cancellationToken).ConfigureAwait (false);
+
+		if (!cachedBefore && response is not null)
+			_counter = (_counter + 1) % CounterMax;
+
+		return response;
+		}
+
+	private Task<JObject?> GetBatteryAsync (bool force, CancellationToken cancellationToken) =>
+		GetCachedSiteDataAsync (
+			"SITE_SUMMARY",
+			CacheExpireSeconds,
+			(c, ct) => c.GetSiteSummaryAsync (_resolvedSiteId!, ct),
+			force,
+			cancellationToken);
+
+	private async Task<JObject?> GetCachedSiteDataAsync (
+		string name,
+		int ttlSeconds,
+		Func<TeslaCloudConnection, CancellationToken, Task<JObject?>> fetch,
+		bool force,
+		CancellationToken cancellationToken)
+		{
+		if (!force && IsCloudCacheValid (name, ttlSeconds) && _cloudCache.TryGetValue (name, out var cached))
+			{
+			_log.Debug ($" -- cloud: Returning cached {name} data");
+			return cached as JObject;
+			}
+
+		var response = await fetch (_connection!, cancellationToken).ConfigureAwait (false);
+		if (response is not null)
+			{
+			_cloudCache[name] = response;
+			_cloudCacheTimes[name] = NowSeconds;
+			_log.Debug ($" -- cloud: Retrieved {name} data");
+			}
+
+		return response;
+		}
+
+	private bool IsCloudCacheValid (string name, int ttlSeconds) =>
+		_cloudCache.ContainsKey (name)
+		&& _cloudCacheTimes.TryGetValue (name, out var cachedAt)
+		&& cachedAt > NowSeconds - ttlSeconds;
+
+	private async Task<List<JObject>?> FetchEnergySitesAsync (CancellationToken cancellationToken)
+		{
+		var products = await _connection!.GetProductsAsync (cancellationToken).ConfigureAwait (false);
+		return products?
+			.OfType<JObject> ()
+			.Where (static p => p.Value<string> ("resource_type") is "battery" or "solar")
+			.ToList ();
+		}
+
+	private void InvalidateCloudCache (string name)
+		{
+		_cloudCache.Remove (name);
+		_cloudCacheTimes.Remove (name);
+		}
+
+	private void ClearCloudCache ()
+		{
+		_cloudCache.Clear ();
+		_cloudCacheTimes.Clear ();
+		}
+
+	private string SelectSite (IReadOnlyList<JObject> sites)
+		{
+		if (SiteId is null)
+			return GetSiteId (sites[0]);
+
+		foreach (var site in sites)
+			{
+			if (GetSiteId (site) == SiteId)
+				return SiteId;
+			}
+
+		_log.Warn ($"Site {SiteId} not found for {Email} - defaulting to first site.");
+		return GetSiteId (sites[0]);
+		}
+
+	private static string GetSiteId (JObject site) =>
+		site.Value<string> ("energy_site_id")
+		?? site.Value<long?> ("energy_site_id")?.ToString (CultureInfo.InvariantCulture)
+		?? site.Value<string> ("id")
+		?? string.Empty;
+
+	private void EnsureConnected ()
+		{
+		if (_connection is null || _resolvedSiteId is null)
+			throw new PowerwallCloudTeslaNotConnectedException ("Not connected to the Tesla cloud. Call AuthenticateAsync before invoking data methods.");
+		}
+
+	private JToken MockObject (string name, Func<JObject> factory)
+		{
+		LogMockUsage (name);
+		return factory ();
+		}
+
+	private JToken MockParse (string name, string json)
+		{
+		LogMockUsage (name);
+		return JToken.Parse (json);
+		}
+
+	private JToken MockValue (string name, string value)
+		{
+		LogMockUsage (name);
+		return new JValue (value);
+		}
+
+	private void LogMockUsage (string name) =>
+		_log.Debug ($"This API [{name}] is using mock data in cloud mode.");
+
+	private static JToken ExtractCommandResult (JObject? response)
+		{
+		if (response is null)
+			return "BatteryNotFound";
+
+		// Tesla command responses wrap the outcome in a response envelope.
+		return response["response"] ?? response;
+		}
+
+	private static void MergeInto (JObject target, JObject updates)
+		{
+		foreach (var property in updates.Properties ())
+			target[property.Name] = property.Value;
+		}
+
+	private static long ParseLong (JToken? token)
+		{
+		if (token is null || token.Type == JTokenType.Null)
+			return 0;
+
+		return token.Type switch
+			{
+			JTokenType.Integer or JTokenType.Float => token.Value<long> (),
+			JTokenType.String => long.TryParse (token.Value<string> (), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : 0,
+			_ => 0
+			};
+		}
+
+	private static string? Serialize (JToken? token) =>
+		token is null ? null : token.ToString (Formatting.None);
+
+	/// <summary>Releases the underlying Tesla cloud connection.</summary>
+	public void Dispose ()
+		{
+		_connection?.Dispose ();
+		_connection = null;
+		}
+	}

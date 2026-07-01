@@ -1,0 +1,550 @@
+// Copyright © 2026 Neil Colvin.
+// Adapted from the Python pypowerwall project Copyright © 2022 Jason A. Cox.
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+
+using log4net;
+
+using TeslaPowerwallLibrary.Cloud;
+using TeslaPowerwallLibrary.Local;
+using TeslaPowerwallLibrary.Models;
+
+namespace TeslaPowerwallLibrary;
+
+/// <summary>
+/// High-level, async-first client representing a Tesla Energy Gateway Powerwall device.
+/// This is the primary entry point of the library and delegates to a mode-specific
+/// <see cref="PowerwallClientBase"/> implementation (currently local mode).
+/// </summary>
+/// <remarks>
+/// This type is an idiomatic .NET adaptation of the Python <c>pypowerwall</c> <c>Powerwall</c> class.
+/// Construct an instance with <see cref="PowerwallOptions"/> and call <see cref="ConnectAsync"/> before
+/// invoking any data methods.
+/// </remarks>
+public sealed class Powerwall : IDisposable
+	{
+	private static readonly ILog _log = LogManager.GetLogger (typeof (Powerwall));
+
+	private readonly PowerwallOptions _options;
+	private PowerwallClientBase? _client;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="Powerwall"/> class.
+	/// </summary>
+	/// <param name="options">Connection and behavior options.</param>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="options"/> is <see langword="null"/>.</exception>
+	/// <exception cref="PowerwallInvalidConfigurationException">Thrown when the supplied options fail validation.</exception>
+	public Powerwall (PowerwallOptions options)
+		{
+		_options = options ?? throw new ArgumentNullException (nameof (options));
+
+		Mode = ResolveMode (options);
+		ValidateConfiguration ();
+		}
+
+	/// <summary>Gets the resolved connection mode for this instance.</summary>
+	public PowerwallMode Mode { get; private set; }
+
+	/// <summary>Gets a value indicating whether a backend client has been connected.</summary>
+	public bool IsClientConnected => _client is not null;
+
+	/// <summary>
+	/// Establishes a connection to the Tesla Energy Gateway using the configured mode.
+	/// </summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns><see langword="true"/> when the connection succeeds; otherwise <see langword="false"/>.</returns>
+	/// <exception cref="PowerwallInvalidConfigurationException">Thrown when the mode cannot be determined.</exception>
+	public async Task<bool> ConnectAsync (CancellationToken cancellationToken = default)
+		{
+		switch (Mode)
+			{
+			case PowerwallMode.Local:
+				var localClient = new PowerwallLocalClient (
+					_options.Host,
+					_options.Password,
+					_options.Email,
+					_options.Timezone,
+					_options.Timeout,
+					_options.CacheExpireSeconds,
+					_options.AuthMode,
+					_options.CacheFile);
+				try
+					{
+					await localClient.AuthenticateAsync (cancellationToken).ConfigureAwait (false);
+					}
+				catch (Exception exc) when (exc is PowerwallException)
+					{
+					_log.Warn ($"Failed to connect using Local mode: {exc.Message}");
+					localClient.Dispose ();
+					return false;
+					}
+
+				_client = localClient;
+				return true;
+
+			case PowerwallMode.Cloud:
+				var cloudClient = new PowerwallCloudClient (
+					_options.Email,
+					_options.CacheExpireSeconds,
+					_options.Timeout,
+					_options.AccessToken,
+					_options.RefreshToken,
+					_options.SiteId,
+					_options.AuthPath);
+				try
+					{
+					await cloudClient.AuthenticateAsync (cancellationToken).ConfigureAwait (false);
+					}
+				catch (PowerwallCloudNoTeslaAuthFileException)
+					{
+					// Missing or unusable tokens are a configuration problem the caller must fix (run setup),
+					// so surface it rather than reporting a transient connection failure.
+					cloudClient.Dispose ();
+					throw;
+					}
+				catch (Exception exc) when (exc is PowerwallException)
+					{
+					_log.Warn ($"Failed to connect using Cloud mode: {exc.Message}");
+					cloudClient.Dispose ();
+					return false;
+					}
+
+				_client = cloudClient;
+				return true;
+
+			case PowerwallMode.FleetApi:
+				throw new PowerwallInvalidConfigurationException (
+					$"Connection mode '{Mode}' is not yet implemented in this version of the library.");
+
+			default:
+				_log.Error ("Unable to determine mode to connect.");
+				throw new PowerwallInvalidConfigurationException ("Unable to determine mode to connect.");
+			}
+		}
+
+	/// <summary>
+	/// Determines whether the gateway is reachable by attempting to read its status.
+	/// </summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns><see langword="true"/> when the gateway responds with status; otherwise <see langword="false"/>.</returns>
+	public async Task<bool> IsConnectedAsync (CancellationToken cancellationToken = default)
+		{
+		try
+			{
+			return await StatusAsync (cancellationToken).ConfigureAwait (false) is not null;
+			}
+		catch (PowerwallException)
+			{
+			return false;
+			}
+		}
+
+	/// <summary>
+	/// Queries the gateway for the raw response body of an arbitrary API endpoint.
+	/// </summary>
+	/// <param name="api">The API endpoint to query.</param>
+	/// <param name="force">When <see langword="true"/>, bypasses the cache.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The raw response body, or <see langword="null"/> when no payload is available.</returns>
+	public Task<string?> PollAsync (string api, bool force = false, CancellationToken cancellationToken = default) =>
+		RequireClient ().PollAsync (api, force, cancellationToken: cancellationToken);
+
+	/// <summary>
+	/// Sends a command to an arbitrary API endpoint.
+	/// </summary>
+	/// <param name="api">The API endpoint to post to.</param>
+	/// <param name="payload">The payload to send; serialized as JSON.</param>
+	/// <param name="din">System DIN, when required by the endpoint.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The raw response body, or <see langword="null"/> when no payload is available.</returns>
+	public Task<string?> PostAsync (string api, object? payload, string? din = null, CancellationToken cancellationToken = default) =>
+		RequireClient ().PostAsync (api, payload, din, cancellationToken: cancellationToken);
+
+	/// <summary>
+	/// Returns the battery charge level percentage.
+	/// </summary>
+	/// <param name="scale">When <see langword="true"/>, converts the raw level to the Tesla app scale.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The battery level percentage, or <see langword="null"/> when unavailable.</returns>
+	public async Task<double?> LevelAsync (bool scale = false, CancellationToken cancellationToken = default)
+		{
+		var payload = await RequireClient ().PollAsync ("/api/system_status/soe", cancellationToken: cancellationToken).ConfigureAwait (false);
+		var soe = JsonHelper.DeserializeOrNull<StateOfEnergy> (payload);
+		if (soe is null)
+			return null;
+
+		var level = soe.Percentage;
+		return scale ? (level / 0.95) - (5 / 0.95) : level;
+		}
+
+	/// <summary>
+	/// Returns the instantaneous power flows for site, solar, battery, and load.
+	/// </summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>A <see cref="PowerSnapshot"/> with the four flows in watts.</returns>
+	public Task<PowerSnapshot> PowerAsync (CancellationToken cancellationToken = default) =>
+		RequireClient ().PowerAsync (cancellationToken);
+
+	/// <summary>Returns the grid (site) power in watts.</summary>
+	/// <param name="verbose">When <see langword="true"/>, reads directly from the meter aggregates endpoint.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The site power in watts, or <see langword="null"/> when unavailable.</returns>
+	public Task<double?> SiteAsync (bool verbose = false, CancellationToken cancellationToken = default) =>
+		RequireClient ().FetchPowerAsync ("site", verbose, cancellationToken);
+
+	/// <summary>Returns the solar generation power in watts.</summary>
+	/// <param name="verbose">When <see langword="true"/>, reads directly from the meter aggregates endpoint.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The solar power in watts, or <see langword="null"/> when unavailable.</returns>
+	public Task<double?> SolarAsync (bool verbose = false, CancellationToken cancellationToken = default) =>
+		RequireClient ().FetchPowerAsync ("solar", verbose, cancellationToken);
+
+	/// <summary>Returns the battery power flow in watts.</summary>
+	/// <param name="verbose">When <see langword="true"/>, reads directly from the meter aggregates endpoint.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The battery power in watts, or <see langword="null"/> when unavailable.</returns>
+	public Task<double?> BatteryAsync (bool verbose = false, CancellationToken cancellationToken = default) =>
+		RequireClient ().FetchPowerAsync ("battery", verbose, cancellationToken);
+
+	/// <summary>Returns the home (load) power usage in watts.</summary>
+	/// <param name="verbose">When <see langword="true"/>, reads directly from the meter aggregates endpoint.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The load power in watts, or <see langword="null"/> when unavailable.</returns>
+	public Task<double?> LoadAsync (bool verbose = false, CancellationToken cancellationToken = default) =>
+		RequireClient ().FetchPowerAsync ("load", verbose, cancellationToken);
+
+	/// <summary>Alias for <see cref="SiteAsync"/>; returns the grid power usage in watts.</summary>
+	/// <param name="verbose">When <see langword="true"/>, reads directly from the meter aggregates endpoint.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The grid power in watts, or <see langword="null"/> when unavailable.</returns>
+	public Task<double?> GridAsync (bool verbose = false, CancellationToken cancellationToken = default) =>
+		SiteAsync (verbose, cancellationToken);
+
+	/// <summary>Alias for <see cref="LoadAsync"/>; returns the home power usage in watts.</summary>
+	/// <param name="verbose">When <see langword="true"/>, reads directly from the meter aggregates endpoint.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The home power in watts, or <see langword="null"/> when unavailable.</returns>
+	public Task<double?> HomeAsync (bool verbose = false, CancellationToken cancellationToken = default) =>
+		LoadAsync (verbose, cancellationToken);
+
+	/// <summary>
+	/// Returns the configured site name from <c>/api/site_info/site_name</c>.
+	/// </summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The site name, or <see langword="null"/> when unavailable.</returns>
+	public async Task<string?> SiteNameAsync (CancellationToken cancellationToken = default)
+		{
+		var payload = await RequireClient ().PollAsync ("/api/site_info/site_name", cancellationToken: cancellationToken).ConfigureAwait (false);
+		return JsonHelper.DeserializeOrNull<SiteName> (payload)?.Name;
+		}
+
+	/// <summary>
+	/// Returns the deserialized gateway status from <c>/api/status</c>.
+	/// </summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The <see cref="GatewayStatus"/>, or <see langword="null"/> when unavailable.</returns>
+	public async Task<GatewayStatus?> StatusAsync (CancellationToken cancellationToken = default)
+		{
+		var payload = await RequireClient ().PollAsync ("/api/status", cancellationToken: cancellationToken).ConfigureAwait (false);
+		return JsonHelper.DeserializeOrNull<GatewayStatus> (payload);
+		}
+
+	/// <summary>Returns the gateway firmware version string.</summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The version string, or <see langword="null"/> when unavailable.</returns>
+	public async Task<string?> VersionAsync (CancellationToken cancellationToken = default) =>
+		(await StatusAsync (cancellationToken).ConfigureAwait (false))?.Version;
+
+	/// <summary>Returns the gateway firmware version as a comparable integer.</summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The comparable integer version, or <see langword="null"/> when unavailable.</returns>
+	public async Task<long?> VersionIntAsync (CancellationToken cancellationToken = default) =>
+		VersionHelper.ParseVersion (await VersionAsync (cancellationToken).ConfigureAwait (false));
+
+	/// <summary>Returns the system uptime string.</summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The uptime string, or <see langword="null"/> when unavailable.</returns>
+	public async Task<string?> UptimeAsync (CancellationToken cancellationToken = default) =>
+		(await StatusAsync (cancellationToken).ConfigureAwait (false))?.UpTimeSeconds;
+
+	/// <summary>Returns the system device identification number (DIN).</summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The DIN, or <see langword="null"/> when unavailable.</returns>
+	public async Task<string?> DinAsync (CancellationToken cancellationToken = default) =>
+		(await StatusAsync (cancellationToken).ConfigureAwait (false))?.Din;
+
+	/// <summary>
+	/// Returns the full system status from <c>/api/system_status</c>.
+	/// </summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The <see cref="SystemStatus"/>, or <see langword="null"/> when unavailable.</returns>
+	public async Task<SystemStatus?> SystemStatusAsync (CancellationToken cancellationToken = default)
+		{
+		var payload = await RequireClient ().PollAsync ("/api/system_status", cancellationToken: cancellationToken).ConfigureAwait (false);
+		return JsonHelper.DeserializeOrNull<SystemStatus> (payload);
+		}
+
+	/// <summary>
+	/// Returns detailed per-battery information keyed by package serial number.
+	/// </summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>A map of serial number to <see cref="BatteryBlock"/>, or <see langword="null"/> when unavailable.</returns>
+	public async Task<IReadOnlyDictionary<string, BatteryBlock>?> BatteryBlocksAsync (CancellationToken cancellationToken = default)
+		{
+		var status = await SystemStatusAsync (cancellationToken).ConfigureAwait (false);
+		if (status?.BatteryBlocks is null)
+			return null;
+
+		var result = new Dictionary<string, BatteryBlock> ();
+		foreach (var block in status.BatteryBlocks)
+			{
+			if (!string.IsNullOrWhiteSpace (block.PackageSerialNumber))
+				result[block.PackageSerialNumber!] = block;
+			}
+
+		return result;
+		}
+
+	/// <summary>
+	/// Returns the grid status as a normalized value (Up, Down, or Syncing).
+	/// </summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The <see cref="GridStatus"/>, or <see langword="null"/> when it cannot be determined.</returns>
+	public async Task<GridStatus?> GridStatusAsync (CancellationToken cancellationToken = default)
+		{
+		var payload = await RequireClient ().PollAsync ("/api/system_status/grid_status", cancellationToken: cancellationToken).ConfigureAwait (false);
+		var response = JsonHelper.DeserializeOrNull<GridStatusResponse> (payload);
+		return response?.GridStatus switch
+			{
+			"SystemGridConnected" => GridStatus.Up,
+			"SystemIslandedActive" => GridStatus.Down,
+			"SystemMicroGridFaulted" => GridStatus.Down,
+			"SystemWaitForUser" => GridStatus.Down,
+			"SystemTransitionToGrid" => GridStatus.Syncing,
+			"SystemTransitionToIsland" => GridStatus.Syncing,
+			"SystemIslandedReady" => GridStatus.Syncing,
+			_ => null
+			};
+		}
+
+	/// <summary>
+	/// Returns the battery backup reserve percentage.
+	/// </summary>
+	/// <param name="scale">When <see langword="true"/> (default), applies the Tesla app 5% reserve calculation.</param>
+	/// <param name="force">When <see langword="true"/>, bypasses the cache.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The reserve percentage, or <see langword="null"/> when unavailable.</returns>
+	public async Task<double?> GetReserveAsync (bool scale = true, bool force = false, CancellationToken cancellationToken = default)
+		{
+		var operation = await GetOperationAsync (force, cancellationToken).ConfigureAwait (false);
+		if (operation?.BackupReservePercent is not double percent)
+			return null;
+
+		return scale ? Math.Max (0, (percent / 0.95) - (5 / 0.95)) : percent;
+		}
+
+	/// <summary>
+	/// Returns the active battery operation mode.
+	/// </summary>
+	/// <param name="force">When <see langword="true"/>, bypasses the cache.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The operation mode, or <see langword="null"/> when unavailable.</returns>
+	public async Task<string?> GetModeAsync (bool force = false, CancellationToken cancellationToken = default) =>
+		(await GetOperationAsync (force, cancellationToken).ConfigureAwait (false))?.RealMode;
+
+	/// <summary>
+	/// Sets the battery backup reserve level.
+	/// </summary>
+	/// <param name="level">Reserve level in percent (0 - 100).</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The raw operation result body, or <see langword="null"/> when the call fails.</returns>
+	/// <exception cref="InvalidBatteryReserveLevelException">Thrown when <paramref name="level"/> is outside 0 - 100.</exception>
+	public Task<string?> SetReserveAsync (double level, CancellationToken cancellationToken = default) =>
+		SetOperationAsync (level, null, cancellationToken);
+
+	/// <summary>
+	/// Sets the battery operation mode.
+	/// </summary>
+	/// <param name="mode">Operation mode (for example <c>self_consumption</c>, <c>backup</c>, or <c>autonomous</c>).</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The raw operation result body, or <see langword="null"/> when the call fails.</returns>
+	public Task<string?> SetModeAsync (string mode, CancellationToken cancellationToken = default) =>
+		SetOperationAsync (null, mode, cancellationToken);
+
+	/// <summary>
+	/// Sets the battery operation mode and/or reserve level.
+	/// </summary>
+	/// <param name="level">Reserve level in percent (0 - 100); when <see langword="null"/>, the current level is retained.</param>
+	/// <param name="mode">Operation mode; when <see langword="null"/>, the current mode is retained.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The raw operation result body, or <see langword="null"/> when the call fails.</returns>
+	/// <exception cref="InvalidBatteryReserveLevelException">Thrown when <paramref name="level"/> is outside 0 - 100.</exception>
+	public async Task<string?> SetOperationAsync (double? level = null, string? mode = null, CancellationToken cancellationToken = default)
+		{
+		if (level is < 0 or > 100)
+			throw new InvalidBatteryReserveLevelException ("Level can be in range of 0 to 100 only.");
+
+		var effectiveLevel = level ?? await GetReserveAsync (cancellationToken: cancellationToken).ConfigureAwait (false) ?? 0;
+		var effectiveMode = mode ?? await GetModeAsync (cancellationToken: cancellationToken).ConfigureAwait (false);
+
+		var payload = new Dictionary<string, object?>
+			{
+			["backup_reserve_percent"] = effectiveLevel > 0 ? effectiveLevel : (object) false,
+			["real_mode"] = effectiveMode
+			};
+
+		var din = await DinAsync (cancellationToken).ConfigureAwait (false);
+		return await RequireClient ().PostAsync ("/api/operation", payload, din, cancellationToken: cancellationToken).ConfigureAwait (false);
+		}
+
+	/// <summary>
+	/// Returns the estimated backup time remaining on the battery, in hours.
+	/// </summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The time remaining in hours, or <see langword="null"/> when it cannot be determined.</returns>
+	public Task<double?> GetTimeRemainingAsync (CancellationToken cancellationToken = default) =>
+		RequireClient ().GetTimeRemainingAsync (cancellationToken);
+
+	/// <summary>
+	/// Returns the list of Tesla energy sites available to the authenticated account (cloud mode only).
+	/// </summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The available sites, or an empty list when none are found.</returns>
+	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	public Task<IReadOnlyList<CloudSite>> GetSitesAsync (CancellationToken cancellationToken = default) =>
+		RequireCloudClient ().GetSitesAsync (cancellationToken);
+
+	/// <summary>
+	/// Switches the active Tesla energy site without reconnecting (cloud mode only).
+	/// </summary>
+	/// <param name="siteId">The Tesla energy site identifier to switch to.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns><see langword="true"/> when the site was found and selected; otherwise <see langword="false"/>.</returns>
+	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	public Task<bool> ChangeSiteAsync (string siteId, CancellationToken cancellationToken = default) =>
+		RequireCloudClient ().ChangeSiteAsync (siteId, cancellationToken);
+
+	/// <summary>
+	/// Enables or disables charging the battery from the grid (cloud mode only).
+	/// </summary>
+	/// <param name="enabled"><see langword="true"/> to allow grid charging; <see langword="false"/> to disallow it.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The raw response body, or <see langword="null"/> when the call fails.</returns>
+	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	public Task<string?> SetGridChargingAsync (bool enabled, CancellationToken cancellationToken = default) =>
+		RequireCloudClient ().SetGridChargingAsync (enabled, cancellationToken);
+
+	/// <summary>
+	/// Returns whether charging the battery from the grid is currently allowed (cloud mode only).
+	/// </summary>
+	/// <param name="force">When <see langword="true"/>, bypasses the cache.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns><see langword="true"/> when grid charging is allowed, <see langword="false"/> when disallowed, or <see langword="null"/> when unavailable.</returns>
+	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	public Task<bool?> GetGridChargingAsync (bool force = false, CancellationToken cancellationToken = default) =>
+		RequireCloudClient ().GetGridChargingAsync (force, cancellationToken);
+
+	/// <summary>
+	/// Sets the grid export rule (cloud mode only).
+	/// </summary>
+	/// <param name="mode">The export rule: <c>battery_ok</c>, <c>pv_only</c>, or <c>never</c>.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The raw response body, or <see langword="null"/> when the call fails.</returns>
+	/// <exception cref="ArgumentException">Thrown when <paramref name="mode"/> is not a valid export rule.</exception>
+	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	public Task<string?> SetGridExportAsync (string mode, CancellationToken cancellationToken = default)
+		{
+		if (mode is not ("battery_ok" or "pv_only" or "never"))
+			throw new ArgumentException ($"Invalid grid export mode '{mode}'. Must be 'battery_ok', 'pv_only', or 'never'.", nameof (mode));
+
+		return RequireCloudClient ().SetGridExportAsync (mode, cancellationToken);
+		}
+
+	/// <summary>
+	/// Returns the current grid export rule (cloud mode only).
+	/// </summary>
+	/// <param name="force">When <see langword="true"/>, bypasses the cache.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The export rule (<c>battery_ok</c>, <c>pv_only</c>, or <c>never</c>), or <see langword="null"/> when unavailable.</returns>
+	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	public Task<string?> GetGridExportAsync (bool force = false, CancellationToken cancellationToken = default) =>
+		RequireCloudClient ().GetGridExportAsync (force, cancellationToken);
+
+	private async Task<OperationResponse?> GetOperationAsync (bool force, CancellationToken cancellationToken)
+		{
+		var payload = await RequireClient ().PollAsync ("/api/operation", force, cancellationToken: cancellationToken).ConfigureAwait (false);
+		return JsonHelper.DeserializeOrNull<OperationResponse> (payload);
+		}
+
+	private PowerwallClientBase RequireClient () =>
+		_client ?? throw new InvalidOperationException ("Not connected. Call ConnectAsync before invoking data methods.");
+
+	private PowerwallCloudClient RequireCloudClient () =>
+		RequireClient () as PowerwallCloudClient
+		?? throw new PowerwallCloudNotImplementedException (
+			$"This operation is only available in cloud mode. The active connection mode is '{Mode}'.");
+
+	private static PowerwallMode ResolveMode (PowerwallOptions options)
+		{
+		if (string.IsNullOrWhiteSpace (options.Host))
+			return options.FleetApi ? PowerwallMode.FleetApi : PowerwallMode.Cloud;
+
+		if (options.CloudMode)
+			return options.FleetApi ? PowerwallMode.FleetApi : PowerwallMode.Cloud;
+
+		return PowerwallMode.Local;
+		}
+
+	private void ValidateConfiguration ()
+		{
+		if (!string.IsNullOrWhiteSpace (_options.Host))
+			{
+			var host = StripPort (_options.Host);
+			if (!Validation.IsValidHost (host) && !Validation.IsValidIpAddress (host))
+				{
+				throw new PowerwallInvalidConfigurationException (
+					$"Invalid powerwall host: '{_options.Host}'. Must be in the form of IP address or a valid hostname or FQDN.");
+				}
+			}
+
+		if (Mode == PowerwallMode.Cloud && !Validation.IsValidEmail (_options.Email))
+			{
+			throw new PowerwallInvalidConfigurationException (
+				$"A valid email address is required to run in cloud mode: '{_options.Email}' did not pass validation.");
+			}
+		}
+
+	private static string StripPort (string host)
+		{
+		// Only strip a single trailing :port suffix; multi-colon values are IPv6 and must be left intact.
+		if (host.Count (static c => c == ':') != 1)
+			return host;
+
+		var colon = host.LastIndexOf (':');
+		return int.TryParse (host[(colon + 1)..], out _) ? host[..colon] : host;
+		}
+
+	/// <summary>
+	/// Releases the underlying backend client and associated resources.
+	/// </summary>
+	public void Dispose ()
+		{
+		if (_client is IDisposable disposable)
+			disposable.Dispose ();
+		}
+	}
+
+/// <summary>
+/// Normalized grid connection status. The integer values match the upstream numeric output
+/// (<c>1</c> = Up, <c>0</c> = Down, <c>-1</c> = Syncing).
+/// </summary>
+public enum GridStatus
+	{
+	/// <summary>The system is transitioning between grid and island states.</summary>
+	Syncing = -1,
+
+	/// <summary>The system is disconnected from the grid (islanded).</summary>
+	Down = 0,
+
+	/// <summary>The system is connected to the grid.</summary>
+	Up = 1
+	}

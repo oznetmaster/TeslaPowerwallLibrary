@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFrameworks>net472;net10.0</TargetFrameworks>
+		<OutputType>Exe</OutputType>
+		<RootNamespace>TeslaPowerwallLibrary.TestConsole</RootNamespace>
+		<AssemblyName>TeslaPowerwallTestConsole</AssemblyName>
+		<LangVersion>latest</LangVersion>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>disable</ImplicitUsings>
+		<IsPackable>false</IsPackable>
+		<GenerateDocumentationFile>false</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<PropertyGroup Condition=" '$(TargetFramework)' == 'net472' ">
+		<AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+		<GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="System.CommandLine" Version="2.0.9" />
+		<PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.9" />
+	</ItemGroup>
+
+	<!-- Polyfills only for pre-.NET5 targets: enables record/init-only members on net472 -->
+	<ItemGroup Condition=" '$(TargetFramework)' == 'net472' ">
+		<PackageReference Include="IsExternalInit" Version="1.0.3">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\TeslaPowerwallLibrary\TeslaPowerwallLibrary.csproj" />
+	</ItemGroup>
+</Project>

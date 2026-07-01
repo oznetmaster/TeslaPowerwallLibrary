@@ -1,0 +1,118 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFrameworks>net472;net10.0</TargetFrameworks>
+		<OutputType>Library</OutputType>
+		<RootNamespace>TeslaPowerwallLibrary</RootNamespace>
+		<GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+		<!-- Optional: enable the latest compiler and nullable analysis -->
+		<LangVersion>latest</LangVersion>
+		<Nullable>enable</Nullable>
+		<AnalysisLevel>latest-recommended</AnalysisLevel>
+		<EnableNETAnalyzers>true</EnableNETAnalyzers>
+		<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+		<CodeAnalysisTreatWarningsAsErrors>false</CodeAnalysisTreatWarningsAsErrors>
+		<GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+
+		<!-- Migrated from AssemblyInfo.cs -->
+		<AssemblyTitle>TeslaPowerwallLibrary</AssemblyTitle>
+		<Description>An independent, unofficial .NET client library for the Tesla Powerwall API. This project is not affiliated with or endorsed by Tesla, and is adapted from the original Python pypowerwall project for .NET applications targeting both .NET Framework 4.7.2 and .NET 10.</Description>
+		<Company>Neil Colvin</Company>
+		<Product>TeslaPowerwallLibrary</Product>
+		<Copyright>Copyright © 2026 Neil Colvin</Copyright>
+		<AssemblyVersion>1.1.0.0</AssemblyVersion>
+		<FileVersion>1.1.0.0</FileVersion>
+		<PackageId>TeslaPowerwallLibrary</PackageId>
+		<Version>1.1.0.0</Version>
+		<PackageReleaseNotes>Initial release.</PackageReleaseNotes>
+		<Authors>Neil Colvin</Authors>
+		<PackageTags>tesla;powerwall;smart-home;iot;rest;api;nuget</PackageTags>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<RepositoryUrl>https://github.com/oznetmaster/TeslaPowerwallLibrary</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageProjectUrl>https://github.com/oznetmaster/TeslaPowerwallLibrary</PackageProjectUrl>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+		<NoWarn>$(NoWarn);NU5104</NoWarn>
+		<ComVisible>false</ComVisible>
+		<ImplicitUsings>disable</ImplicitUsings>
+
+		<!-- Enable XML documentation -->
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<DocumentationFile>bin\$(Configuration)\$(TargetFramework)\TeslaPowerwallLibrary.xml</DocumentationFile>
+	</PropertyGroup>
+
+	<!-- Framework-specific build props -->
+	<PropertyGroup Condition=" '$(TargetFramework)' == 'net472' ">
+		<AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+		<GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+		<DebugType>portable</DebugType>
+		<DebugSymbols>true</DebugSymbols>
+	</PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)' == 'Release'">
+		<DebugType>none</DebugType>
+		<DebugSymbols>false</DebugSymbols>
+	</PropertyGroup>
+	<PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+		<DefineConstants>TRACE</DefineConstants>
+		<NoWarn>CRR0029,CRRSP08</NoWarn>
+	</PropertyGroup>
+	<PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+		<!-- Use semicolon-delimited symbols matching the code's #if checks -->
+		<DefineConstants>TRACE;DEBUG</DefineConstants>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+		<NoWarn>CRR0029,CRRSP08</NoWarn>
+	</PropertyGroup>
+
+	<!-- References only needed for .NET Framework -->
+	<ItemGroup Condition=" '$(TargetFramework)' == 'net472' ">
+		<Reference Include="System.Runtime" />
+		<Reference Include="Microsoft.CSharp" />
+	</ItemGroup>
+
+	<!-- Packages common to both TFMs -->
+	<ItemGroup>
+		<PackageReference Include="Google.Protobuf" Version="3.35.1" />
+		<PackageReference Include="log4net" Version="3.3.1" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.5-beta1" />
+		<PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.2" />
+		<PackageReference Include="YamlDotNet" Version="18.0.0" />
+	</ItemGroup>
+
+	<!-- Polyfills only for pre-.NET5 targets -->
+	<ItemGroup Condition=" '$(TargetFramework)' == 'net472' ">
+		<PackageReference Include="IsExternalInit" Version="1.0.3">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="RequiredMemberAttribute" Version="1.0.0">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<!-- net472-specific packages -->
+	<ItemGroup Condition=" '$(TargetFramework)' == 'net472' ">
+		<PackageReference Include="Hafner.Compatibility.MetaPackage" Version="1.9.0" />
+		<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="11.0.0-preview.4.26230.115" />
+		<PackageReference Include="Microsoft.Bcl.HashCode" Version="6.0.0" />
+		<PackageReference Include="Microsoft.Bcl.Memory" Version="11.0.0-preview.4.26230.115" />
+		<PackageReference Include="System.Net.Http" Version="4.3.4" />
+		<PackageReference Include="System.Threading.Tasks.Extensions" Version="4.6.3" />
+	</ItemGroup>
+
+	<!-- Include CompilerServices shim only for net472: remove for other TFMs -->
+	<ItemGroup Condition=" '$(TargetFramework)' != 'net472' ">
+		<Compile Remove="CompilerServicesShim.cs" />
+	</ItemGroup>
+	<ItemGroup>
+		<Folder Include="Annotations\" />
+	</ItemGroup>
+	<ItemGroup>
+		<None Include="..\README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+</Project>
