@@ -285,6 +285,8 @@ internal static class CliOptions
 		settings.SiteId = siteId.Trim ();
 		SettingsStore.Save (settings);
 		}
+
+	private static void Persist (PowerwallOptions options, int? timeoutSeconds, int? cacheExpireSeconds, string region)
 		{
 		// Persist when there is a host (local) or a usable cloud token worth remembering;
 		// the password and tokens are always stored encrypted.
