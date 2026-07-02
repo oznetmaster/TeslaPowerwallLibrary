@@ -279,7 +279,7 @@ internal static class PowerwallActions
 		{
 		var body = await powerwall.GetHistoryAsync (kind, period, cancellationToken: cancellationToken).ConfigureAwait (false);
 		ConsoleHelpers.WriteHeading ($"Energy History ({kind}{(period is null ? string.Empty : $", {period}")})");
-		Console.WriteLine (Prettify (body));
+		WriteJsonOrStatus (body);
 		}
 
 	/// <summary>Prints raw calendar-aligned energy history for the active site (cloud mode only).</summary>
@@ -287,7 +287,7 @@ internal static class PowerwallActions
 		{
 		var body = await powerwall.GetCalendarHistoryAsync (kind, period, cancellationToken: cancellationToken).ConfigureAwait (false);
 		ConsoleHelpers.WriteHeading ($"Calendar History ({kind}{(period is null ? string.Empty : $", {period}")})");
-		Console.WriteLine (Prettify (body));
+		WriteJsonOrStatus (body);
 		}
 
 	/// <summary>Polls an arbitrary API endpoint and prints the raw response body.</summary>
@@ -295,6 +295,25 @@ internal static class PowerwallActions
 		{
 		var body = await powerwall.PollAsync (api, force: true, cancellationToken).ConfigureAwait (false);
 		ConsoleHelpers.WriteHeading ($"GET {api}");
+		WriteJsonOrStatus (body);
+		}
+
+	// Distinguishes a failed/unavailable call (null body) from a genuinely empty payload so the
+	// console never mislabels an API failure as an "(empty response)".
+	private static void WriteJsonOrStatus (string? body)
+		{
+		if (body is null)
+			{
+			ConsoleHelpers.WriteError ("  No data returned (the request failed or the endpoint is unavailable). Run with --verbose for details.");
+			return;
+			}
+
+		if (body.Length == 0 || string.IsNullOrWhiteSpace (body))
+			{
+			Console.WriteLine ("  (empty response)");
+			return;
+			}
+
 		Console.WriteLine (Prettify (body));
 		}
 

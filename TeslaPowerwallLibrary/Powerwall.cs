@@ -495,6 +495,12 @@ public sealed class Powerwall : IDisposable
 	/// <summary>
 	/// Returns raw energy history for the active site (cloud mode only).
 	/// </summary>
+	/// <remarks>
+	/// Tesla has permanently removed the underlying <c>/history</c> endpoint (it now responds with HTTP 410 Gone).
+	/// This method faithfully mirrors the upstream pypowerwall <c>get_history()</c> shim but will therefore throw
+	/// <see cref="PowerwallCloudEndpointRemovedException"/> at call time. Use <see cref="GetCalendarHistoryAsync"/>
+	/// (which targets the current <c>/calendar_history</c> endpoint and accepts a superset of kinds) instead.
+	/// </remarks>
 	/// <param name="kind">The history kind: <c>power</c>, <c>energy</c>, <c>backup</c>, or <c>self_consumption</c>.</param>
 	/// <param name="period">The aggregation period: <c>day</c>, <c>week</c>, <c>month</c>, <c>year</c>, or <c>lifetime</c>. Defaults to <c>day</c> when not specified.</param>
 	/// <param name="timeZone">Optional IANA time zone name (for example <c>America/Los_Angeles</c>).</param>
@@ -504,6 +510,7 @@ public sealed class Powerwall : IDisposable
 	/// <returns>The raw history JSON, or <see langword="null"/> when unavailable.</returns>
 	/// <exception cref="ArgumentException">Thrown when <paramref name="kind"/> or <paramref name="period"/> is not valid.</exception>
 	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	/// <exception cref="PowerwallCloudEndpointRemovedException">Thrown because Tesla has removed the <c>/history</c> endpoint; use <see cref="GetCalendarHistoryAsync"/>.</exception>
 	public Task<string?> GetHistoryAsync (
 		string kind,
 		string? period = null,

@@ -350,17 +350,18 @@ internal static class InteractiveSession
 		Console.WriteLine ("  setgridexport <battery_ok|pv_only|never>  Set grid export rule (cloud mode)");
 		Console.WriteLine ("  vitals            Device vitals (cloud mode, or local firmware that exposes vitals)");
 		Console.WriteLine ("  alerts            Active device alerts");
-		Console.WriteLine ("  history <kind> [period]           Raw energy history (cloud mode)");
+		Console.WriteLine ("  history <kind> [period]           Raw energy history (DEPRECATED - Tesla removed this endpoint; use calendarhistory)");
 		Console.WriteLine ($"                      kind:   {ConsoleHelpers.FormatChoices (Powerwall.HistoryKinds)}");
 		Console.WriteLine ($"                      period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DefaultHistoryPeriod)}");
 		Console.WriteLine ("  calendarhistory <kind> [period]   Calendar-aligned energy history (cloud mode)");
 		Console.WriteLine ($"                      kind:   {ConsoleHelpers.FormatChoices (Powerwall.CalendarHistoryKinds)}");
 		Console.WriteLine ($"                      period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DefaultHistoryPeriod)}");
-		Console.WriteLine ($"                      ({ConsoleHelpers.DefaultChoiceLegend})");
 		Console.WriteLine ("  login <cloud|local>       Sign in to a new account and reconnect");
 		Console.WriteLine ("  switchaccount <cloud|local>  Reconnect using this session's known cloud/local credentials");
 		Console.WriteLine ("  poll <api>        GET a raw API endpoint and print the response");
 		Console.WriteLine ("  help              Show this list");
 		Console.WriteLine ("  exit              Quit the interactive session");
+		Console.WriteLine ();
+		Console.WriteLine ($"  {ConsoleHelpers.DefaultChoiceLegend}");
 		}
 	}

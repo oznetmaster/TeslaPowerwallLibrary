@@ -298,8 +298,19 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		CancellationToken cancellationToken = default)
 		{
 		EnsureConnected ();
-		var response = await _connection!.GetHistoryAsync (_resolvedSiteId!, kind, period, timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
-		return Serialize (response?["response"] ?? response);
+		try
+			{
+			var response = await _connection!.GetHistoryAsync (_resolvedSiteId!, kind, period, timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
+			return Serialize (response?["response"] ?? response);
+			}
+		catch (PowerwallCloudEndpointRemovedException exc)
+			{
+			// Tesla retired the '/history' endpoint (HTTP 410). '/calendar_history' is the current
+			// replacement and supports a superset of kinds, so point callers there explicitly.
+			throw new PowerwallCloudEndpointRemovedException (
+				"Tesla has permanently removed the '/history' energy endpoint (HTTP 410 Gone). "
+				+ "Use GetCalendarHistoryAsync (the 'calendarhistory' command) instead.", exc);
+			}
 		}
 
 	/// <summary>

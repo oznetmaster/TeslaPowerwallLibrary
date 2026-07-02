@@ -193,7 +193,7 @@ static Command CreateHistoryCommand ()
 		Arity = ArgumentArity.ZeroOrOne
 		};
 
-	var command = new Command ("history", "Show raw energy history for the active site (cloud mode).");
+	var command = new Command ("history", "Show raw energy history (DEPRECATED: Tesla removed this endpoint - use 'calendarhistory').");
 	command.Arguments.Add (kindArgument);
 	command.Arguments.Add (periodArgument);
 	command.SetAction ((parseResult, cancellationToken) =>

@@ -315,6 +315,13 @@ internal sealed class TeslaCloudConnection : IDisposable
 			var payload = await response.Content.ReadAsStringAsync ().ConfigureAwait (false);
 			if (!response.IsSuccessStatusCode)
 				{
+				if ((int) response.StatusCode == 410)
+					{
+					_log.Error ($"Tesla cloud API {uri} returned HTTP 410 (Gone) - endpoint permanently removed");
+					throw new PowerwallCloudEndpointRemovedException (ExtractServerError (payload)
+						?? $"The Tesla cloud endpoint '{uri}' has been permanently removed (HTTP 410 Gone).");
+					}
+
 				_log.Error ($"Tesla cloud API {uri} returned HTTP {(int) response.StatusCode}");
 				return null;
 				}
@@ -331,6 +338,24 @@ internal sealed class TeslaCloudConnection : IDisposable
 				_log.Error ($"Unable to parse Tesla cloud API {uri} response: {exc.Message}");
 				return null;
 				}
+			}
+		}
+
+	// Pulls the human-readable "error" text out of a Tesla API failure body, when present.
+	private static string? ExtractServerError (string? payload)
+		{
+		if (string.IsNullOrWhiteSpace (payload))
+			return null;
+
+		try
+			{
+			return JToken.Parse (payload!) is JObject obj
+				? obj.Value<string> ("error")
+				: null;
+			}
+		catch (JsonException)
+			{
+			return null;
 			}
 		}
 

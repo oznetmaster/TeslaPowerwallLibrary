@@ -226,6 +226,14 @@ public sealed class PowerwallTests
 		}
 
 	[TestMethod]
+	public void WhenEndpointRemovedExceptionIsCreatedThenItIsAPowerwallException ()
+		{
+		var exception = new PowerwallCloudEndpointRemovedException ("gone");
+
+		Assert.IsInstanceOfType<PowerwallException> (exception);
+		}
+
+	[TestMethod]
 	[DataRow ("power")]
 	[DataRow ("soe")]
 	[DataRow ("time_of_use_energy")]
