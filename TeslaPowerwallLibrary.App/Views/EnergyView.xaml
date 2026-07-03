@@ -24,6 +24,12 @@
 			<TextBlock Text="Period" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
 						Margin="0,0,10,0" />
 			<ComboBox Width="160" ItemsSource="{Binding Periods}" SelectedItem="{Binding SelectedPeriod}" />
+			<Button Content="&#x25C0;" Command="{Binding PreviousPeriodCommand}" Margin="12,0,0,0"
+					MinWidth="34" ToolTip="Previous period" />
+			<TextBlock Text="{Binding PeriodLabel}" VerticalAlignment="Center" MinWidth="150"
+						TextAlignment="Center" Foreground="{StaticResource TextBrush}" Margin="8,0,8,0" />
+			<Button Content="&#x25B6;" Command="{Binding NextPeriodCommand}" MinWidth="34"
+					ToolTip="Next period" />
 			<Button Content="Refresh" Command="{Binding LoadCommand}" Margin="12,0,0,0"
 					IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
 		</StackPanel>

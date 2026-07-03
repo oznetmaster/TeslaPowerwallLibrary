@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,8 +29,11 @@ namespace TeslaPowerwallLibrary.App.ViewModels;
 /// </summary>
 public sealed partial class EnergyViewModel : ViewModelBase
 	{
+	private const string LifetimePeriod = "lifetime";
+
 	private readonly PowerwallConnectionService _connection;
 	private IReadOnlyList<EnergyHistoryPoint> _points = Array.Empty<EnergyHistoryPoint> ();
+	private DateTimeOffset _anchor = DateTimeOffset.Now;
 
 	/// <summary>Initializes a new instance of the <see cref="EnergyViewModel"/> class.</summary>
 	/// <param name="connection">The shared connection service.</param>
@@ -45,7 +49,7 @@ public sealed partial class EnergyViewModel : ViewModelBase
 			new ("Home", new SKColor (0x3E, 0x6A, 0xE1), p => p.HomeKwh),
 			new ("From battery", new SKColor (0x30, 0xD1, 0x58), p => p.FromBatteryKwh),
 			new ("From grid", new SKColor (0x8E, 0x8E, 0x93), p => p.FromGridKwh),
-			new ("To grid", new SKColor (0x34, 0xC7, 0x59), p => p.ToGridKwh)
+			new ("To grid", new SKColor (0xAF, 0x52, 0xDE), p => p.ToGridKwh)
 			};
 
 		foreach (var component in Components)
@@ -68,6 +72,10 @@ public sealed partial class EnergyViewModel : ViewModelBase
 	[ObservableProperty]
 	private string _selectedPeriod;
 
+	/// <summary>Gets the human-readable label describing the currently displayed period.</summary>
+	[ObservableProperty]
+	private string _periodLabel = string.Empty;
+
 	/// <summary>Gets or sets the chart series collection bound to the cartesian chart.</summary>
 	[ObservableProperty]
 	private ISeries[] _series = Array.Empty<ISeries> ();
@@ -81,7 +89,14 @@ public sealed partial class EnergyViewModel : ViewModelBase
 	/// <summary>Gets a value indicating whether energy history is available (cloud mode only).</summary>
 	public bool IsAvailable => _connection.Mode == PowerwallMode.Cloud;
 
-	partial void OnSelectedPeriodChanged (string value) => _ = LoadAsync ();
+	partial void OnSelectedPeriodChanged (string value)
+		{
+		// Switching the aggregation period resets navigation back to the current, most-recent bucket.
+		_anchor = DateTimeOffset.Now;
+		PreviousPeriodCommand.NotifyCanExecuteChanged ();
+		NextPeriodCommand.NotifyCanExecuteChanged ();
+		_ = LoadAsync ();
+		}
 
 	/// <summary>Loads energy history for the selected period and rebuilds the chart series.</summary>
 	/// <returns>A task that completes when the history has been loaded.</returns>
@@ -97,6 +112,8 @@ public sealed partial class EnergyViewModel : ViewModelBase
 			return;
 			}
 
+		var (startDate, endDate) = ResolveRange ();
+
 		IsBusy = true;
 		try
 			{
@@ -105,7 +122,7 @@ public sealed partial class EnergyViewModel : ViewModelBase
 			try
 				{
 				body = await _connection.Powerwall
-					.GetCalendarHistoryAsync ("energy", SelectedPeriod, cancellationToken: cts.Token)
+					.GetCalendarHistoryAsync ("energy", SelectedPeriod, startDate: startDate, endDate: endDate, cancellationToken: cts.Token)
 					.ConfigureAwait (true);
 				}
 			catch (OperationCanceledException)
@@ -134,8 +151,113 @@ public sealed partial class EnergyViewModel : ViewModelBase
 		finally
 			{
 			IsBusy = false;
+			PreviousPeriodCommand.NotifyCanExecuteChanged ();
+			NextPeriodCommand.NotifyCanExecuteChanged ();
 			}
 		}
+
+	/// <summary>Steps the graph back to the previous period and reloads.</summary>
+	/// <returns>A task that completes when the previous period has loaded.</returns>
+	[RelayCommand (CanExecute = nameof (CanGoPrevious))]
+	private Task PreviousPeriodAsync ()
+		{
+		_anchor = StepAnchor (-1);
+		NextPeriodCommand.NotifyCanExecuteChanged ();
+		return LoadAsync ();
+		}
+
+	/// <summary>Steps the graph forward to the next period and reloads.</summary>
+	/// <returns>A task that completes when the next period has loaded.</returns>
+	[RelayCommand (CanExecute = nameof (CanGoNext))]
+	private Task NextPeriodAsync ()
+		{
+		_anchor = StepAnchor (+1);
+		NextPeriodCommand.NotifyCanExecuteChanged ();
+		return LoadAsync ();
+		}
+
+	private bool CanGoPrevious () => IsAvailable && SelectedPeriod != LifetimePeriod;
+
+	private bool CanGoNext () => IsAvailable && SelectedPeriod != LifetimePeriod && IsBeforeCurrentPeriod ();
+
+	// The current, most-recent bucket is the newest data available; stepping past it would request the future.
+	private bool IsBeforeCurrentPeriod () =>
+		GetPeriodRange (SelectedPeriod, _anchor).Start < GetPeriodRange (SelectedPeriod, DateTimeOffset.Now).Start;
+
+	private DateTimeOffset StepAnchor (int direction) =>
+		SelectedPeriod switch
+			{
+			"week" => _anchor.AddDays (7 * direction),
+			"month" => _anchor.AddMonths (direction),
+			"year" => _anchor.AddYears (direction),
+			_ => _anchor.AddDays (direction)
+			};
+
+	// Resolves the RFC 3339 window for the current anchor and updates the display label as a side effect.
+	private (string? StartDate, string? EndDate) ResolveRange ()
+		{
+		if (SelectedPeriod == LifetimePeriod)
+			{
+			PeriodLabel = "Lifetime";
+			return (null, null);
+			}
+
+		var (start, end) = GetPeriodRange (SelectedPeriod, _anchor);
+		PeriodLabel = BuildPeriodLabel (SelectedPeriod, start, end);
+		return (ToRfc3339 (start), ToRfc3339 (end));
+		}
+
+	private static (DateTimeOffset Start, DateTimeOffset End) GetPeriodRange (string period, DateTimeOffset anchor)
+		{
+		var local = anchor.ToLocalTime ();
+		switch (period)
+			{
+			case "week":
+				var weekStart = StartOfWeek (local);
+				return (weekStart, weekStart.AddDays (7).AddSeconds (-1));
+			case "month":
+				var monthStart = LocalMidnight (local.Year, local.Month, 1);
+				return (monthStart, monthStart.AddMonths (1).AddSeconds (-1));
+			case "year":
+				var yearStart = LocalMidnight (local.Year, 1, 1);
+				return (yearStart, yearStart.AddYears (1).AddSeconds (-1));
+			default:
+				var dayStart = LocalMidnight (local.Year, local.Month, local.Day);
+				return (dayStart, dayStart.AddDays (1).AddSeconds (-1));
+			}
+		}
+
+	private static string BuildPeriodLabel (string period, DateTimeOffset start, DateTimeOffset end)
+		{
+		var culture = CultureInfo.CurrentCulture;
+		return period switch
+			{
+			"week" => start.Year == end.Year
+				? $"{start.ToString ("MMM d", culture)} - {end.ToString ("MMM d, yyyy", culture)}"
+				: $"{start.ToString ("MMM d, yyyy", culture)} - {end.ToString ("MMM d, yyyy", culture)}",
+			"month" => start.ToString ("MMMM yyyy", culture),
+			"year" => start.ToString ("yyyy", culture),
+			_ => start.ToString ("MMMM d, yyyy", culture)
+			};
+		}
+
+	private static DateTimeOffset StartOfWeek (DateTimeOffset local)
+		{
+		int firstDay = (int) CultureInfo.CurrentCulture.DateTimeFormat.FirstDayOfWeek;
+		int current = (int) local.DayOfWeek;
+		int diff = (7 + current - firstDay) % 7;
+		var day = local.Date.AddDays (-diff);
+		return LocalMidnight (day.Year, day.Month, day.Day);
+		}
+
+	private static DateTimeOffset LocalMidnight (int year, int month, int day)
+		{
+		var midnight = new DateTime (year, month, day, 0, 0, 0, DateTimeKind.Unspecified);
+		return new DateTimeOffset (midnight, TimeZoneInfo.Local.GetUtcOffset (midnight));
+		}
+
+	private static string ToRfc3339 (DateTimeOffset value) =>
+		value.ToString ("yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture);
 
 	private void OnComponentSelectionChanged (object? sender, PropertyChangedEventArgs e)
 		{
