@@ -202,12 +202,14 @@ internal static class InteractiveSession
 		switch (target)
 			{
 			case "cloud":
-				if (string.IsNullOrWhiteSpace (options.AccessToken) && string.IsNullOrWhiteSpace (options.RefreshToken))
+				var hasSessionTokens = !string.IsNullOrWhiteSpace (options.AccessToken) || !string.IsNullOrWhiteSpace (options.RefreshToken);
+				if (!hasSessionTokens && !Powerwall.HasStoredCloudTokens (options.Email))
 					{
 					ConsoleHelpers.WriteError ("No cloud tokens are available for this session. Use 'login cloud' to sign in first.");
 					return;
 					}
 
+				// Empty tokens are fine here: the library falls back to the tokens it cached for this email.
 				var tokens = new CloudTokens (options.RefreshToken ?? string.Empty, options.AccessToken ?? string.Empty, options.Email);
 				if (await session.SwitchCloudAsync (tokens, cancellationToken).ConfigureAwait (false))
 					ConsoleHelpers.WriteSuccess ($"Switched to cloud account ({options.Email}).");

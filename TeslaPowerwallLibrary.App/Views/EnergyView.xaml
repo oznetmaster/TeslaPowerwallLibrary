@@ -1,0 +1,63 @@
+<UserControl x:Class="TeslaPowerwallLibrary.App.Views.EnergyView"
+			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:vm="clr-namespace:TeslaPowerwallLibrary.App.ViewModels"
+			 xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
+			 d:DataContext="{d:DesignInstance Type=vm:EnergyViewModel}"
+			 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+			 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+			 mc:Ignorable="d"
+			 Background="{StaticResource BackgroundBrush}">
+	<Grid Margin="16">
+		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto" />
+			<RowDefinition Height="Auto" />
+			<RowDefinition Height="Auto" />
+			<RowDefinition Height="*" />
+			<RowDefinition Height="Auto" />
+		</Grid.RowDefinitions>
+
+		<TextBlock Grid.Row="0" Text="Energy" Style="{StaticResource HeadingText}" Margin="8,0,8,8" />
+
+		<!-- Period selector -->
+		<StackPanel Grid.Row="1" Orientation="Horizontal" Margin="8,0,8,12">
+			<TextBlock Text="Period" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
+						Margin="0,0,10,0" />
+			<ComboBox Width="160" ItemsSource="{Binding Periods}" SelectedItem="{Binding SelectedPeriod}" />
+			<Button Content="Refresh" Command="{Binding LoadCommand}" Margin="12,0,0,0"
+					IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+		</StackPanel>
+
+		<!-- Component key: each item toggles its series on the chart independently -->
+		<ItemsControl Grid.Row="2" ItemsSource="{Binding Components}" Margin="8,0,8,12">
+			<ItemsControl.ItemsPanel>
+				<ItemsPanelTemplate>
+					<WrapPanel Orientation="Horizontal" />
+				</ItemsPanelTemplate>
+			</ItemsControl.ItemsPanel>
+			<ItemsControl.ItemTemplate>
+				<DataTemplate>
+					<CheckBox IsChecked="{Binding IsSelected}" Margin="0,0,18,0" VerticalContentAlignment="Center">
+						<StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+							<Border Width="12" Height="12" CornerRadius="3" Margin="0,0,6,0"
+									Background="{Binding Swatch}" />
+							<TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}" />
+						</StackPanel>
+					</CheckBox>
+				</DataTemplate>
+			</ItemsControl.ItemTemplate>
+		</ItemsControl>
+
+		<!-- Chart -->
+		<Border Grid.Row="3" Style="{StaticResource Card}">
+			<lvc:CartesianChart Series="{Binding Series}"
+								XAxes="{Binding XAxes}"
+								YAxes="{Binding YAxes}"
+								LegendPosition="Hidden" />
+		</Border>
+
+		<TextBlock Grid.Row="4" Text="{Binding StatusMessage}" Foreground="{StaticResource MutedTextBrush}"
+					Margin="8,8,8,0" TextWrapping="Wrap"
+					Visibility="{Binding StatusMessage, Converter={StaticResource NullToCollapsed}}" />
+	</Grid>
+</UserControl>

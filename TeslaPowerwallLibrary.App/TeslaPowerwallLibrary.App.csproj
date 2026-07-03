@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>net10.0-windows</TargetFramework>
+		<OutputType>WinExe</OutputType>
+		<UseWPF>true</UseWPF>
+		<RootNamespace>TeslaPowerwallLibrary.App</RootNamespace>
+		<AssemblyName>TeslaPowerwallApp</AssemblyName>
+		<LangVersion>latest</LangVersion>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>disable</ImplicitUsings>
+		<IsPackable>false</IsPackable>
+		<GenerateDocumentationFile>false</GenerateDocumentationFile>
+
+		<!--
+			LiveCharts' WPF view renders via SkiaSharp, whose transitive OpenTK / OpenTK.GLWpfControl /
+			SkiaSharp.Views.WPF packages ship only .NET Framework assets. They are runtime-compatible with
+			net10.0-windows (LiveCharts uses the software SKElement, not the GL control), so the NuGet
+			cross-framework fallback warning (NU1701) is a known false positive for this app and is suppressed.
+		-->
+		<NoWarn>$(NoWarn);NU1701</NoWarn>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+		<PackageReference Include="LiveChartsCore.SkiaSharpView.WPF" Version="2.0.5" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Page Include="App.xaml" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\TeslaPowerwallLibrary\TeslaPowerwallLibrary.csproj" />
+	</ItemGroup>
+</Project>

@@ -117,8 +117,8 @@ internal sealed class InteractiveConnection : IDisposable
 		}
 
 	/// <summary>
-	/// Records a site selection made via <c>changesite</c> so the session's options stay consistent and,
-	/// unless persistence is suppressed, the site becomes the default on the next run.
+	/// Records a site selection made via <c>changesite</c> so the session's options stay consistent. The
+	/// library persists the selected site itself (keyed by email), so no console-side save is needed.
 	/// </summary>
 	/// <param name="siteId">The Tesla energy site identifier that is now active.</param>
 	public void UpdateSelectedSite (string siteId)
@@ -127,8 +127,6 @@ internal sealed class InteractiveConnection : IDisposable
 			return;
 
 		Options = Options with { SiteId = siteId };
-		if (!_noSave)
-			CliOptions.PersistSelectedSite (siteId);
 		}
 
 	// Produces options that activate cloud mode with the supplied tokens, changing only the cloud credential

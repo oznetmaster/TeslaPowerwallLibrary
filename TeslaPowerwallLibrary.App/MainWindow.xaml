@@ -1,0 +1,49 @@
+<Window x:Class="TeslaPowerwallLibrary.App.MainWindow"
+		xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+		xmlns:vm="clr-namespace:TeslaPowerwallLibrary.App.ViewModels"
+		Title="Tesla Powerwall" Height="720" Width="1080"
+		WindowStartupLocation="CenterScreen"
+		Background="{StaticResource BackgroundBrush}"
+		FontFamily="Segoe UI">
+	<Window.DataContext>
+		<vm:ShellViewModel />
+	</Window.DataContext>
+	<Grid>
+		<Grid.ColumnDefinitions>
+			<ColumnDefinition Width="220" />
+			<ColumnDefinition Width="*" />
+		</Grid.ColumnDefinitions>
+
+		<!-- Navigation sidebar -->
+		<Border Grid.Column="0" Background="{StaticResource SurfaceBrush}">
+			<DockPanel>
+				<StackPanel DockPanel.Dock="Top" Margin="16,20,16,20">
+					<TextBlock Text="⚡ Powerwall" FontSize="18" FontWeight="Bold"
+								Foreground="{StaticResource TextBrush}" />
+					<TextBlock Text="Desktop" Style="{StaticResource MutedText}" />
+				</StackPanel>
+
+				<StackPanel DockPanel.Dock="Bottom" Margin="8,8,8,16"
+							Visibility="{Binding IsConnected, Converter={StaticResource BoolToVisibility}}">
+					<Button Content="Switch account" Style="{StaticResource NavButton}"
+							Command="{Binding DisconnectCommand}" />
+				</StackPanel>
+
+				<StackPanel Visibility="{Binding IsConnected, Converter={StaticResource BoolToVisibility}}">
+					<Button Content="🏠  Home" Style="{StaticResource NavButton}"
+							Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:AppScreen.Home}" />
+					<Button Content="📊  Energy" Style="{StaticResource NavButton}"
+							Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:AppScreen.Energy}" />
+					<Button Content="⚙  Settings" Style="{StaticResource NavButton}"
+							Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:AppScreen.Settings}" />
+					<Button Content="ℹ  System" Style="{StaticResource NavButton}"
+							Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:AppScreen.System}" />
+				</StackPanel>
+			</DockPanel>
+		</Border>
+
+		<!-- Content host -->
+		<ContentControl Grid.Column="1" Content="{Binding Current}" />
+	</Grid>
+</Window>

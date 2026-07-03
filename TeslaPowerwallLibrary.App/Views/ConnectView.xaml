@@ -1,0 +1,88 @@
+<UserControl x:Class="TeslaPowerwallLibrary.App.Views.ConnectView"
+			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:vm="clr-namespace:TeslaPowerwallLibrary.App.ViewModels"
+			 d:DataContext="{d:DesignInstance Type=vm:ConnectViewModel}"
+			 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+			 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+			 mc:Ignorable="d"
+			 Background="{StaticResource BackgroundBrush}">
+	<Grid HorizontalAlignment="Center" VerticalAlignment="Center" Width="440">
+		<Border Style="{StaticResource Card}">
+			<StackPanel>
+				<TextBlock Text="⚡ Connect to Powerwall" Style="{StaticResource HeadingText}" />
+				<TextBlock Text="Choose how to reach your Tesla Energy Gateway."
+							Style="{StaticResource MutedText}" Margin="0,4,0,16" TextWrapping="Wrap" />
+
+				<!-- Sign-in form (hidden once a site must be chosen) -->
+				<StackPanel Visibility="{Binding ShowSiteSelection, Converter={StaticResource InverseBoolToVisibility}}">
+					<!-- Mode picker -->
+					<StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+						<RadioButton Content="Cloud" Foreground="{StaticResource TextBrush}"
+									 IsChecked="{Binding IsCloudMode}" GroupName="Mode" Margin="0,0,20,0" />
+						<RadioButton Content="Local" Foreground="{StaticResource TextBrush}"
+									 IsChecked="{Binding IsLocalMode, Mode=OneWay}"
+									 Checked="OnLocalChecked" GroupName="Mode" />
+					</StackPanel>
+
+					<!-- Cloud fields -->
+					<StackPanel Visibility="{Binding IsCloudMode, Converter={StaticResource BoolToVisibility}}">
+						<TextBlock Text="Region" Style="{StaticResource MutedText}" Margin="0,0,0,4" />
+						<ComboBox ItemsSource="{Binding Regions}" DisplayMemberPath="Display"
+								  SelectedValuePath="Value" SelectedValue="{Binding Region}" Margin="0,0,0,12" />
+
+						<Button Content="🔐 Sign in with Tesla" Command="{Binding SignInWithTeslaCommand}"
+								IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+						<TextBlock Style="{StaticResource MutedText}" Margin="0,8,0,0" TextWrapping="Wrap"
+									Text="Opens Tesla's secure login in a browser window to handle captcha and two-factor sign-in, then captures your tokens automatically." />
+
+						<Expander Header="Enter tokens manually" Foreground="{StaticResource MutedTextBrush}" Margin="0,16,0,0">
+							<StackPanel Margin="0,10,0,0">
+								<TextBlock Text="Tesla account email" Style="{StaticResource MutedText}" Margin="0,0,0,4" />
+								<TextBox Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+
+								<TextBlock Text="Access token" Style="{StaticResource MutedText}" Margin="0,0,0,4" />
+								<TextBox Text="{Binding AccessToken, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+
+								<TextBlock Text="Refresh token" Style="{StaticResource MutedText}" Margin="0,0,0,4" />
+								<TextBox Text="{Binding RefreshToken, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+
+								<Button Content="Connect with tokens" Command="{Binding ConnectCommand}"
+										IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+							</StackPanel>
+						</Expander>
+					</StackPanel>
+
+					<!-- Local fields -->
+					<StackPanel Visibility="{Binding IsLocalMode, Converter={StaticResource BoolToVisibility}}">
+						<TextBlock Text="Gateway host or IP" Style="{StaticResource MutedText}" Margin="0,0,0,4" />
+						<TextBox Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+
+						<TextBlock Text="Gateway password" Style="{StaticResource MutedText}" Margin="0,0,0,4" />
+						<PasswordBox x:Name="LocalPasswordBox" PasswordChanged="OnPasswordChanged" Margin="0,0,0,10" />
+
+						<Button Content="Connect" Command="{Binding ConnectCommand}"
+								IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+					</StackPanel>
+
+					<CheckBox Content="Remember credentials on this device" Foreground="{StaticResource MutedTextBrush}"
+							  IsChecked="{Binding RememberCredentials}" Margin="0,16,0,0" />
+				</StackPanel>
+
+				<!-- Site picker (shown after a cloud connect that returns multiple sites) -->
+				<StackPanel Visibility="{Binding ShowSiteSelection, Converter={StaticResource BoolToVisibility}}">
+					<TextBlock Text="Choose a site" Style="{StaticResource MutedText}" Margin="0,0,0,4" />
+					<ComboBox ItemsSource="{Binding Sites}" SelectedItem="{Binding SelectedSite}"
+							  DisplayMemberPath="SiteName" Margin="0,0,0,16" />
+
+					<Button Content="Continue" Command="{Binding ContinueCommand}"
+							IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+				</StackPanel>
+
+				<TextBlock Text="{Binding StatusMessage}" Foreground="#FFE0554E" TextWrapping="Wrap"
+							Margin="0,12,0,0"
+							Visibility="{Binding StatusMessage, Converter={StaticResource NullToCollapsed}}" />
+			</StackPanel>
+		</Border>
+	</Grid>
+</UserControl>

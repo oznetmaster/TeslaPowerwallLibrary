@@ -1,4 +1,7 @@
 <Solution>
+  <Project Path="TeslaPowerwallLibrary.App/TeslaPowerwallLibrary.App.csproj">
+    <Build Solution="Debug|*" Project="false" />
+  </Project>
   <Project Path="TeslaPowerwallLibrary.Setup/TeslaPowerwallLibrary.Setup.csproj">
     <Build Solution="Debug|*" Project="false" />
   </Project>

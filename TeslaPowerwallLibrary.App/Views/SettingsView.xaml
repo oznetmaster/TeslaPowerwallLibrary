@@ -1,0 +1,95 @@
+<UserControl x:Class="TeslaPowerwallLibrary.App.Views.SettingsView"
+			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:vm="clr-namespace:TeslaPowerwallLibrary.App.ViewModels"
+			 d:DataContext="{d:DesignInstance Type=vm:SettingsViewModel}"
+			 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+			 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+			 mc:Ignorable="d"
+			 Background="{StaticResource BackgroundBrush}">
+	<Grid Margin="16">
+		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto" />
+			<RowDefinition Height="*" />
+			<RowDefinition Height="Auto" />
+		</Grid.RowDefinitions>
+
+		<Grid Grid.Row="0" Margin="8,0,8,8">
+			<TextBlock Text="Settings" Style="{StaticResource HeadingText}" />
+			<Button Content="Reload" HorizontalAlignment="Right" Command="{Binding LoadCommand}"
+					IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+		</Grid>
+
+		<ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+			<StackPanel>
+
+				<!-- Operation -->
+				<Border Style="{StaticResource Card}">
+					<StackPanel>
+						<TextBlock Text="Operation" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,12" />
+
+						<TextBlock Text="Backup reserve" Style="{StaticResource MutedText}" />
+						<Grid Margin="0,4,0,12">
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="*" />
+								<ColumnDefinition Width="Auto" />
+							</Grid.ColumnDefinitions>
+							<Slider Grid.Column="0" Minimum="0" Maximum="100"
+									Value="{Binding ReservePercent}" VerticalAlignment="Center" />
+							<TextBlock Grid.Column="1" Text="{Binding ReserveText}" Width="48"
+										TextAlignment="Right" VerticalAlignment="Center" />
+						</Grid>
+
+						<TextBlock Text="Mode" Style="{StaticResource MutedText}" />
+						<ComboBox ItemsSource="{Binding Modes}" SelectedItem="{Binding SelectedMode}"
+								  Margin="0,4,0,12" Width="240" HorizontalAlignment="Left" />
+
+						<Button Content="Apply operation" Command="{Binding ApplyOperationCommand}"
+								HorizontalAlignment="Left"
+								IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+					</StackPanel>
+				</Border>
+
+				<!-- Grid (cloud only) -->
+				<Border Style="{StaticResource Card}"
+						Visibility="{Binding IsCloudMode, Converter={StaticResource BoolToVisibility}}">
+					<StackPanel>
+						<TextBlock Text="Grid" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,12" />
+
+						<StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+							<CheckBox Content="Allow charging from grid" Foreground="{StaticResource TextBrush}"
+									  IsChecked="{Binding GridChargingEnabled}" VerticalAlignment="Center" />
+							<Button Content="Apply" Command="{Binding ApplyGridChargingCommand}" Margin="16,0,0,0"
+									IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+						</StackPanel>
+
+						<TextBlock Text="Grid export" Style="{StaticResource MutedText}" />
+						<StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+							<ComboBox ItemsSource="{Binding ExportRules}" SelectedItem="{Binding SelectedExportRule}"
+									  Width="200" />
+							<Button Content="Apply" Command="{Binding ApplyGridExportCommand}" Margin="16,0,0,0"
+									IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+						</StackPanel>
+					</StackPanel>
+				</Border>
+
+				<!-- Sites (cloud only) -->
+				<Border Style="{StaticResource Card}"
+						Visibility="{Binding IsCloudMode, Converter={StaticResource BoolToVisibility}}">
+					<StackPanel>
+						<TextBlock Text="Site" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,12" />
+						<ComboBox ItemsSource="{Binding Sites}" SelectedItem="{Binding SelectedSite}"
+								  DisplayMemberPath="SiteName" Width="320" HorizontalAlignment="Left" />
+						<TextBlock Text="Switching updates the active site for all screens."
+									Style="{StaticResource MutedText}" Margin="0,8,0,0" />
+					</StackPanel>
+				</Border>
+
+			</StackPanel>
+		</ScrollViewer>
+
+		<TextBlock Grid.Row="2" Text="{Binding StatusMessage}" Foreground="{StaticResource MutedTextBrush}"
+					Margin="8,8,8,0" TextWrapping="Wrap"
+					Visibility="{Binding StatusMessage, Converter={StaticResource NullToCollapsed}}" />
+	</Grid>
+</UserControl>

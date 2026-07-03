@@ -131,13 +131,11 @@ internal static class CliOptions
 
 		var accessToken = Coalesce (
 			parseResult.GetValue (AccessToken),
-			Environment.GetEnvironmentVariable ("PW_ACCESS_TOKEN"),
-			CredentialProtector.Unprotect (settings.ProtectedAccessToken));
+			Environment.GetEnvironmentVariable ("PW_ACCESS_TOKEN"));
 		var refreshToken = Coalesce (
 			parseResult.GetValue (RefreshToken),
-			Environment.GetEnvironmentVariable ("PW_REFRESH_TOKEN"),
-			CredentialProtector.Unprotect (settings.ProtectedRefreshToken));
-		var siteId = Coalesce (parseResult.GetValue (SiteId), Environment.GetEnvironmentVariable ("PW_SITE_ID"), settings.SiteId);
+			Environment.GetEnvironmentVariable ("PW_REFRESH_TOKEN"));
+		var siteId = Coalesce (parseResult.GetValue (SiteId), Environment.GetEnvironmentVariable ("PW_SITE_ID"));
 
 		// Cloud mode is selected explicitly via --cloud, or implicitly when no host is available.
 		var cloudMode = parseResult.GetValue (Cloud) || string.IsNullOrWhiteSpace (host);
@@ -151,13 +149,16 @@ internal static class CliOptions
 				password = ConsoleHelpers.ReadPassword ("Powerwall password");
 			}
 
-		// In cloud mode, when no tokens are available yet, offer to launch the Tesla browser login
-		// (handled by the WebView2 setup app) and capture the returned tokens for this session.
+		// In cloud mode, offer the Tesla browser login only when neither explicit tokens were supplied nor the
+		// library already has cached tokens for this account. After a first login the library persists and
+		// reuses the tokens internally, so returning users are never prompted again.
 		var region = Coalesce (parseResult.GetValue (Region), Environment.GetEnvironmentVariable ("PW_REGION"), settings.Region);
+		var resolvedEmail = string.IsNullOrWhiteSpace (email) ? Constants.DEFAULT_EMAIL : email!.Trim ();
 		if (cloudMode
 			&& !Console.IsInputRedirected
 			&& string.IsNullOrWhiteSpace (accessToken)
-			&& string.IsNullOrWhiteSpace (refreshToken))
+			&& string.IsNullOrWhiteSpace (refreshToken)
+			&& !Powerwall.HasStoredCloudTokens (resolvedEmail))
 			{
 			var acquired = TryAcquireCloudTokensInteractively (region);
 			if (acquired is not null)
@@ -165,7 +166,10 @@ internal static class CliOptions
 				accessToken = acquired.AccessToken;
 				refreshToken = acquired.RefreshToken;
 				if (string.IsNullOrWhiteSpace (email) && !string.IsNullOrWhiteSpace (acquired.Email))
+					{
 					email = acquired.Email;
+					resolvedEmail = acquired.Email.Trim ();
+					}
 				}
 			}
 
@@ -173,7 +177,7 @@ internal static class CliOptions
 			{
 			Host = host?.Trim () ?? string.Empty,
 			Password = password ?? string.Empty,
-			Email = string.IsNullOrWhiteSpace (email) ? Constants.DEFAULT_EMAIL : email!.Trim (),
+			Email = resolvedEmail,
 			Timezone = string.IsNullOrWhiteSpace (timezone) ? Constants.DEFAULT_TIMEZONE : timezone!.Trim (),
 			Timeout = TimeSpan.FromSeconds (timeout ?? Constants.DEFAULT_TIMEOUT_SECONDS),
 			CacheExpireSeconds = cacheExpire ?? Constants.DEFAULT_CACHE_EXPIRE_SECONDS,
@@ -271,40 +275,23 @@ internal static class CliOptions
 		Persist (options, timeoutSeconds, cacheExpireSeconds, NormalizeRegion (region));
 		}
 
-	/// <summary>
-	/// Persists only the selected Tesla energy site to the settings store so it becomes the default site on
-	/// the next run, leaving every other saved value untouched. Used after a mid-session <c>changesite</c>.
-	/// </summary>
-	/// <param name="siteId">The Tesla energy site identifier to remember.</param>
-	internal static void PersistSelectedSite (string siteId)
-		{
-		if (string.IsNullOrWhiteSpace (siteId))
-			return;
-
-		var settings = SettingsStore.Load ();
-		settings.SiteId = siteId.Trim ();
-		SettingsStore.Save (settings);
-		}
-
 	private static void Persist (PowerwallOptions options, int? timeoutSeconds, int? cacheExpireSeconds, string region)
 		{
-		// Persist when there is a host (local) or a usable cloud token worth remembering;
-		// the password and tokens are always stored encrypted.
-		var hasCloudToken = !string.IsNullOrWhiteSpace (options.AccessToken) || !string.IsNullOrWhiteSpace (options.RefreshToken);
-		if (string.IsNullOrWhiteSpace (options.Host) && !hasCloudToken)
+		// Persist non-secret connection defaults only. Cloud tokens and the selected site are owned and
+		// persisted by the library itself (keyed by email), so the console never stores them. Still persist
+		// when there is a host (local) or a non-default cloud email worth remembering as the next-run default.
+		var hasCloudEmail = !string.Equals (options.Email, Constants.DEFAULT_EMAIL, StringComparison.Ordinal);
+		if (string.IsNullOrWhiteSpace (options.Host) && !hasCloudEmail)
 			return;
 
 		SettingsStore.Save (new ConsoleSettings
 			{
 			Host = string.IsNullOrWhiteSpace (options.Host) ? null : options.Host,
 			ProtectedPassword = CredentialProtector.Protect (options.Password),
-			Email = string.Equals (options.Email, Constants.DEFAULT_EMAIL, StringComparison.Ordinal) ? null : options.Email,
+			Email = hasCloudEmail ? options.Email : null,
 			Timezone = string.Equals (options.Timezone, Constants.DEFAULT_TIMEZONE, StringComparison.Ordinal) ? null : options.Timezone,
 			TimeoutSeconds = timeoutSeconds,
 			CacheExpireSeconds = cacheExpireSeconds,
-			ProtectedAccessToken = CredentialProtector.Protect (options.AccessToken),
-			ProtectedRefreshToken = CredentialProtector.Protect (options.RefreshToken),
-			SiteId = options.SiteId,
 			Region = string.Equals (region, "us", StringComparison.Ordinal) ? null : region
 			});
 		}

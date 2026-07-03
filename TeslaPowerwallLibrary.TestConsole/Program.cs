@@ -126,9 +126,7 @@ static Command CreateChangeSiteCommand ()
 	command.SetAction ((parseResult, cancellationToken) =>
 		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
 			{
-			var site = await PowerwallActions.ChangeSiteAsync (powerwall, parseResult.GetValue (siteArgument) ?? string.Empty, token).ConfigureAwait (false);
-			if (site is not null && !parseResult.GetValue (CliOptions.NoSave))
-				CliOptions.PersistSelectedSite (site.SiteId);
+			await PowerwallActions.ChangeSiteAsync (powerwall, parseResult.GetValue (siteArgument) ?? string.Empty, token).ConfigureAwait (false);
 			return 0;
 			}, cancellationToken));
 
@@ -285,18 +283,25 @@ static Command CreateConfigCommand ()
 		ConsoleHelpers.WriteField ("Timezone", settings.Timezone);
 		ConsoleHelpers.WriteField ("Timeout (s)", settings.TimeoutSeconds?.ToString ());
 		ConsoleHelpers.WriteField ("Cache expire (s)", settings.CacheExpireSeconds?.ToString ());
-		ConsoleHelpers.WriteField ("Access token", string.IsNullOrEmpty (settings.ProtectedAccessToken) ? null : "(stored, encrypted)");
-		ConsoleHelpers.WriteField ("Refresh token", string.IsNullOrEmpty (settings.ProtectedRefreshToken) ? null : "(stored, encrypted)");
-		ConsoleHelpers.WriteField ("Site ID", settings.SiteId);
+
+		// Cloud tokens and the selected site are owned by the library (keyed by email), not the console
+		// settings file. Report what the library has cached for the remembered (or default) account.
+		var email = string.IsNullOrWhiteSpace (settings.Email) ? Constants.DEFAULT_EMAIL : settings.Email!;
+		var hasTokens = Powerwall.TryGetStoredCloudTokens (email, out string? _, out string? _);
+		ConsoleHelpers.WriteField ("Cloud tokens", hasTokens ? $"(stored by library for {email})" : null);
+		ConsoleHelpers.WriteField ("Token cache", Powerwall.GetCloudTokenCachePath (email));
 		ConsoleHelpers.WriteField ("Region", settings.Region);
 		return 0;
 		});
 
-	var clearCommand = new Command ("clear", "Delete the persisted connection settings, including the stored password.");
+	var clearCommand = new Command ("clear", "Delete the persisted connection settings, including the stored password and cached cloud tokens.");
 	clearCommand.SetAction (_ =>
 		{
+		var settings = SettingsStore.Load ();
+		var email = string.IsNullOrWhiteSpace (settings.Email) ? Constants.DEFAULT_EMAIL : settings.Email!;
+		Powerwall.ClearStoredCloudTokens (email);
 		SettingsStore.Clear ();
-		ConsoleHelpers.WriteSuccess ("Saved settings cleared.");
+		ConsoleHelpers.WriteSuccess ("Saved settings and cached cloud tokens cleared.");
 		return 0;
 		});
 

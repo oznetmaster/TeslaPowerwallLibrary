@@ -32,6 +32,12 @@ internal sealed class TeslaCloudConnection : IDisposable
 	private string? _refreshToken;
 
 	/// <summary>
+	/// Raised after a successful access-token refresh, carrying the current tokens so owners can persist
+	/// a rotated refresh token. Raised on the calling (possibly background) thread.
+	/// </summary>
+	public event EventHandler<CloudTokensRefreshedEventArgs>? TokensRefreshed;
+
+	/// <summary>
 	/// Initializes a new instance of the <see cref="TeslaCloudConnection"/> class.
 	/// </summary>
 	/// <param name="accessToken">Tesla Owners API OAuth access token, when already available.</param>
@@ -88,7 +94,11 @@ internal sealed class TeslaCloudConnection : IDisposable
 
 		using (response)
 			{
+#if NETFRAMEWORK
 			var payload = await response.Content.ReadAsStringAsync ().ConfigureAwait (false);
+#else
+			var payload = await response.Content.ReadAsStringAsync (cancellationToken).ConfigureAwait (false);
+#endif
 			if (!response.IsSuccessStatusCode)
 				{
 				_log.Error ($"Tesla cloud token refresh failed (HTTP {(int) response.StatusCode}).");
@@ -111,6 +121,7 @@ internal sealed class TeslaCloudConnection : IDisposable
 					_refreshToken = newRefreshToken;
 
 				_log.Debug ("Tesla cloud access token refreshed.");
+				TokensRefreshed?.Invoke (this, new CloudTokensRefreshedEventArgs (_accessToken, _refreshToken));
 				return true;
 				}
 			catch (JsonException exc)

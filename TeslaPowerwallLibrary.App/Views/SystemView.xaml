@@ -1,0 +1,111 @@
+<UserControl x:Class="TeslaPowerwallLibrary.App.Views.SystemView"
+			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:vm="clr-namespace:TeslaPowerwallLibrary.App.ViewModels"
+			 d:DataContext="{d:DesignInstance Type=vm:SystemViewModel}"
+			 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+			 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+			 mc:Ignorable="d"
+			 Background="{StaticResource BackgroundBrush}">
+	<Grid Margin="16">
+		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto" />
+			<RowDefinition Height="*" />
+			<RowDefinition Height="Auto" />
+		</Grid.RowDefinitions>
+
+		<Grid Grid.Row="0" Margin="8,0,8,8">
+			<TextBlock Text="System" Style="{StaticResource HeadingText}" />
+			<Button Content="Reload" HorizontalAlignment="Right" Command="{Binding LoadCommand}"
+					IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+		</Grid>
+
+		<ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+			<StackPanel>
+
+				<!-- Gateway info -->
+				<Border Style="{StaticResource Card}">
+					<StackPanel>
+						<TextBlock Text="Gateway" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,12" />
+						<Grid>
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="140" />
+								<ColumnDefinition Width="*" />
+							</Grid.ColumnDefinitions>
+							<Grid.RowDefinitions>
+								<RowDefinition Height="Auto" />
+								<RowDefinition Height="Auto" />
+								<RowDefinition Height="Auto" />
+								<RowDefinition Height="Auto" />
+							</Grid.RowDefinitions>
+
+							<TextBlock Grid.Row="0" Grid.Column="0" Text="Mode" Style="{StaticResource MutedText}" Margin="0,0,0,6" />
+							<TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ModeLabel}" Margin="0,0,0,6" />
+
+							<TextBlock Grid.Row="1" Grid.Column="0" Text="Version" Style="{StaticResource MutedText}" Margin="0,0,0,6" />
+							<TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Version}" Margin="0,0,0,6" />
+
+							<TextBlock Grid.Row="2" Grid.Column="0" Text="DIN" Style="{StaticResource MutedText}" Margin="0,0,0,6" />
+							<TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Din}" Margin="0,0,0,6" />
+
+							<TextBlock Grid.Row="3" Grid.Column="0" Text="Uptime" Style="{StaticResource MutedText}" />
+							<TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Uptime}" />
+						</Grid>
+					</StackPanel>
+				</Border>
+
+				<!-- Battery blocks -->
+				<Border Style="{StaticResource Card}">
+					<StackPanel>
+						<TextBlock Text="Powerwalls" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,12" />
+						<ItemsControl ItemsSource="{Binding Batteries}">
+							<ItemsControl.ItemTemplate>
+								<DataTemplate>
+									<Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="8"
+											Padding="12" Margin="0,0,0,8">
+										<Grid>
+											<Grid.ColumnDefinitions>
+												<ColumnDefinition Width="*" />
+												<ColumnDefinition Width="Auto" />
+											</Grid.ColumnDefinitions>
+											<StackPanel Grid.Column="0">
+												<TextBlock Text="{Binding Serial}" FontWeight="SemiBold" />
+												<TextBlock Text="{Binding State}" Style="{StaticResource MutedText}" Margin="0,2,0,0" />
+											</StackPanel>
+											<StackPanel Grid.Column="1" HorizontalAlignment="Right">
+												<TextBlock Text="{Binding EnergyText}" HorizontalAlignment="Right" />
+												<TextBlock Text="{Binding PowerText}" Style="{StaticResource MutedText}"
+															HorizontalAlignment="Right" Margin="0,2,0,0" />
+											</StackPanel>
+										</Grid>
+									</Border>
+								</DataTemplate>
+							</ItemsControl.ItemTemplate>
+						</ItemsControl>
+					</StackPanel>
+				</Border>
+
+				<!-- Alerts -->
+				<Border Style="{StaticResource Card}">
+					<StackPanel>
+						<TextBlock Text="Alerts" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,12" />
+						<TextBlock Text="No active alerts." Style="{StaticResource MutedText}"
+									Visibility="{Binding HasAlerts, Converter={StaticResource InverseBoolToVisibility}}" />
+						<ItemsControl ItemsSource="{Binding Alerts}">
+							<ItemsControl.ItemTemplate>
+								<DataTemplate>
+									<TextBlock Text="{Binding}" Foreground="#FFE0A34E" Margin="0,0,0,4" />
+								</DataTemplate>
+							</ItemsControl.ItemTemplate>
+						</ItemsControl>
+					</StackPanel>
+				</Border>
+
+			</StackPanel>
+		</ScrollViewer>
+
+		<TextBlock Grid.Row="2" Text="{Binding StatusMessage}" Foreground="{StaticResource MutedTextBrush}"
+					Margin="8,8,8,0" TextWrapping="Wrap"
+					Visibility="{Binding StatusMessage, Converter={StaticResource NullToCollapsed}}" />
+	</Grid>
+</UserControl>

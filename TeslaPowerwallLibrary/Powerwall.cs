@@ -67,8 +67,90 @@ public sealed class Powerwall : IDisposable
 	/// <summary>Gets the resolved connection mode for this instance.</summary>
 	public PowerwallMode Mode { get; private set; }
 
+	/// <summary>
+	/// Determines whether the library has cloud tokens persisted for the specified account, so callers can
+	/// decide whether a first-time interactive login is required. Tokens are cached internally after the first
+	/// successful cloud connect and reused automatically thereafter.
+	/// </summary>
+	/// <param name="email">The customer email the cached tokens are keyed by.</param>
+	/// <param name="authPath">
+	/// The token cache directory or file. When empty, the per-user default location is used, matching the
+	/// default used when connecting.
+	/// </param>
+	/// <returns><see langword="true"/> when a usable cached token exists; otherwise <see langword="false"/>.</returns>
+	public static bool HasStoredCloudTokens (string email, string authPath = "") =>
+		new TeslaCloudTokenCache (authPath, email).Load ().HasToken;
+
+	/// <summary>
+	/// Gets the full path of the library-managed cloud token cache file for the specified account, for
+	/// diagnostics or display.
+	/// </summary>
+	/// <param name="email">The customer email the cache entry is keyed by.</param>
+	/// <param name="authPath">The token cache directory or file; when empty, the per-user default is used.</param>
+	/// <returns>The resolved cache file path.</returns>
+	public static string GetCloudTokenCachePath (string email, string authPath = "") =>
+		new TeslaCloudTokenCache (authPath, email).FilePath;
+
+	/// <summary>
+	/// Reads the cloud tokens the library persisted for the specified account, so callers can display them
+	/// even when not connected. This is the offline counterpart to <see cref="CloudAccessToken"/> and
+	/// <see cref="CloudRefreshToken"/>, which reflect the live tokens of an active connection.
+	/// </summary>
+	/// <param name="email">The customer email the cached tokens are keyed by.</param>
+	/// <param name="accessToken">When this method returns, the cached access token, or <see langword="null"/>.</param>
+	/// <param name="refreshToken">When this method returns, the cached refresh token, or <see langword="null"/>.</param>
+	/// <param name="authPath">The token cache directory or file; when empty, the per-user default is used.</param>
+	/// <returns><see langword="true"/> when at least one token was found; otherwise <see langword="false"/>.</returns>
+	public static bool TryGetStoredCloudTokens (string email, out string? accessToken, out string? refreshToken, string authPath = "")
+		{
+		var entry = new TeslaCloudTokenCache (authPath, email).Load ();
+		accessToken = entry.AccessToken;
+		refreshToken = entry.RefreshToken;
+		return entry.HasToken;
+		}
+
+	/// <summary>
+	/// Removes any cloud tokens and remembered site the library persisted for the specified account. Use this
+	/// to sign a user out so the next cloud connect requires a fresh login.
+	/// </summary>
+	/// <param name="email">The customer email whose cached entry should be cleared.</param>
+	/// <param name="authPath">The token cache directory or file; when empty, the per-user default is used.</param>
+	public static void ClearStoredCloudTokens (string email, string authPath = "")
+		{
+		var cache = new TeslaCloudTokenCache (authPath, email);
+		cache.SaveTokens (null, null);
+		cache.SaveSite (null);
+		}
+
 	/// <summary>Gets a value indicating whether a backend client has been connected.</summary>
 	public bool IsClientConnected => _client is not null;
+
+	/// <summary>
+	/// Raised in cloud mode after the Tesla Owners API access token is refreshed, carrying the current
+	/// tokens. Long-running callers should persist the (possibly rotated) refresh token so it can be
+	/// reused on a later run. Raised on the thread that triggered the refresh, which may be a background
+	/// polling thread; handlers must be thread-safe and non-blocking.
+	/// </summary>
+	public event EventHandler<CloudTokensRefreshedEventArgs>? CloudTokensRefreshed;
+
+	/// <summary>
+	/// Gets the current Tesla Owners API access token in cloud mode (updated after any refresh), or
+	/// <see langword="null"/> when not connected in cloud mode.
+	/// </summary>
+	public string? CloudAccessToken => (_client as PowerwallCloudClient)?.CurrentAccessToken;
+
+	/// <summary>
+	/// Gets the current Tesla Owners API refresh token in cloud mode (updated after any rotation), or
+	/// <see langword="null"/> when not connected in cloud mode.
+	/// </summary>
+	public string? CloudRefreshToken => (_client as PowerwallCloudClient)?.CurrentRefreshToken;
+
+	/// <summary>
+	/// Gets the Tesla energy site identifier the active cloud connection resolved to (either the caller's
+	/// requested site or the library-remembered/default one), or <see langword="null"/> when not connected
+	/// in cloud mode.
+	/// </summary>
+	public string? CloudSiteId => (_client as PowerwallCloudClient)?.SiteId;
 
 	/// <summary>
 	/// Establishes a connection to the Tesla Energy Gateway using the configured mode.
@@ -132,6 +214,7 @@ public sealed class Powerwall : IDisposable
 					}
 
 				_client = cloudClient;
+				cloudClient.TokensRefreshed += OnCloudTokensRefreshed;
 				return true;
 
 			case PowerwallMode.FleetApi:
@@ -707,9 +790,15 @@ public sealed class Powerwall : IDisposable
 	/// </summary>
 	public void Dispose ()
 		{
+		if (_client is PowerwallCloudClient cloudClient)
+			cloudClient.TokensRefreshed -= OnCloudTokensRefreshed;
+
 		if (_client is IDisposable disposable)
 			disposable.Dispose ();
 		}
+
+	private void OnCloudTokensRefreshed (object? sender, CloudTokensRefreshedEventArgs e) =>
+		CloudTokensRefreshed?.Invoke (this, e);
 	}
 
 /// <summary>

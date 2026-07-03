@@ -164,7 +164,11 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 			if (statusHandling.Handled)
 				return statusHandling.Retry ? await PollAsync (api, force, recursive: true, cancellationToken).ConfigureAwait (false) : null;
 
+#if NETFRAMEWORK
 			var body = await response.Content.ReadAsStringAsync ().ConfigureAwait (false);
+#else
+			var body = await response.Content.ReadAsStringAsync (cancellationToken).ConfigureAwait (false);
+#endif
 			if (string.IsNullOrEmpty (body))
 				{
 				_log.Debug ($"Empty response from Powerwall at {url}");
@@ -263,7 +267,11 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 				return null;
 				}
 
+#if NETFRAMEWORK
 			var body = await response.Content.ReadAsStringAsync ().ConfigureAwait (false);
+#else
+			var body = await response.Content.ReadAsStringAsync (cancellationToken).ConfigureAwait (false);
+#endif
 			InvalidateCache (api);
 			return string.IsNullOrEmpty (body) ? null : body;
 			}
@@ -349,7 +357,11 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 
 		using (response)
 			{
+#if NETFRAMEWORK
 			var body = await response.Content.ReadAsStringAsync ().ConfigureAwait (false);
+#else
+			var body = await response.Content.ReadAsStringAsync (cancellationToken).ConfigureAwait (false);
+#endif
 			if (!response.IsSuccessStatusCode)
 				{
 				_log.Warn ($"Login failed: HTTP {(int) response.StatusCode}");

@@ -17,7 +17,7 @@ public abstract class PowerwallClientBase
 	/// Maps a write API endpoint to the read cache keys that must be invalidated after a successful write.
 	/// Mirrors the upstream <c>WRITE_OP_READ_OP_CACHE_MAP</c>.
 	/// </summary>
-	private static readonly IReadOnlyDictionary<string, string[]> _writeOpReadOpCacheMap =
+	private static readonly Dictionary<string, string[]> _writeOpReadOpCacheMap =
 		new Dictionary<string, string[]>
 			{
 			["/api/operation"] = ["/api/operation", "SITE_CONFIG"]
@@ -130,8 +130,12 @@ public abstract class PowerwallClientBase
 	/// <returns>The sensor power in watts, or <see langword="null"/> when the sensor is unknown.</returns>
 	public virtual async Task<double?> FetchPowerAsync (string sensor, bool verbose = false, CancellationToken cancellationToken = default)
 		{
+#if NETFRAMEWORK
 		if (sensor is null)
 			throw new ArgumentNullException (nameof (sensor));
+#else
+		ArgumentNullException.ThrowIfNull (sensor);
+#endif
 
 		if (verbose)
 			{

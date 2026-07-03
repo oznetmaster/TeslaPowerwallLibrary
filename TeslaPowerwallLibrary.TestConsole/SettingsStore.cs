@@ -10,6 +10,8 @@ namespace TeslaPowerwallLibrary.TestConsole;
 /// <summary>
 /// Persisted connection settings for the test console. The password is stored encrypted (DPAPI) and the
 /// file lives under <c>%LocalAppData%</c>, outside the repository, so it is never committable or pushable.
+/// Cloud tokens and the selected site are not stored here: the library owns and persists them internally
+/// (keyed by email), so the console only remembers non-secret connection defaults plus the local password.
 /// </summary>
 internal sealed class ConsoleSettings
 	{
@@ -36,18 +38,6 @@ internal sealed class ConsoleSettings
 	/// <summary>Cached response expiry, in seconds, to default on the next run.</summary>
 	[JsonProperty ("cacheExpireSeconds")]
 	public int? CacheExpireSeconds { get; set; }
-
-	/// <summary>Encrypted (DPAPI, base64) Tesla Owners API access token; never stored in plaintext.</summary>
-	[JsonProperty ("protectedAccessToken")]
-	public string? ProtectedAccessToken { get; set; }
-
-	/// <summary>Encrypted (DPAPI, base64) Tesla Owners API refresh token; never stored in plaintext.</summary>
-	[JsonProperty ("protectedRefreshToken")]
-	public string? ProtectedRefreshToken { get; set; }
-
-	/// <summary>Tesla energy site identifier to default on the next run in cloud mode.</summary>
-	[JsonProperty ("siteId")]
-	public string? SiteId { get; set; }
 
 	/// <summary>Tesla region (<c>us</c> or <c>cn</c>) to default for the cloud browser login.</summary>
 	[JsonProperty ("region")]

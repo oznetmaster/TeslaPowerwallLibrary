@@ -21,6 +21,16 @@ public static class Constants
 	/// <summary>Default cache file used to persist local-mode authentication sessions.</summary>
 	public const string DEFAULT_CACHE_FILE = ".powerwall";
 
+	/// <summary>
+	/// Default file name used by the library to persist cloud-mode Tesla Owners API tokens and the selected
+	/// site, keyed by customer email. Mirrors the upstream behavior of caching credentials internally so
+	/// callers never have to manage token storage themselves.
+	/// </summary>
+	public const string DEFAULT_CLOUD_AUTH_FILE = ".powerwall.auth.json";
+
+	/// <summary>Default local application data subfolder used for library-managed cloud token persistence.</summary>
+	public const string DEFAULT_CLOUD_AUTH_FOLDER = "TeslaPowerwallLibrary";
+
 	/// <summary>Default number of seconds before cached API responses expire.</summary>
 	public const int DEFAULT_CACHE_EXPIRE_SECONDS = 5;
 

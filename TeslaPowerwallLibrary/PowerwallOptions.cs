@@ -56,18 +56,27 @@ public sealed record PowerwallOptions
 	public string? SiteId { get; init; }
 
 	/// <summary>
-	/// Tesla Owners API OAuth access token used for cloud mode. Obtain this token by completing the
-	/// Tesla OAuth flow separately (for example, with the upstream <c>pypowerwall setup</c> tool); the
-	/// library refreshes it using <see cref="RefreshToken"/> but does not perform interactive login.
+	/// Tesla Owners API OAuth access token used for cloud mode. Supply this only for a first-time login or to
+	/// override the cached token; after the initial connect the library persists tokens internally (keyed by
+	/// <see cref="Email"/>) and reuses them automatically on later runs, so callers do not need to store tokens
+	/// themselves. Obtain the initial token by completing the Tesla OAuth flow separately (for example, with
+	/// the upstream <c>pypowerwall setup</c> tool); the library refreshes it using <see cref="RefreshToken"/>
+	/// but does not perform interactive login.
 	/// </summary>
 	public string? AccessToken { get; init; }
 
 	/// <summary>
 	/// Tesla Owners API OAuth refresh token used to renew an expired <see cref="AccessToken"/> in cloud mode.
+	/// Supply this only for a first-time login or to override the cached token; the library persists the
+	/// (possibly rotated) refresh token internally and reuses it on later runs.
 	/// </summary>
 	public string? RefreshToken { get; init; }
 
-	/// <summary>Path to cloud authentication and site cache files.</summary>
+	/// <summary>
+	/// Directory or file used by the library to persist cloud-mode Tesla tokens and the selected site, keyed
+	/// by <see cref="Email"/>. When empty, a per-user default under the local application data folder is used.
+	/// When a directory is supplied, the default cache file name is appended.
+	/// </summary>
 	public string AuthPath { get; init; } = string.Empty;
 
 	/// <summary>Authentication mode for local access: <c>cookie</c> (default) or <c>token</c>.</summary>

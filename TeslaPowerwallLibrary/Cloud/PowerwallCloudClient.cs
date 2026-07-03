@@ -36,6 +36,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 	private readonly Dictionary<string, double> _cloudCacheTimes = [];
 	private readonly string? _accessToken;
 	private readonly string? _refreshToken;
+	private readonly TeslaCloudTokenCache _tokenCache;
 
 	private TeslaCloudConnection? _connection;
 	private string? _resolvedSiteId;
@@ -67,6 +68,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		AuthPath = authPath ?? string.Empty;
 		_accessToken = accessToken;
 		_refreshToken = refreshToken;
+		_tokenCache = new TeslaCloudTokenCache (AuthPath, email);
 		}
 
 	/// <summary>Gets the configured site identifier, when one was supplied.</summary>
@@ -81,6 +83,18 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 	/// <summary>Gets the path to cloud authentication and site cache files.</summary>
 	public string AuthPath { get; }
 
+	/// <summary>
+	/// Raised after the underlying Tesla connection refreshes its OAuth tokens, carrying the current
+	/// tokens so callers can persist a rotated refresh token. Raised on the calling thread.
+	/// </summary>
+	public event EventHandler<CloudTokensRefreshedEventArgs>? TokensRefreshed;
+
+	/// <summary>Gets the current Tesla Owners API access token, updated after any refresh.</summary>
+	public string? CurrentAccessToken => _connection?.AccessToken ?? _accessToken;
+
+	/// <summary>Gets the current Tesla Owners API refresh token, updated after any rotation.</summary>
+	public string? CurrentRefreshToken => _connection?.RefreshToken ?? _refreshToken;
+
 	private double NowSeconds => _clock.Elapsed.TotalSeconds;
 
 	/// <inheritdoc/>
@@ -88,7 +102,16 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		{
 		_log.Debug ("Tesla cloud mode enabled");
 
-		_connection = new TeslaCloudConnection (_accessToken, _refreshToken, Timeout);
+		// Load any library-persisted tokens/site for this email. Explicitly supplied values (a first-time
+		// login or a caller override) take precedence over the cache; otherwise reuse what we persisted on a
+		// previous run, so callers never have to manage token storage themselves.
+		var cached = _tokenCache.Load ();
+		var accessToken = string.IsNullOrWhiteSpace (_accessToken) ? cached.AccessToken : _accessToken;
+		var refreshToken = string.IsNullOrWhiteSpace (_refreshToken) ? cached.RefreshToken : _refreshToken;
+		SiteId ??= cached.SiteId;
+
+		_connection = new TeslaCloudConnection (accessToken, refreshToken, Timeout);
+		_connection.TokensRefreshed += OnConnectionTokensRefreshed;
 		if (!_connection.HasToken)
 			{
 			_connection.Dispose ();
@@ -125,6 +148,11 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 
 		_resolvedSiteId = SelectSite (sites);
 		SiteId ??= _resolvedSiteId;
+
+		// Persist the tokens now in use (an initial refresh above may have produced new ones) and the resolved
+		// site, so a later run reconnects without any caller involvement.
+		_tokenCache.SaveTokens (_connection.AccessToken, _connection.RefreshToken);
+		_tokenCache.SaveSite (_resolvedSiteId);
 		_log.Debug ($"Connected to Tesla cloud - using site {_resolvedSiteId} for {Email}");
 		}
 
@@ -192,6 +220,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 			_resolvedSiteId = siteId;
 			SiteId = siteId;
 			ClearCloudCache ();
+			_tokenCache.SaveSite (siteId);
 			var siteName = site.Value<string> ("site_name") ?? "Unknown";
 			_log.Debug ($"Changed site to {siteId} ({siteName}) for {Email}");
 			return true;
@@ -471,7 +500,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		return Serialize (result);
 		}
 
-	private JToken? GetApiDevicesVitals ()
+	private static JToken? GetApiDevicesVitals ()
 		{
 		_log.Warn ("Protobuf payload - not implemented for /api/devices/vitals - use /vitals instead");
 		return null;
@@ -860,7 +889,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		_cloudCacheTimes.Clear ();
 		}
 
-	private string SelectSite (IReadOnlyList<JObject> sites)
+	private string SelectSite (List<JObject> sites)
 		{
 		if (SiteId is null)
 			return GetSiteId (sites[0]);
@@ -887,25 +916,25 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 			throw new PowerwallCloudTeslaNotConnectedException ("Not connected to the Tesla cloud. Call AuthenticateAsync before invoking data methods.");
 		}
 
-	private JToken MockObject (string name, Func<JObject> factory)
+	private static JObject MockObject (string name, Func<JObject> factory)
 		{
 		LogMockUsage (name);
 		return factory ();
 		}
 
-	private JToken MockParse (string name, string json)
+	private static JToken MockParse (string name, string json)
 		{
 		LogMockUsage (name);
 		return JToken.Parse (json);
 		}
 
-	private JToken MockValue (string name, string value)
+	private static JValue MockValue (string name, string value)
 		{
 		LogMockUsage (name);
 		return new JValue (value);
 		}
 
-	private void LogMockUsage (string name) =>
+	private static void LogMockUsage (string name) =>
 		_log.Debug ($"This API [{name}] is using mock data in cloud mode.");
 
 	private static JToken ExtractCommandResult (JObject? response)
@@ -939,9 +968,20 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 	private static string? Serialize (JToken? token) =>
 		token is null ? null : token.ToString (Formatting.None);
 
+	private void OnConnectionTokensRefreshed (object? sender, CloudTokensRefreshedEventArgs e)
+		{
+		// Tesla rotated the tokens; persist them so the next run reconnects without a fresh login, then
+		// surface the event to any observer.
+		_tokenCache.SaveTokens (e.AccessToken, e.RefreshToken);
+		TokensRefreshed?.Invoke (this, e);
+		}
+
 	/// <summary>Releases the underlying Tesla cloud connection.</summary>
 	public void Dispose ()
 		{
+		if (_connection is not null)
+			_connection.TokensRefreshed -= OnConnectionTokensRefreshed;
+
 		_connection?.Dispose ();
 		_connection = null;
 		}

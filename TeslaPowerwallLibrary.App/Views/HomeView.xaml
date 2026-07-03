@@ -1,0 +1,78 @@
+<UserControl x:Class="TeslaPowerwallLibrary.App.Views.HomeView"
+			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:vm="clr-namespace:TeslaPowerwallLibrary.App.ViewModels"
+			 d:DataContext="{d:DesignInstance Type=vm:HomeViewModel}"
+			 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+			 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+			 mc:Ignorable="d"
+			 Background="{StaticResource BackgroundBrush}">
+	<Grid Margin="16">
+		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto" />
+			<RowDefinition Height="Auto" />
+			<RowDefinition Height="*" />
+			<RowDefinition Height="Auto" />
+		</Grid.RowDefinitions>
+
+		<TextBlock Grid.Row="0" Text="Home" Style="{StaticResource HeadingText}" Margin="8,0,8,8" />
+
+		<!-- Battery hero card -->
+		<Border Grid.Row="1" Style="{StaticResource Card}">
+			<Grid>
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="*" />
+					<ColumnDefinition Width="Auto" />
+				</Grid.ColumnDefinitions>
+				<StackPanel Grid.Column="0" VerticalAlignment="Center">
+					<TextBlock Text="Powerwall charge" Style="{StaticResource MutedText}" />
+					<TextBlock Text="{Binding BatteryPercentText}" FontSize="44" FontWeight="Bold"
+								Foreground="{StaticResource BatteryBrush}" />
+					<TextBlock Text="{Binding TimeRemainingText}" Style="{StaticResource MutedText}" Margin="0,4,0,0" />
+				</StackPanel>
+				<StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+					<TextBlock Text="{Binding GridStatusText}" Foreground="{StaticResource TextBrush}"
+								FontWeight="SemiBold" HorizontalAlignment="Right" />
+					<TextBlock Text="{Binding BatteryFlowText}" Style="{StaticResource MutedText}"
+								HorizontalAlignment="Right" Margin="0,4,0,0" />
+				</StackPanel>
+			</Grid>
+		</Border>
+
+		<!-- Power-flow grid -->
+		<UniformGrid Grid.Row="2" Columns="2" Margin="0,4,0,0">
+			<Border Style="{StaticResource Card}">
+				<StackPanel>
+					<TextBlock Text="☀ Solar" Foreground="{StaticResource SolarBrush}" FontWeight="SemiBold" />
+					<TextBlock Text="{Binding SolarText}" Style="{StaticResource MetricValue}" Margin="0,8,0,0" />
+					<TextBlock Text="Generating" Style="{StaticResource MutedText}" Margin="0,4,0,0" />
+				</StackPanel>
+			</Border>
+			<Border Style="{StaticResource Card}">
+				<StackPanel>
+					<TextBlock Text="🔋 Battery" Foreground="{StaticResource BatteryBrush}" FontWeight="SemiBold" />
+					<TextBlock Text="{Binding BatteryText}" Style="{StaticResource MetricValue}" Margin="0,8,0,0" />
+					<TextBlock Text="{Binding BatteryFlowText}" Style="{StaticResource MutedText}" Margin="0,4,0,0" />
+				</StackPanel>
+			</Border>
+			<Border Style="{StaticResource Card}">
+				<StackPanel>
+					<TextBlock Text="🏠 Home" Foreground="{StaticResource HomeBrush}" FontWeight="SemiBold" />
+					<TextBlock Text="{Binding HomeText}" Style="{StaticResource MetricValue}" Margin="0,8,0,0" />
+					<TextBlock Text="Consuming" Style="{StaticResource MutedText}" Margin="0,4,0,0" />
+				</StackPanel>
+			</Border>
+			<Border Style="{StaticResource Card}">
+				<StackPanel>
+					<TextBlock Text="⚡ Grid" Foreground="{StaticResource GridBrush}" FontWeight="SemiBold" />
+					<TextBlock Text="{Binding GridText}" Style="{StaticResource MetricValue}" Margin="0,8,0,0" />
+					<TextBlock Text="{Binding GridFlowText}" Style="{StaticResource MutedText}" Margin="0,4,0,0" />
+				</StackPanel>
+			</Border>
+		</UniformGrid>
+
+		<TextBlock Grid.Row="3" Text="{Binding StatusMessage}" Foreground="#FFE0554E" Margin="8,8,8,0"
+					TextWrapping="Wrap"
+					Visibility="{Binding StatusMessage, Converter={StaticResource NullToCollapsed}}" />
+	</Grid>
+</UserControl>
