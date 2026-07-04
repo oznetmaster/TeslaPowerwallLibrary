@@ -1,36 +1,31 @@
 // Copyright © 2026 Neil Colvin.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
-using System.Text;
-
 #if !NETFRAMEWORK
-using System.Security.Cryptography;
+using System.Runtime.Versioning;
 #endif
+using System.Security.Cryptography;
+using System.Text;
 
 namespace TeslaPowerwallLibrary.Cloud;
 
 /// <summary>
-/// Protects small secrets (Tesla Owners API tokens) at rest for the library-owned cloud token cache.
-/// On modern .NET running on Windows, values are encrypted with the current-user DPAPI scope; on
-/// .NET Framework and on non-Windows platforms, values are stored as plaintext, matching the upstream
-/// behavior of a plaintext token cache. Each stored value records whether it was protected so a later
-/// load knows whether to decrypt.
+/// Protects small secrets (Tesla Owners API tokens) at rest for the library-owned cloud token cache using the
+/// Windows Data Protection API (DPAPI), scoped to the current user. DPAPI is available both on .NET Framework
+/// (built into the platform) and on modern .NET running on Windows (via the ProtectedData package), so a value
+/// protected by a process running under one target framework can still be recovered by a process running
+/// under the other, as long as both run as the same Windows user. On non-Windows platforms values are stored
+/// as plaintext, matching the upstream behavior of a plaintext token cache. Each stored value records whether
+/// it was protected so a later load knows whether to decrypt.
 /// </summary>
 internal static class CloudTokenProtector
 	{
-#if !NETFRAMEWORK
 	// Additional entropy bound to this library so protected values cannot be trivially unprotected by
 	// another application running as the same user.
 	private static readonly byte[] _entropy = Encoding.UTF8.GetBytes ("TeslaPowerwallLibrary.Cloud.TokenCache.v1");
-#endif
 
 	/// <summary>Gets a value indicating whether at-rest DPAPI encryption is applied to stored token values.</summary>
-	public static bool IsActive =>
-#if NETFRAMEWORK
-		false;
-#else
-		OperatingSystem.IsWindows ();
-#endif
+	public static bool IsActive => IsSupported;
 
 	/// <summary>
 	/// Encrypts <paramref name="plaintext"/> when encryption is active; otherwise returns it unchanged.
@@ -39,18 +34,12 @@ internal static class CloudTokenProtector
 	/// <returns>The protected (base64) value, or the original plaintext when encryption is unavailable.</returns>
 	public static string? Protect (string? plaintext)
 		{
-		if (string.IsNullOrEmpty (plaintext))
+		if (string.IsNullOrEmpty (plaintext) || !IsSupported)
 			return plaintext;
 
-#if !NETFRAMEWORK
-		if (OperatingSystem.IsWindows ())
-			{
-			var protectedBytes = ProtectedData.Protect (
-				Encoding.UTF8.GetBytes (plaintext!), _entropy, DataProtectionScope.CurrentUser);
-			return Convert.ToBase64String (protectedBytes);
-			}
-#endif
-		return plaintext;
+		var protectedBytes = ProtectedData.Protect (
+			Encoding.UTF8.GetBytes (plaintext!), _entropy, DataProtectionScope.CurrentUser);
+		return Convert.ToBase64String (protectedBytes);
 		}
 
 	/// <summary>
@@ -69,22 +58,25 @@ internal static class CloudTokenProtector
 		if (!wasProtected)
 			return stored;
 
-#if !NETFRAMEWORK
-		if (OperatingSystem.IsWindows ())
+		if (!IsSupported)
+			return null;
+
+		try
 			{
-			try
-				{
-				var bytes = ProtectedData.Unprotect (
-					Convert.FromBase64String (stored!), _entropy, DataProtectionScope.CurrentUser);
-				return Encoding.UTF8.GetString (bytes);
-				}
-			catch (Exception exc) when (exc is FormatException or CryptographicException)
-				{
-				return null;
-				}
+			var bytes = ProtectedData.Unprotect (
+				Convert.FromBase64String (stored!), _entropy, DataProtectionScope.CurrentUser);
+			return Encoding.UTF8.GetString (bytes);
 			}
-#endif
-		// A protected value cannot be recovered on .NET Framework or on non-Windows platforms.
-		return null;
+		catch (Exception exc) when (exc is FormatException or CryptographicException)
+			{
+			return null;
+			}
 		}
+
+#if NETFRAMEWORK
+	private static bool IsSupported => true;
+#else
+	[SupportedOSPlatformGuard ("windows")]
+	private static bool IsSupported => OperatingSystem.IsWindows ();
+#endif
 	}
