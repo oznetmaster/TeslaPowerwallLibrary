@@ -111,7 +111,7 @@ internal static class CliOptions
 	/// </summary>
 	/// <param name="parseResult">The parsed command-line result.</param>
 	/// <returns>The resolved connection options and verbose-logging flag.</returns>
-	public static ResolvedConnection Resolve (ParseResult parseResult)
+	public static async Task<ResolvedConnection> ResolveAsync (ParseResult parseResult)
 		{
 		var settings = SettingsStore.Load ();
 
@@ -160,7 +160,7 @@ internal static class CliOptions
 			&& string.IsNullOrWhiteSpace (refreshToken)
 			&& !Powerwall.HasStoredCloudTokens (resolvedEmail))
 			{
-			var acquired = TryAcquireCloudTokensInteractively (region);
+			var acquired = await TryAcquireCloudTokensInteractivelyAsync (region).ConfigureAwait (false);
 			if (acquired is not null)
 				{
 				accessToken = acquired.AccessToken;
@@ -194,8 +194,8 @@ internal static class CliOptions
 		}
 
 	// Prompts the user to launch the Tesla browser login and returns the captured tokens, or null
-	// when the user declines, cancels, or the setup application is unavailable.
-	private static CloudTokens? TryAcquireCloudTokensInteractively (string? region)
+	// when the user declines or cancels.
+	private static async Task<CloudTokens?> TryAcquireCloudTokensInteractivelyAsync (string? region)
 		{
 		ConsoleHelpers.WriteHeading ("Tesla Cloud Login");
 		Console.WriteLine ("  No Tesla cloud tokens were found. Tesla requires a browser login (it handles");
@@ -205,18 +205,17 @@ internal static class CliOptions
 		if (answer is { Length: > 0 } && answer.StartsWith ("n", StringComparison.OrdinalIgnoreCase))
 			return null;
 
-		return LaunchTeslaLogin (region);
+		return await LaunchTeslaLoginAsync (region).ConfigureAwait (false);
 		}
 
 	/// <summary>
-	/// Launches the Tesla browser login (handled by the WebView2 setup app) and returns the captured
-	/// tokens, or <see langword="null"/> when the user cancels or the setup application is unavailable.
-	/// Used both at startup and by the interactive <c>login cloud</c> command.
+	/// Launches the Tesla browser login and returns the captured tokens, or <see langword="null"/> when the
+	/// user cancels or the login fails. Used both at startup and by the interactive <c>login cloud</c> command.
 	/// </summary>
-	internal static CloudTokens? LaunchTeslaLogin (string? region)
+	internal static async Task<CloudTokens?> LaunchTeslaLoginAsync (string? region)
 		{
 		Console.WriteLine ("  Launching Tesla login. Complete the sign-in in the window that opens...");
-		var result = SetupLauncher.AcquireTokens (NormalizeRegion (region), TimeSpan.FromMinutes (5));
+		var result = await SetupLauncher.AcquireTokensAsync (NormalizeRegion (region), TimeSpan.FromMinutes (5)).ConfigureAwait (false);
 
 		switch (result.Status)
 			{
@@ -226,11 +225,6 @@ internal static class CliOptions
 
 			case SetupLaunchStatus.Cancelled:
 				ConsoleHelpers.WriteError ("  Tesla login was cancelled.");
-				return null;
-
-			case SetupLaunchStatus.NotFound:
-				ConsoleHelpers.WriteError ($"  {result.Message}");
-				Console.WriteLine ("  Alternatively, run TeslaPowerwallSetup.exe manually and pass --access-token / --refresh-token.");
 				return null;
 
 			default:

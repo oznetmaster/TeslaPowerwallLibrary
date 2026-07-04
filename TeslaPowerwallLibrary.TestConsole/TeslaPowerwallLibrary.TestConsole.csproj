@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<TargetFrameworks>net472;net10.0</TargetFrameworks>
+		<TargetFrameworks>net472;net10.0-windows</TargetFrameworks>
 		<OutputType>Exe</OutputType>
 		<RootNamespace>TeslaPowerwallLibrary.TestConsole</RootNamespace>
 		<AssemblyName>TeslaPowerwallTestConsole</AssemblyName>
@@ -31,5 +31,19 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\TeslaPowerwallLibrary\TeslaPowerwallLibrary.csproj" />
+		<ProjectReference Include="..\TeslaPowerwallLibrary.Login\TeslaPowerwallLibrary.Login.csproj" />
 	</ItemGroup>
+
+	<!-- TeslaPowerwallLibrary.Login transitively brings in Microsoft.Web.WebView2 (buildTransitive),
+		 which unconditionally references its WPF and WinForms wrapper assemblies for any net5.0+ TFM.
+		 This console project uses neither, and the WPF wrapper's "real" WindowsBase (5.0.0.0) conflicts
+		 with the WindowsBase reference assembly (4.0.0.0) this project gets from the core framework,
+		 producing an MSB3277 warning. Strip the unused UI-framework references before they are resolved. -->
+	<Target Name="RemoveUnusedWebView2UiReferences" BeforeTargets="ResolveAssemblyReferences"
+			Condition=" '$(UseWPF)' != 'true' And '$(UseWindowsForms)' != 'true' ">
+		<ItemGroup>
+			<Reference Remove="@(Reference)"
+						Condition="'%(Reference.Filename)' == 'Microsoft.Web.WebView2.Wpf' Or '%(Reference.Filename)' == 'Microsoft.Web.WebView2.WinForms'" />
+		</ItemGroup>
+	</Target>
 </Project>

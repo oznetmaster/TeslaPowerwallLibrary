@@ -319,7 +319,7 @@ static Command CreateConfigCommand ()
 
 static async Task<int> RunInteractiveAsync (ParseResult parseResult, CancellationToken cancellationToken)
 	{
-	var resolved = CliOptions.Resolve (parseResult);
+	var resolved = await CliOptions.ResolveAsync (parseResult).ConfigureAwait (false);
 	if (resolved.Verbose)
 		VerboseLogging.Enable ();
 
@@ -375,7 +375,7 @@ static async Task<int> RunWithConnectionAsync (
 	Func<Powerwall, CancellationToken, Task<int>> action,
 	CancellationToken cancellationToken)
 	{
-	var resolved = CliOptions.Resolve (parseResult);
+	var resolved = await CliOptions.ResolveAsync (parseResult).ConfigureAwait (false);
 	if (resolved.Verbose)
 		VerboseLogging.Enable ();
 

@@ -31,5 +31,6 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\TeslaPowerwallLibrary\TeslaPowerwallLibrary.csproj" />
+		<ProjectReference Include="..\TeslaPowerwallLibrary.Login\TeslaPowerwallLibrary.Login.csproj" />
 	</ItemGroup>
 </Project>

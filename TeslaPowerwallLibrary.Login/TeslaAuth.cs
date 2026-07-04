@@ -5,15 +5,19 @@
 
 using System;
 using System.Collections.Generic;
+#if !NETFRAMEWORK
 using System.Net;
+#endif
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace TeslaPowerwallLibrary.Setup;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
+namespace TeslaPowerwallLibrary.Login;
 
 /// <summary>
 /// Faithful C# adaptation of the upstream <c>pypowerwall</c> <c>tesla_auth</c> module that backs the
@@ -42,18 +46,28 @@ internal static class TeslaAuth
 		["cn"] = "https://auth.tesla.cn"
 		};
 
-	// Tesla requires HTTP/2 for the auth.tesla.com token endpoints.
+	// Tesla requires HTTP/2 for the auth.tesla.com token endpoints. On modern .NET, SocketsHttpHandler
+	// defaults to HTTP/1.1 and must be told to upgrade. On .NET Framework, WinHttpHandler negotiates HTTP/2
+	// automatically via TLS ALPN when the server offers it (as already relied on by
+	// TeslaCloudConnection.RefreshAccessTokenAsync against this same host), and HttpVersionPolicy does not
+	// exist there, so no explicit version pinning is applied.
 	private static readonly HttpClient _httpClient = CreateHttpClient ();
 
 	private static HttpClient CreateHttpClient ()
 		{
-		var client = new HttpClient
+#if NETFRAMEWORK
+		return new HttpClient
+			{
+			Timeout = TimeSpan.FromSeconds (30)
+			};
+#else
+		return new HttpClient
 			{
 			DefaultRequestVersion = HttpVersion.Version20,
 			DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher,
 			Timeout = TimeSpan.FromSeconds (30)
 			};
-		return client;
+#endif
 		}
 
 	/// <summary>
@@ -75,9 +89,9 @@ internal static class TeslaAuth
 		{
 		var authHost = ResolveAuthHost (region);
 
-		var codeVerifier = Base64UrlEncode (RandomNumberGenerator.GetBytes (32));
-		var codeChallenge = Base64UrlEncode (SHA256.HashData (Encoding.ASCII.GetBytes (codeVerifier)));
-		var state = Base64UrlEncode (RandomNumberGenerator.GetBytes (16));
+		var codeVerifier = Base64UrlEncode (GetRandomBytes (32));
+		var codeChallenge = Base64UrlEncode (ComputeSha256 (Encoding.ASCII.GetBytes (codeVerifier)));
+		var state = Base64UrlEncode (GetRandomBytes (16));
 
 		// Preserve the upstream parameter order.
 		var query = new StringBuilder ();
@@ -106,7 +120,7 @@ internal static class TeslaAuth
 			return false;
 
 		var queryStart = uri.IndexOf ('?');
-		var query = queryStart >= 0 ? uri[(queryStart + 1)..] : string.Empty;
+		var query = queryStart >= 0 ? uri.Substring (queryStart + 1) : string.Empty;
 		var values = ParseQuery (query);
 
 		values.TryGetValue ("code", out var code);
@@ -119,7 +133,7 @@ internal static class TeslaAuth
 	/// <summary>
 	/// Exchanges an authorization code for Tesla tokens.
 	/// Mirrors upstream <c>_exchange_code</c>: <c>POST /oauth2/v3/token</c> with
-	/// <c>grant_type=authorization_code</c> over HTTP/2, returning the refresh and access tokens.
+	/// <c>grant_type=authorization_code</c>, returning the refresh and access tokens.
 	/// </summary>
 	/// <param name="authCode">The authorization code captured from the redirect.</param>
 	/// <param name="codeVerifier">The PKCE code verifier generated for this login.</param>
@@ -136,7 +150,7 @@ internal static class TeslaAuth
 		var authHost = ResolveAuthHost (region);
 		var url = $"{authHost}{TokenUrlPath}";
 
-		var payload = new Dictionary<string, string>
+		var body = new JObject
 			{
 			["grant_type"] = "authorization_code",
 			["client_id"] = ClientId,
@@ -146,17 +160,23 @@ internal static class TeslaAuth
 			};
 
 		HttpResponseMessage response;
-		string body;
+		string responseBody;
 		try
 			{
 			using var request = new HttpRequestMessage (HttpMethod.Post, url)
 				{
+#if !NETFRAMEWORK
 				Version = HttpVersion.Version20,
 				VersionPolicy = HttpVersionPolicy.RequestVersionOrHigher,
-				Content = new StringContent (JsonSerializer.Serialize (payload), Encoding.UTF8, "application/json")
+#endif
+				Content = new StringContent (body.ToString (Formatting.None), Encoding.UTF8, "application/json")
 				};
 			response = await _httpClient.SendAsync (request, cancellationToken).ConfigureAwait (false);
-			body = await response.Content.ReadAsStringAsync (cancellationToken).ConfigureAwait (false);
+#if NETFRAMEWORK
+			responseBody = await response.Content.ReadAsStringAsync ().ConfigureAwait (false);
+#else
+			responseBody = await response.Content.ReadAsStringAsync (cancellationToken).ConfigureAwait (false);
+#endif
 			}
 		catch (Exception exc) when (exc is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
 			{
@@ -166,35 +186,32 @@ internal static class TeslaAuth
 		using (response)
 			{
 			if (!response.IsSuccessStatusCode)
-				throw new TeslaAuthException ($"Token exchange failed (HTTP {(int) response.StatusCode}): {body}");
+				throw new TeslaAuthException ($"Token exchange failed (HTTP {(int) response.StatusCode}): {responseBody}");
 
-			return ParseTokenResponse (body);
+			return ParseTokenResponse (responseBody);
 			}
 		}
 
 	private static TeslaTokens ParseTokenResponse (string body)
 		{
-		JsonElement root;
+		JObject root;
 		try
 			{
-			using var document = JsonDocument.Parse (body);
-			root = document.RootElement.Clone ();
+			root = JObject.Parse (body);
 			}
 		catch (JsonException exc)
 			{
 			throw new TeslaAuthException ($"Unable to parse Tesla token response: {exc.Message}", exc);
 			}
 
-		var refreshToken = GetString (root, "refresh_token");
+		var refreshToken = root.Value<string> ("refresh_token");
 		if (string.IsNullOrEmpty (refreshToken))
 			throw new TeslaAuthException ($"No refresh_token in Tesla token response: {body}");
 
-		var accessToken = GetString (root, "access_token") ?? string.Empty;
-		var tokenType = GetString (root, "token_type") ?? "Bearer";
-		var idToken = GetString (root, "id_token");
-		var expiresIn = root.TryGetProperty ("expires_in", out var expires) && expires.TryGetInt32 (out var seconds)
-			? seconds
-			: 28800;
+		var accessToken = root.Value<string> ("access_token") ?? string.Empty;
+		var tokenType = root.Value<string> ("token_type") ?? "Bearer";
+		var idToken = root.Value<string> ("id_token");
+		var expiresIn = (int?) root["expires_in"] ?? 28800;
 		var email = idToken is null ? string.Empty : ExtractEmailFromToken (idToken);
 
 		return new TeslaTokens (refreshToken!, accessToken, email, tokenType, expiresIn, idToken);
@@ -217,15 +234,15 @@ internal static class TeslaAuth
 			if (parts.Length < 2)
 				return string.Empty;
 
-			using var document = JsonDocument.Parse (Base64UrlDecode (parts[1]));
-			var root = document.RootElement;
+			var payload = Encoding.UTF8.GetString (Base64UrlDecode (parts[1]));
+			var root = JObject.Parse (payload);
 
-			var email = GetString (root, "email");
+			var email = root.Value<string> ("email");
 			if (!string.IsNullOrEmpty (email))
 				return email!;
 
-			if (root.TryGetProperty ("data", out var data) && data.ValueKind == JsonValueKind.Object)
-				return GetString (data, "email") ?? string.Empty;
+			if (root["data"] is JObject data)
+				return data.Value<string> ("email") ?? string.Empty;
 			}
 		catch (Exception exc) when (exc is JsonException or FormatException)
 			{
@@ -235,10 +252,30 @@ internal static class TeslaAuth
 		return string.Empty;
 		}
 
-	private static string? GetString (JsonElement element, string propertyName) =>
-		element.TryGetProperty (propertyName, out var value) && value.ValueKind == JsonValueKind.String
-			? value.GetString ()
-			: null;
+	// RandomNumberGenerator.GetBytes(int) is a static convenience method added in .NET 6; net472 must use
+	// the instance API instead.
+	private static byte[] GetRandomBytes (int length)
+		{
+#if NETFRAMEWORK
+		using var rng = RandomNumberGenerator.Create ();
+		var bytes = new byte[length];
+		rng.GetBytes (bytes);
+		return bytes;
+#else
+		return RandomNumberGenerator.GetBytes (length);
+#endif
+		}
+
+	// SHA256.HashData(byte[]) is a static convenience method added in .NET 5; net472 must use the instance API.
+	private static byte[] ComputeSha256 (byte[] data)
+		{
+#if NETFRAMEWORK
+		using var sha = SHA256.Create ();
+		return sha.ComputeHash (data);
+#else
+		return SHA256.HashData (data);
+#endif
+		}
 
 	private static void AppendQueryParameter (StringBuilder builder, string name, string value)
 		{
@@ -255,7 +292,7 @@ internal static class TeslaAuth
 		if (string.IsNullOrEmpty (query))
 			return values;
 
-		foreach (var pair in query.Split ('&', StringSplitOptions.RemoveEmptyEntries))
+		foreach (var pair in query.Split (new[] { '&' }, StringSplitOptions.RemoveEmptyEntries))
 			{
 			var separator = pair.IndexOf ('=');
 			if (separator < 0)
@@ -264,8 +301,8 @@ internal static class TeslaAuth
 				continue;
 				}
 
-			var key = Uri.UnescapeDataString (pair[..separator]);
-			var value = Uri.UnescapeDataString (pair[(separator + 1)..]);
+			var key = Uri.UnescapeDataString (pair.Substring (0, separator));
+			var value = Uri.UnescapeDataString (pair.Substring (separator + 1));
 			values[key] = value;
 			}
 

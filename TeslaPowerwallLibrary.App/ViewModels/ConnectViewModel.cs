@@ -180,10 +180,6 @@ public sealed partial class ConnectViewModel : ViewModelBase
 					StatusMessage = "Tesla login was cancelled.";
 					return;
 
-				case TeslaLoginStatus.NotFound:
-					StatusMessage = result.Message;
-					return;
-
 				default:
 					StatusMessage = $"Tesla login failed: {result.Message}";
 					return;

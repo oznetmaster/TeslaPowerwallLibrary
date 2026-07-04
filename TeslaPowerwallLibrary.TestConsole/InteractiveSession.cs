@@ -172,7 +172,7 @@ internal static class InteractiveSession
 		switch (target)
 			{
 			case "cloud":
-				var tokens = CliOptions.LaunchTeslaLogin (session.Region);
+				var tokens = await CliOptions.LaunchTeslaLoginAsync (session.Region).ConfigureAwait (false);
 				if (tokens is null)
 					return;
 

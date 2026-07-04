@@ -1,7 +1,6 @@
 <Window x:Class="TeslaPowerwallLibrary.Setup.MainWindow"
 		xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-		xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
 		Title="Tesla Powerwall Setup — Authentication Token"
 		Width="560" Height="820"
 		WindowStartupLocation="CenterScreen"
@@ -35,16 +34,13 @@
 			</StackPanel>
 		</Border>
 
-		<!-- Embedded Tesla login browser -->
-		<wv2:WebView2 x:Name="LoginWebView" Grid.Row="1" Visibility="Collapsed" />
-
 		<!-- Idle / instructional placeholder -->
 		<Border x:Name="PlaceholderPanel" Grid.Row="1" Background="#FFF5F5F5">
 			<StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="420">
 				<TextBlock Text="Select your region and click Start Login."
 							FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center" />
 				<TextBlock TextWrapping="Wrap" TextAlignment="Center" Foreground="#FF555555" Margin="0,10,0,0"
-							Text="A Tesla sign-in page will open in this window. After you authenticate, your Refresh Token (RT) and Access Token (AT) are displayed below. Nothing is saved to disk — copy the tokens into your application configuration." />
+							Text="A Tesla sign-in window will open. After you authenticate, your Refresh Token (RT) and Access Token (AT) are displayed below. Nothing is saved to disk — copy the tokens into your application configuration." />
 			</StackPanel>
 		</Border>
 

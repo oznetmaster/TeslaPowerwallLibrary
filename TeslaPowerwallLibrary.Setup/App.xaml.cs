@@ -8,19 +8,13 @@ using System.Windows;
 namespace TeslaPowerwallLibrary.Setup;
 
 /// <summary>
-/// Interaction logic for the Tesla Powerwall setup application. This Windows tool adapts the
-/// upstream <c>python -m pypowerwall authtoken</c> command, performing the Tesla OAuth 2.0 PKCE
-/// login in an embedded browser and presenting the resulting refresh and access tokens.
+/// Interaction logic for the Tesla Powerwall setup application. This Windows tool is a thin wrapper
+/// around the shared <c>TeslaPowerwallLibrary.Login</c> library: it performs the Tesla OAuth 2.0 PKCE
+/// login through an embedded browser and presents the resulting refresh and access tokens for manual
+/// copy/paste into an application's configuration.
 /// </summary>
 public partial class App : Application
 	{
-	/// <summary>
-	/// Gets a value indicating whether the app was launched in non-interactive "emit" mode
-	/// (via <c>--emit</c>), in which it auto-starts the login and writes the captured tokens to
-	/// standard output for a calling process to consume.
-	/// </summary>
-	public static bool EmitMode { get; private set; }
-
 	/// <summary>Gets the Tesla region requested on the command line (<c>us</c> or <c>cn</c>); defaults to <c>us</c>.</summary>
 	public static string Region { get; private set; } = "us";
 
@@ -36,11 +30,7 @@ public partial class App : Application
 		for (var index = 0; index < args.Length; index++)
 			{
 			var arg = args[index];
-			if (string.Equals (arg, "--emit", StringComparison.OrdinalIgnoreCase))
-				{
-				EmitMode = true;
-				}
-			else if (string.Equals (arg, "--region", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+			if (string.Equals (arg, "--region", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
 				{
 				var region = args[++index];
 				if (string.Equals (region, "us", StringComparison.OrdinalIgnoreCase)

@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFrameworks>net472;net10.0-windows</TargetFrameworks>
+		<OutputType>Library</OutputType>
+		<RootNamespace>TeslaPowerwallLibrary.Login</RootNamespace>
+		<AssemblyName>TeslaPowerwallLibrary.Login</AssemblyName>
+		<LangVersion>latest</LangVersion>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>disable</ImplicitUsings>
+		<IsPackable>false</IsPackable>
+		<GenerateDocumentationFile>false</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<PropertyGroup Condition=" '$(TargetFramework)' == 'net472' ">
+		<AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+		<GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4022.49" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+	</ItemGroup>
+
+	<!-- net472 ships an old System.Net.Http without HttpCompletionOption/modern SendAsync overloads used
+		 here; matches the same package/version already used by TeslaPowerwallLibrary's net472 target. -->
+	<ItemGroup Condition=" '$(TargetFramework)' == 'net472' ">
+		<PackageReference Include="System.Net.Http" Version="4.3.4" />
+	</ItemGroup>
+
+	<!-- net472 ships System.Drawing in the GAC; modern .NET needs the package (WPF/WinForms are not
+		 referenced here, so the shim they would otherwise bring in is not available). Used only for the
+		 Rectangle struct required by CoreWebView2Controller.Bounds. -->
+	<ItemGroup Condition=" '$(TargetFramework)' == 'net472' ">
+		<Reference Include="System.Drawing" />
+	</ItemGroup>
+	<ItemGroup Condition=" '$(TargetFramework)' != 'net472' ">
+		<PackageReference Include="System.Drawing.Common" Version="10.0.9" />
+	</ItemGroup>
+
+	<!-- Polyfills only for pre-.NET5 targets: enables record/init-only members on net472 -->
+	<ItemGroup Condition=" '$(TargetFramework)' == 'net472' ">
+		<PackageReference Include="IsExternalInit" Version="1.0.3">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<!-- The Microsoft.Web.WebView2 package unconditionally references its WPF and WinForms wrapper
+		 assemblies for any net5.0+ TFM, even though only the Core APIs are used directly here (see
+		 NativeLoginWindow.cs). Referencing Microsoft.Web.WebView2.Wpf.dll pulls in the "real" WPF
+		 WindowsBase assembly (5.0.0.0), which conflicts with the WindowsBase reference assembly
+		 (4.0.0.0) a non-WPF/WinForms project gets from the core framework, producing an MSB3277
+		 warning. Strip the unused UI-framework references before they are resolved. This also
+		 prevents the same warning from flowing transitively into projects that reference this one
+		 (e.g. TeslaPowerwallLibrary.TestConsole). -->
+	<Target Name="RemoveUnusedWebView2UiReferences" BeforeTargets="ResolveAssemblyReferences"
+			Condition=" '$(UseWPF)' != 'true' And '$(UseWindowsForms)' != 'true' ">
+		<ItemGroup>
+			<Reference Remove="@(Reference)"
+						Condition="'%(Reference.Filename)' == 'Microsoft.Web.WebView2.Wpf' Or '%(Reference.Filename)' == 'Microsoft.Web.WebView2.WinForms'" />
+		</ItemGroup>
+	</Target>
+</Project>
