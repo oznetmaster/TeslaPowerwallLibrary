@@ -135,5 +135,5 @@ public sealed partial class HomeViewModel : ViewModelBase
 		}
 
 	private static string FormatPower (double watts) =>
-		$"{watts / 1000.0:0.00} kW";
+		$"{Math.Round (watts / 1000.0, 1, MidpointRounding.AwayFromZero):0.0} kW";
 	}

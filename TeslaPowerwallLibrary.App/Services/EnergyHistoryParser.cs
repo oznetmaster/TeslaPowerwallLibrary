@@ -10,26 +10,28 @@ using Newtonsoft.Json.Linq;
 namespace TeslaPowerwallLibrary.App.Services;
 
 /// <summary>
-/// A single aggregated point of energy-history data, with all values expressed in kilowatt-hours.
+/// A single raw, timestamped point of energy-history data, with all values expressed in kilowatt-hours.
 /// </summary>
-/// <param name="Label">The formatted time-bucket label for the X axis.</param>
+/// <param name="Timestamp">The point's timestamp, used to resample the data into period-appropriate buckets.</param>
 /// <param name="SolarKwh">Solar energy produced.</param>
 /// <param name="HomeKwh">Home (consumer) energy used.</param>
 /// <param name="FromGridKwh">Energy imported from the grid.</param>
 /// <param name="ToGridKwh">Energy exported to the grid.</param>
-/// <param name="FromBatteryKwh">Energy discharged from the Powerwall battery.</param>
+/// <param name="BatteryChargeKwh">Gross energy charged into the Powerwall battery (from solar, grid, or generator).</param>
+/// <param name="BatteryDischargeKwh">Gross energy discharged from the Powerwall battery.</param>
 public sealed record EnergyHistoryPoint (
-	string Label,
+	DateTimeOffset Timestamp,
 	double SolarKwh,
 	double HomeKwh,
 	double FromGridKwh,
 	double ToGridKwh,
-	double FromBatteryKwh);
+	double BatteryChargeKwh,
+	double BatteryDischargeKwh);
 
 /// <summary>
 /// Parses the raw JSON returned by <see cref="Powerwall.GetCalendarHistoryAsync"/> for the <c>energy</c> kind
-/// into a list of <see cref="EnergyHistoryPoint"/> values suitable for charting. Missing fields are treated as
-/// zero so a partial payload never throws.
+/// into a list of raw, timestamped <see cref="EnergyHistoryPoint"/> values. Missing fields are treated as zero
+/// so a partial payload never throws. Callers resample these raw points into period-appropriate chart buckets.
 /// </summary>
 public static class EnergyHistoryParser
 	{
@@ -61,6 +63,10 @@ public static class EnergyHistoryParser
 			if (entry is not JObject item)
 				continue;
 
+			var timestampText = item["timestamp"]?.Value<string> ();
+			if (!DateTimeOffset.TryParse (timestampText, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var timestamp))
+				continue;
+
 			var solar = ReadWh (item, "solar_energy_exported");
 
 			var home =
@@ -77,16 +83,22 @@ public static class EnergyHistoryParser
 				+ ReadWh (item, "grid_energy_exported_from_battery")
 				+ ReadWh (item, "grid_energy_exported_from_generator");
 
-			var fromBattery =
+			var batteryDischarge =
 				ReadWh (item, "battery_energy_exported");
 
+			var batteryCharge =
+				ReadWh (item, "battery_energy_imported_from_grid")
+				+ ReadWh (item, "battery_energy_imported_from_solar")
+				+ ReadWh (item, "battery_energy_imported_from_generator");
+
 			points.Add (new EnergyHistoryPoint (
-				FormatLabel (item["timestamp"]?.Value<string> ()),
+				timestamp,
 				ToKwh (solar),
 				ToKwh (home),
 				ToKwh (fromGrid),
 				ToKwh (toGrid),
-				ToKwh (fromBattery)));
+				ToKwh (batteryCharge),
+				ToKwh (batteryDischarge)));
 			}
 
 		return points;
@@ -99,14 +111,4 @@ public static class EnergyHistoryParser
 
 	private static double ToKwh (double watthours) =>
 		Math.Round (watthours / 1000.0, 3);
-
-	private static string FormatLabel (string? timestamp)
-		{
-		if (string.IsNullOrWhiteSpace (timestamp))
-			return string.Empty;
-
-		return DateTimeOffset.TryParse (timestamp, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var when)
-			? when.ToLocalTime ().ToString ("MMM d HH:mm", CultureInfo.CurrentCulture)
-			: timestamp!;
-		}
 	}

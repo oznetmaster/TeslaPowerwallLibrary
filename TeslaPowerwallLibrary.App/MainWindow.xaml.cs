@@ -3,6 +3,7 @@
 
 using System.Windows;
 
+using TeslaPowerwallLibrary.App.Services;
 using TeslaPowerwallLibrary.App.ViewModels;
 
 namespace TeslaPowerwallLibrary.App;
@@ -16,6 +17,10 @@ public partial class MainWindow : Window
 		InitializeComponent ();
 		Loaded += OnLoaded;
 		Closed += OnClosed;
+
+		// Pays the Energy screen's one-time chart-rendering warm-up cost during idle time (for example while
+		// the user is signing in) instead of blocking the UI thread the first time they navigate to Energy.
+		ChartWarmup.ScheduleWarmUp ();
 		}
 
 	private async void OnLoaded (object sender, RoutedEventArgs e)

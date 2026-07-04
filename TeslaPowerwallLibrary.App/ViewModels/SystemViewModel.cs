@@ -147,12 +147,12 @@ public sealed class BatteryBlockView
 		{
 		var remaining = (block.NominalEnergyRemaining ?? 0) / 1000.0;
 		var full = (block.NominalFullPackEnergy ?? 0) / 1000.0;
-		var power = (block.PowerOut ?? 0) / 1000.0;
+		var power = Math.Round ((block.PowerOut ?? 0) / 1000.0, 1, MidpointRounding.AwayFromZero);
 
 		return new BatteryBlockView (
 			serial,
 			$"{remaining:0.0} / {full:0.0} kWh",
-			$"{power:0.00} kW",
+			$"{power:0.0} kW",
 			block.PinvGridState ?? "unknown");
 		}
 	}

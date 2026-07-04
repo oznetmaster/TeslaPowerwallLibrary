@@ -1,13 +1,7 @@
 <Solution>
-  <Project Path="TeslaPowerwallLibrary.App/TeslaPowerwallLibrary.App.csproj">
-    <Build Solution="Debug|*" Project="false" />
-  </Project>
-  <Project Path="TeslaPowerwallLibrary.Setup/TeslaPowerwallLibrary.Setup.csproj">
-    <Build Solution="Debug|*" Project="false" />
-  </Project>
-  <Project Path="TeslaPowerwallLibrary.TestConsole/TeslaPowerwallLibrary.TestConsole.csproj">
-    <Build Solution="Debug|*" Project="false" />
-  </Project>
+  <Project Path="TeslaPowerwallLibrary.App/TeslaPowerwallLibrary.App.csproj" />
+  <Project Path="TeslaPowerwallLibrary.Setup/TeslaPowerwallLibrary.Setup.csproj" />
+  <Project Path="TeslaPowerwallLibrary.TestConsole/TeslaPowerwallLibrary.TestConsole.csproj" />
   <Project Path="TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj" />
   <Project Path="TeslaPowerwallLibrary/TeslaPowerwallLibrary.csproj" />
 </Solution>

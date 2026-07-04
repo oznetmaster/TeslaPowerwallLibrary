@@ -34,7 +34,10 @@
 					IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
 		</StackPanel>
 
-		<!-- Component key: each item toggles its series on the chart independently -->
+		<!-- Component picker: exactly one of Solar / Home / Powerwall / Grid is graphed at a time, matching
+			  the Tesla app's own single-series presentation, instead of combining every component onto one
+			  chart. The shared GroupName makes the RadioButtons mutually exclusive in the UI; the view model
+			  also enforces the invariant itself (see EnergyViewModel.OnComponentSelectionChanged). -->
 		<ItemsControl Grid.Row="2" ItemsSource="{Binding Components}" Margin="8,0,8,12">
 			<ItemsControl.ItemsPanel>
 				<ItemsPanelTemplate>
@@ -43,13 +46,14 @@
 			</ItemsControl.ItemsPanel>
 			<ItemsControl.ItemTemplate>
 				<DataTemplate>
-					<CheckBox IsChecked="{Binding IsSelected}" Margin="0,0,18,0" VerticalContentAlignment="Center">
+					<RadioButton GroupName="EnergyComponent" IsChecked="{Binding IsSelected}" Margin="0,0,18,0"
+								 VerticalContentAlignment="Center">
 						<StackPanel Orientation="Horizontal" VerticalAlignment="Center">
 							<Border Width="12" Height="12" CornerRadius="3" Margin="0,0,6,0"
 									Background="{Binding Swatch}" />
 							<TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}" />
 						</StackPanel>
-					</CheckBox>
+					</RadioButton>
 				</DataTemplate>
 			</ItemsControl.ItemTemplate>
 		</ItemsControl>
