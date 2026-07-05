@@ -6,4 +6,9 @@ items:
 - name: API Reference
   href: api/
   homepage: api/index.md
+- name: Login Library
+  href: articles/login.md
+- name: Login Library API Reference
+  href: api-login/
+  homepage: api-login/index.md
 

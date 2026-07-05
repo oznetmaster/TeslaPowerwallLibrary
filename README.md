@@ -85,7 +85,7 @@ After the first successful cloud connect, the library persists the (possibly rot
 ## Repository Contents
 
 - `TeslaPowerwallLibrary` — the main library project published to NuGet
-- `TeslaPowerwallLibrary.Login` — shared Tesla cloud OAuth login library (interactive WebView2-based browser login), used by both the app and the test console
+- `TeslaPowerwallLibrary.Login` — shared Tesla cloud OAuth login library (interactive WebView2-based browser login), used by both the app and the test console; not published to NuGet, distributed as a DLL attached to each [GitHub release](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases) — see the [Tesla cloud login guide](https://oznetmaster.github.io/TeslaPowerwallLibrary/articles/login.html)
 - `TeslaPowerwallLibrary.App` — a WPF dashboard application with live energy charts, system status, and site/account management
 - `TeslaPowerwallLibrary.TestConsole` — a command-line and interactive test harness covering the library's read and control operations
 - `TeslaPowerwallLibrary.Setup` — a small WPF wrapper around `TeslaPowerwallLibrary.Login` that performs a standalone Tesla cloud login and displays the resulting tokens
