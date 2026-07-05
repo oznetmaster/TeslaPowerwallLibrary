@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,12 +35,16 @@ jobs:
       - name: Build solution
         run: dotnet build TeslaPowerwallLibrary.slnx --configuration Release --no-restore
 
-      - name: Run tests
+      - name: Run tests (net472)
+        run: dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj --configuration Release --no-build --framework net472
+
+      - name: Run tests (net10.0)
         run: dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj --configuration Release --no-build --framework net10.0
 
       - name: Build metadata and site
+        shell: pwsh
         run: |
-          export PATH="$PATH:$HOME/.dotnet/tools"
+          $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
           docfx docfx_project/docfx.json
 
       - name: Configure Pages
@@ -55,7 +59,7 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     needs: build
     steps:
       - name: Deploy to GitHub Pages

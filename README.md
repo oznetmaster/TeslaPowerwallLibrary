@@ -4,7 +4,7 @@ A .NET client library for the Tesla™ Powerwall™ Energy Gateway, providing di
 
 Tesla and Powerwall are trademarks of Tesla, Inc. This project is an independent, unofficial .NET library and is not affiliated with or endorsed by Tesla.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](TeslaPowerwallLibrary/LICENSE)
 
 ## Supported Platforms
 
