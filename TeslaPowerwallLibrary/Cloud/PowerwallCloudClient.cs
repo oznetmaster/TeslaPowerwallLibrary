@@ -105,7 +105,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		// Load any library-persisted tokens/site for this email. Explicitly supplied values (a first-time
 		// login or a caller override) take precedence over the cache; otherwise reuse what we persisted on a
 		// previous run, so callers never have to manage token storage themselves.
-		var cached = _tokenCache.Load ();
+		CloudTokenCacheEntry cached = _tokenCache.Load ();
 		var accessToken = string.IsNullOrWhiteSpace (_accessToken) ? cached.AccessToken : _accessToken;
 		var refreshToken = string.IsNullOrWhiteSpace (_refreshToken) ? cached.RefreshToken : _refreshToken;
 		SiteId ??= cached.SiteId;
@@ -130,7 +130,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 				"Unable to obtain a Tesla cloud access token from the supplied refresh token. Run setup to renew the Tesla auth file.");
 			}
 
-		var sites = await FetchEnergySitesAsync (cancellationToken).ConfigureAwait (false);
+		List<JObject>? sites = await FetchEnergySitesAsync (cancellationToken).ConfigureAwait (false);
 		if (sites is null)
 			{
 			_connection.Dispose ();
@@ -174,7 +174,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 	public async Task<IReadOnlyList<CloudSite>> GetSitesAsync (CancellationToken cancellationToken = default)
 		{
 		EnsureConnected ();
-		var sites = await FetchEnergySitesAsync (cancellationToken).ConfigureAwait (false);
+		List<JObject>? sites = await FetchEnergySitesAsync (cancellationToken).ConfigureAwait (false);
 		if (sites is null)
 			return [];
 
@@ -205,14 +205,14 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 			return false;
 			}
 
-		var sites = await FetchEnergySitesAsync (cancellationToken).ConfigureAwait (false);
+		List<JObject>? sites = await FetchEnergySitesAsync (cancellationToken).ConfigureAwait (false);
 		if (sites is null || sites.Count == 0)
 			{
 			_log.Error ($"No sites found for {Email}.");
 			return false;
 			}
 
-		foreach (var site in sites)
+		foreach (JObject site in sites)
 			{
 			if (GetSiteId (site) != siteId)
 				continue;
@@ -243,7 +243,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 
 		// Upstream inverts the flag: enabling grid charging clears "disallow_charge_from_grid_with_solar_installed".
 		var settings = new JObject { ["disallow_charge_from_grid_with_solar_installed"] = !enabled };
-		var response = await _connection!.SetGridImportExportAsync (_resolvedSiteId!, settings, cancellationToken).ConfigureAwait (false);
+		JObject? response = await _connection!.SetGridImportExportAsync (_resolvedSiteId!, settings, cancellationToken).ConfigureAwait (false);
 		InvalidateCloudCache ("SITE_CONFIG");
 		return Serialize (response);
 		}
@@ -259,7 +259,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		EnsureConnected ();
 
 		var settings = new JObject { ["customer_preferred_export_rule"] = mode };
-		var response = await _connection!.SetGridImportExportAsync (_resolvedSiteId!, settings, cancellationToken).ConfigureAwait (false);
+		JObject? response = await _connection!.SetGridImportExportAsync (_resolvedSiteId!, settings, cancellationToken).ConfigureAwait (false);
 		InvalidateCloudCache ("SITE_CONFIG");
 		return Serialize (response);
 		}
@@ -275,8 +275,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		{
 		EnsureConnected ();
 
-		var config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
-		var components = config?["response"]?["components"];
+		JObject? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
+		JToken? components = config?["response"]?["components"];
 		if (components is null)
 			return null;
 
@@ -295,8 +295,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		{
 		EnsureConnected ();
 
-		var config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
-		var components = config?["response"]?["components"];
+		JObject? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
+		JToken? components = config?["response"]?["components"];
 		if (components is null)
 			return null;
 
@@ -329,7 +329,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		EnsureConnected ();
 		try
 			{
-			var response = await _connection!.GetHistoryAsync (_resolvedSiteId!, kind, period, timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
+			JObject? response = await _connection!.GetHistoryAsync (_resolvedSiteId!, kind, period, timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
 			return Serialize (response?["response"] ?? response);
 			}
 		catch (PowerwallCloudEndpointRemovedException exc)
@@ -362,7 +362,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		CancellationToken cancellationToken = default)
 		{
 		EnsureConnected ();
-		var response = await _connection!.GetCalendarHistoryAsync (_resolvedSiteId!, kind, period, timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
+		JObject? response = await _connection!.GetCalendarHistoryAsync (_resolvedSiteId!, kind, period, timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
 		return Serialize (response?["response"] ?? response);
 		}
 
@@ -398,18 +398,18 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 	public override async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>>?> VitalsAsync (CancellationToken cancellationToken = default)
 		{
 		EnsureConnected ();
-		var vitals = await GetVitalsAsync (force: false, cancellationToken).ConfigureAwait (false);
+		JToken? vitals = await GetVitalsAsync (force: false, cancellationToken).ConfigureAwait (false);
 		if (vitals is not JObject devices)
 			return null;
 
 		var result = new Dictionary<string, IReadOnlyDictionary<string, object?>> (StringComparer.Ordinal);
-		foreach (var device in devices.Properties ())
+		foreach (JProperty device in devices.Properties ())
 			{
 			if (device.Value is not JObject telemetry)
 				continue;
 
 			var values = new Dictionary<string, object?> (StringComparer.Ordinal);
-			foreach (var attribute in telemetry.Properties ())
+			foreach (JProperty attribute in telemetry.Properties ())
 				values[attribute.Name] = attribute.Value.Type == JTokenType.Null ? null : attribute.Value.ToObject<object?> ();
 
 			result[device.Name] = values;
@@ -422,14 +422,14 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 	public override async Task<double?> GetTimeRemainingAsync (CancellationToken cancellationToken = default)
 		{
 		EnsureConnected ();
-		var response = await GetCachedSiteDataAsync (
+		JObject? response = await GetCachedSiteDataAsync (
 			"ENERGY_SITE_BACKUP_TIME_REMAINING",
 			CacheExpireSeconds,
 			(c, ct) => c.GetBackupTimeRemainingAsync (_resolvedSiteId!, ct),
 			force: false,
 			cancellationToken).ConfigureAwait (false);
 
-		var hours = response?["response"]?["time_remaining_hours"];
+		JToken? hours = response?["response"]?["time_remaining_hours"];
 		if (hours is null)
 			return 0.0;
 
@@ -493,7 +493,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		if (api != "/api/operation")
 			return Serialize (new JObject { ["ERROR"] = $"Unknown API: {api}" });
 
-		var result = await PostApiOperationAsync (payload, din, cancellationToken).ConfigureAwait (false);
+		JObject? result = await PostApiOperationAsync (payload, din, cancellationToken).ConfigureAwait (false);
 		if (result is not null)
 			InvalidateCache (api);
 
@@ -508,7 +508,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 
 	private async Task<JToken?> GetApiSystemStatusSoeAsync (bool force, CancellationToken cancellationToken)
 		{
-		var battery = await GetBatteryAsync (force, cancellationToken).ConfigureAwait (false);
+		JObject? battery = await GetBatteryAsync (force, cancellationToken).ConfigureAwait (false);
 		if (battery is null)
 			return null;
 
@@ -519,8 +519,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 
 	private async Task<JToken?> GetApiStatusAsync (bool force, CancellationToken cancellationToken)
 		{
-		var config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
-		var response = config?["response"];
+		JObject? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
+		JToken? response = config?["response"];
 		if (response is null)
 			return null;
 
@@ -543,8 +543,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 
 	private async Task<JToken?> GetApiSystemStatusGridStatusAsync (bool force, CancellationToken cancellationToken)
 		{
-		var power = await GetSitePowerAsync (force, cancellationToken).ConfigureAwait (false);
-		var response = power?["response"];
+		JObject? power = await GetSitePowerAsync (force, cancellationToken).ConfigureAwait (false);
+		JToken? response = power?["response"];
 		if (response is null)
 			return null;
 
@@ -562,8 +562,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 
 	private async Task<JToken?> GetApiSiteInfoSiteNameAsync (bool force, CancellationToken cancellationToken)
 		{
-		var config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
-		var response = config?["response"];
+		JObject? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
+		JToken? response = config?["response"];
 		if (response is null)
 			return null;
 
@@ -576,8 +576,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 
 	private async Task<JToken?> GetApiSiteInfoAsync (bool force, CancellationToken cancellationToken)
 		{
-		var config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
-		var response = config?["response"];
+		JObject? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
+		JToken? response = config?["response"];
 		if (response is null)
 			return null;
 
@@ -610,10 +610,10 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 
 	private async Task<JToken?> GetVitalsAsync (bool force, CancellationToken cancellationToken)
 		{
-		var config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
-		var power = await GetSitePowerAsync (force, cancellationToken).ConfigureAwait (false);
-		var configResponse = config?["response"];
-		var powerResponse = power?["response"];
+		JObject? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
+		JObject? power = await GetSitePowerAsync (force, cancellationToken).ConfigureAwait (false);
+		JToken? configResponse = config?["response"];
+		JToken? powerResponse = power?["response"];
 		if (configResponse is null || powerResponse is null)
 			return null;
 
@@ -658,15 +658,15 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 
 	private async Task<JToken?> GetApiMetersAggregatesAsync (bool force, CancellationToken cancellationToken)
 		{
-		var config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
-		var power = await GetSitePowerAsync (force, cancellationToken).ConfigureAwait (false);
-		var configResponse = config?["response"];
-		var powerResponse = power?["response"];
+		JObject? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
+		JObject? power = await GetSitePowerAsync (force, cancellationToken).ConfigureAwait (false);
+		JToken? configResponse = config?["response"];
+		JToken? powerResponse = power?["response"];
 		if (configResponse is null || powerResponse is null)
 			return null;
 
-		var timestamp = powerResponse["timestamp"];
-		var batteryCount = configResponse["battery_count"];
+		JToken? timestamp = powerResponse["timestamp"];
+		JToken? batteryCount = configResponse["battery_count"];
 
 		int solarInverters;
 		if (configResponse["components"]?["inverters"] is JArray inverters)
@@ -705,8 +705,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 
 	private async Task<JToken?> GetApiOperationAsync (bool force, CancellationToken cancellationToken)
 		{
-		var config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
-		var response = config?["response"];
+		JObject? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
+		JToken? response = config?["response"];
 		if (response is null)
 			return null;
 
@@ -721,17 +721,17 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 
 	private async Task<JToken?> GetApiSystemStatusAsync (bool force, CancellationToken cancellationToken)
 		{
-		var power = await GetSitePowerAsync (force, cancellationToken).ConfigureAwait (false);
-		var config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
-		var battery = await GetBatteryAsync (force, cancellationToken).ConfigureAwait (false);
-		var powerResponse = power?["response"];
-		var configResponse = config?["response"];
-		var batteryResponse = battery?["response"];
+		JObject? power = await GetSitePowerAsync (force, cancellationToken).ConfigureAwait (false);
+		JObject? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
+		JObject? battery = await GetBatteryAsync (force, cancellationToken).ConfigureAwait (false);
+		JToken? powerResponse = power?["response"];
+		JToken? configResponse = config?["response"];
+		JToken? batteryResponse = battery?["response"];
 		if (powerResponse is null || configResponse is null || batteryResponse is null)
 			return null;
 
-		var batteryCount = configResponse["battery_count"];
-		var nameplatePower = configResponse["nameplate_power"];
+		JToken? batteryCount = configResponse["battery_count"];
+		JToken? nameplatePower = configResponse["nameplate_power"];
 
 		string gridStatus;
 		if (powerResponse.Value<string> ("island_status") == "on_grid")
@@ -761,8 +761,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 
 	private async Task<JObject?> PostApiOperationAsync (object? payload, string? din, CancellationToken cancellationToken)
 		{
-		var payloadObject = payload is null ? new JObject () : JObject.FromObject (payload);
-		var reserveToken = payloadObject["backup_reserve_percent"];
+		JObject payloadObject = payload is null ? new JObject () : JObject.FromObject (payload);
+		JToken? reserveToken = payloadObject["backup_reserve_percent"];
 		var hasReserve = reserveToken is not null && reserveToken.Type != JTokenType.Null && reserveToken.Type != JTokenType.Boolean;
 		var realMode = payloadObject.Value<string> ("real_mode");
 
@@ -779,8 +779,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 
 		try
 			{
-			var levelResult = await _connection!.SetBackupReserveAsync (_resolvedSiteId!, reservePercent, cancellationToken).ConfigureAwait (false);
-			var modeResult = realMode is null
+			JObject? levelResult = await _connection!.SetBackupReserveAsync (_resolvedSiteId!, reservePercent, cancellationToken).ConfigureAwait (false);
+			JObject? modeResult = realMode is null
 				? null
 				: await _connection.SetOperationModeAsync (_resolvedSiteId!, realMode, cancellationToken).ConfigureAwait (false);
 
@@ -818,7 +818,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		{
 		var cachedBefore = IsCloudCacheValid ("SITE_DATA", CacheExpireSeconds);
 		var counter = _counter + 1;
-		var response = await GetCachedSiteDataAsync (
+		JObject? response = await GetCachedSiteDataAsync (
 			"SITE_DATA",
 			CacheExpireSeconds,
 			(c, ct) => c.GetSitePowerAsync (_resolvedSiteId!, counter, ct),
@@ -846,13 +846,13 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		bool force,
 		CancellationToken cancellationToken)
 		{
-		if (!force && IsCloudCacheValid (name, ttlSeconds) && _cloudCache.TryGetValue (name, out var cached))
+		if (!force && IsCloudCacheValid (name, ttlSeconds) && _cloudCache.TryGetValue (name, out JToken? cached))
 			{
 			_log.Debug ($" -- cloud: Returning cached {name} data");
 			return cached as JObject;
 			}
 
-		var response = await fetch (_connection!, cancellationToken).ConfigureAwait (false);
+		JObject? response = await fetch (_connection!, cancellationToken).ConfigureAwait (false);
 		if (response is not null)
 			{
 			_cloudCache[name] = response;
@@ -870,7 +870,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 
 	private async Task<List<JObject>?> FetchEnergySitesAsync (CancellationToken cancellationToken)
 		{
-		var products = await _connection!.GetProductsAsync (cancellationToken).ConfigureAwait (false);
+		JArray? products = await _connection!.GetProductsAsync (cancellationToken).ConfigureAwait (false);
 		return products?
 			.OfType<JObject> ()
 			.Where (static p => p.Value<string> ("resource_type") is "battery" or "solar")
@@ -894,7 +894,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		if (SiteId is null)
 			return GetSiteId (sites[0]);
 
-		foreach (var site in sites)
+		foreach (JObject site in sites)
 			{
 			if (GetSiteId (site) == SiteId)
 				return SiteId;
@@ -948,7 +948,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 
 	private static void MergeInto (JObject target, JObject updates)
 		{
-		foreach (var property in updates.Properties ())
+		foreach (JProperty property in updates.Properties ())
 			target[property.Name] = property.Value;
 		}
 

@@ -112,8 +112,8 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 			var url = $"https://{_host}/api/logout";
 			try
 				{
-				using var request = CreateRequest (HttpMethod.Get, url);
-				using var response = await _httpClient.SendAsync (request, cancellationToken).ConfigureAwait (false);
+				using HttpRequestMessage request = CreateRequest (HttpMethod.Get, url);
+				using HttpResponseMessage response = await _httpClient.SendAsync (request, cancellationToken).ConfigureAwait (false);
 				}
 			catch (Exception exc) when (exc is HttpRequestException or TaskCanceledException)
 				{
@@ -144,7 +144,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 		HttpResponseMessage response;
 		try
 			{
-			using var request = CreateRequest (HttpMethod.Get, url);
+			using HttpRequestMessage request = CreateRequest (HttpMethod.Get, url);
 			response = await _httpClient!.SendAsync (request, cancellationToken).ConfigureAwait (false);
 			}
 		catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -160,7 +160,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 
 		using (response)
 			{
-			var statusHandling = await HandleStatusAsync (api, url, response, recursive, raw: false, cancellationToken).ConfigureAwait (false);
+			(bool Handled, bool Retry) statusHandling = await HandleStatusAsync (api, url, response, recursive, raw: false, cancellationToken).ConfigureAwait (false);
 			if (statusHandling.Handled)
 				return statusHandling.Retry ? await PollAsync (api, force, recursive: true, cancellationToken).ConfigureAwait (false) : null;
 
@@ -199,7 +199,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 		HttpResponseMessage response;
 		try
 			{
-			using var request = CreateRequest (HttpMethod.Get, url);
+			using HttpRequestMessage request = CreateRequest (HttpMethod.Get, url);
 			response = await _httpClient!.SendAsync (request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait (false);
 			}
 		catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -215,7 +215,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 
 		using (response)
 			{
-			var statusHandling = await HandleStatusAsync (api, url, response, recursive, raw: true, cancellationToken).ConfigureAwait (false);
+			(bool Handled, bool Retry) statusHandling = await HandleStatusAsync (api, url, response, recursive, raw: true, cancellationToken).ConfigureAwait (false);
 			if (statusHandling.Handled)
 				return statusHandling.Retry ? await PollRawAsync (api, force, recursive: true, cancellationToken).ConfigureAwait (false) : null;
 
@@ -237,7 +237,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 		HttpResponseMessage response;
 		try
 			{
-			using var request = CreateRequest (HttpMethod.Post, url);
+			using HttpRequestMessage request = CreateRequest (HttpMethod.Post, url);
 			if (payload is not null)
 				{
 				var json = JsonConvert.SerializeObject (payload);
@@ -259,7 +259,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 
 		using (response)
 			{
-			var statusHandling = await HandleStatusAsync (api, url, response, recursive, raw: false, cancellationToken).ConfigureAwait (false);
+			(bool Handled, bool Retry) statusHandling = await HandleStatusAsync (api, url, response, recursive, raw: false, cancellationToken).ConfigureAwait (false);
 			if (statusHandling.Handled)
 				{
 				if (statusHandling.Retry)
@@ -287,7 +287,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 	public override async Task<double?> GetTimeRemainingAsync (CancellationToken cancellationToken = default)
 		{
 		var payload = await PollAsync ("/api/system_status", cancellationToken: cancellationToken).ConfigureAwait (false);
-		var status = JsonHelper.DeserializeOrNull<SystemStatus> (payload);
+		SystemStatus? status = JsonHelper.DeserializeOrNull<SystemStatus> (payload);
 		if (status?.NominalEnergyRemaining is double remaining)
 			{
 			var load = await FetchPowerAsync ("load", cancellationToken: cancellationToken).ConfigureAwait (false) ?? 0.0;
@@ -305,7 +305,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 	/// <returns>The version string, or <see langword="null"/> when unavailable.</returns>
 	public async Task<string?> GetVersionAsync (CancellationToken cancellationToken = default)
 		{
-		var status = await GetStatusAsync (cancellationToken).ConfigureAwait (false);
+		GatewayStatus? status = await GetStatusAsync (cancellationToken).ConfigureAwait (false);
 		return status?.Version;
 		}
 

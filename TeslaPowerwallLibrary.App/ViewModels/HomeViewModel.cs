@@ -2,7 +2,6 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System;
-using System.Windows;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -25,9 +24,16 @@ public sealed partial class HomeViewModel : ViewModelBase
 		_connection = connection ?? throw new ArgumentNullException (nameof (connection));
 		_connection.SnapshotUpdated += OnSnapshotUpdated;
 		_connection.PollFailed += OnPollFailed;
+		_connection.SiteLabelChanged += OnSiteLabelChanged;
+		_siteLabel = _connection.SiteLabel;
 		}
 
+	/// <summary>Gets or sets the label for the currently connected Tesla site or gateway host.</summary>
+	[ObservableProperty]
+	private string? _siteLabel;
+
 	/// <summary>Gets or sets the solar generation power in watts.</summary>
+
 	[ObservableProperty]
 	[NotifyPropertyChangedFor (nameof (SolarText))]
 	private double _solarWatts;
@@ -125,14 +131,8 @@ public sealed partial class HomeViewModel : ViewModelBase
 	private void OnPollFailed (object? sender, string message) =>
 		RunOnUi (() => StatusMessage = message);
 
-	private static void RunOnUi (Action action)
-		{
-		var dispatcher = Application.Current?.Dispatcher;
-		if (dispatcher is null || dispatcher.CheckAccess ())
-			action ();
-		else
-			dispatcher.Invoke (action);
-		}
+	private void OnSiteLabelChanged (object? sender, EventArgs e) =>
+		RunOnUi (() => SiteLabel = _connection.SiteLabel);
 
 	private static string FormatPower (double watts) =>
 		$"{Math.Round (watts / 1000.0, 1, MidpointRounding.AwayFromZero):0.0} kW";

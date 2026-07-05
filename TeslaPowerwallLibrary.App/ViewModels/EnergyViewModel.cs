@@ -49,8 +49,10 @@ public sealed partial class EnergyViewModel : ViewModelBase
 	public EnergyViewModel (PowerwallConnectionService connection)
 		{
 		_connection = connection ?? throw new ArgumentNullException (nameof (connection));
+		_connection.SiteLabelChanged += OnSiteLabelChanged;
+		_siteLabel = _connection.SiteLabel;
 		Periods = new ObservableCollection<string> (Powerwall.HistoryPeriods);
-		_selectedPeriod = Powerwall.DefaultHistoryPeriod;
+		_selectedPeriod = Powerwall.DEFAULT_HISTORY_PERIOD;
 
 		// Exactly one component is selected at a time (see Components below and EnergyView.xaml's RadioButton
 		// picker), mirroring the Tesla app's single Solar / Home / Powerwall / Grid selector instead of
@@ -106,6 +108,10 @@ public sealed partial class EnergyViewModel : ViewModelBase
 
 	/// <summary>Gets the selectable aggregation periods.</summary>
 	public ObservableCollection<string> Periods { get; }
+
+	/// <summary>Gets or sets the label for the currently connected Tesla site or gateway host.</summary>
+	[ObservableProperty]
+	private string? _siteLabel;
 
 	/// <summary>
 	/// Gets the selectable chart components (Solar, Home, Powerwall, Grid). Exactly one is graphed at a
@@ -333,6 +339,9 @@ public sealed partial class EnergyViewModel : ViewModelBase
 
 		BuildSeries ();
 		}
+
+	private void OnSiteLabelChanged (object? sender, EventArgs e) =>
+		RunOnUi (() => SiteLabel = _connection.SiteLabel);
 
 	private void BuildSeries ()
 		{

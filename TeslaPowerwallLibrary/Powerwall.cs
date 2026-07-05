@@ -39,7 +39,7 @@ public sealed class Powerwall : IDisposable
 		["day", "week", "month", "year", "lifetime"];
 
 	/// <summary>Gets the default <c>period</c> applied by the energy-history methods when the caller does not specify one.</summary>
-	public const string DefaultHistoryPeriod = "day";
+	public const string DEFAULT_HISTORY_PERIOD = "day";
 
 	private static readonly HashSet<string> _historyKinds = new (HistoryKinds, StringComparer.Ordinal);
 
@@ -103,7 +103,7 @@ public sealed class Powerwall : IDisposable
 	/// <returns><see langword="true"/> when at least one token was found; otherwise <see langword="false"/>.</returns>
 	public static bool TryGetStoredCloudTokens (string email, out string? accessToken, out string? refreshToken, string authPath = "")
 		{
-		var entry = new TeslaCloudTokenCache (authPath, email).Load ();
+		CloudTokenCacheEntry entry = new TeslaCloudTokenCache (authPath, email).Load ();
 		accessToken = entry.AccessToken;
 		refreshToken = entry.RefreshToken;
 		return entry.HasToken;
@@ -274,7 +274,7 @@ public sealed class Powerwall : IDisposable
 	public async Task<double?> LevelAsync (bool scale = false, CancellationToken cancellationToken = default)
 		{
 		var payload = await RequireClient ().PollAsync ("/api/system_status/soe", cancellationToken: cancellationToken).ConfigureAwait (false);
-		var soe = JsonHelper.DeserializeOrNull<StateOfEnergy> (payload);
+		StateOfEnergy? soe = JsonHelper.DeserializeOrNull<StateOfEnergy> (payload);
 		if (soe is null)
 			return null;
 
@@ -396,12 +396,12 @@ public sealed class Powerwall : IDisposable
 	/// <returns>A map of serial number to <see cref="BatteryBlock"/>, or <see langword="null"/> when unavailable.</returns>
 	public async Task<IReadOnlyDictionary<string, BatteryBlock>?> BatteryBlocksAsync (CancellationToken cancellationToken = default)
 		{
-		var status = await SystemStatusAsync (cancellationToken).ConfigureAwait (false);
+		SystemStatus? status = await SystemStatusAsync (cancellationToken).ConfigureAwait (false);
 		if (status?.BatteryBlocks is null)
 			return null;
 
 		var result = new Dictionary<string, BatteryBlock> ();
-		foreach (var block in status.BatteryBlocks)
+		foreach (BatteryBlock block in status.BatteryBlocks)
 			{
 			if (!string.IsNullOrWhiteSpace (block.PackageSerialNumber))
 				result[block.PackageSerialNumber!] = block;
@@ -418,7 +418,7 @@ public sealed class Powerwall : IDisposable
 	public async Task<GridStatus?> GridStatusAsync (CancellationToken cancellationToken = default)
 		{
 		var payload = await RequireClient ().PollAsync ("/api/system_status/grid_status", cancellationToken: cancellationToken).ConfigureAwait (false);
-		var response = JsonHelper.DeserializeOrNull<GridStatusResponse> (payload);
+		GridStatusResponse? response = JsonHelper.DeserializeOrNull<GridStatusResponse> (payload);
 		return response?.GridStatus switch
 			{
 			"SystemGridConnected" => GridStatus.Up,
@@ -441,11 +441,8 @@ public sealed class Powerwall : IDisposable
 	/// <returns>The reserve percentage, or <see langword="null"/> when unavailable.</returns>
 	public async Task<double?> GetReserveAsync (bool scale = true, bool force = false, CancellationToken cancellationToken = default)
 		{
-		var operation = await GetOperationAsync (force, cancellationToken).ConfigureAwait (false);
-		if (operation?.BackupReservePercent is not double percent)
-			return null;
-
-		return scale ? Math.Max (0, (percent / 0.95) - (5 / 0.95)) : percent;
+		OperationResponse? operation = await GetOperationAsync (force, cancellationToken).ConfigureAwait (false);
+		return operation?.BackupReservePercent is not double percent ? null : scale ? Math.Max (0, (percent / 0.95) - (5 / 0.95)) : percent;
 		}
 
 	/// <summary>
@@ -557,13 +554,10 @@ public sealed class Powerwall : IDisposable
 	/// <returns>The raw response body, or <see langword="null"/> when the call fails.</returns>
 	/// <exception cref="ArgumentException">Thrown when <paramref name="mode"/> is not a valid export rule.</exception>
 	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
-	public Task<string?> SetGridExportAsync (string mode, CancellationToken cancellationToken = default)
-		{
-		if (mode is not ("battery_ok" or "pv_only" or "never"))
-			throw new ArgumentException ($"Invalid grid export mode '{mode}'. Must be 'battery_ok', 'pv_only', or 'never'.", nameof (mode));
-
-		return RequireCloudClient ().SetGridExportAsync (mode, cancellationToken);
-		}
+	public Task<string?> SetGridExportAsync (string mode, CancellationToken cancellationToken = default) =>
+		mode is not ("battery_ok" or "pv_only" or "never")
+			? throw new ArgumentException ($"Invalid grid export mode '{mode}'. Must be 'battery_ok', 'pv_only', or 'never'.", nameof (mode))
+			: RequireCloudClient ().SetGridExportAsync (mode, cancellationToken);
 
 	/// <summary>
 	/// Returns the current grid export rule (cloud mode only).
@@ -602,7 +596,7 @@ public sealed class Powerwall : IDisposable
 		string? endDate = null,
 		CancellationToken cancellationToken = default)
 		{
-		period ??= DefaultHistoryPeriod;
+		period ??= DEFAULT_HISTORY_PERIOD;
 		ValidateHistoryArguments (kind, period, _historyKinds);
 		return RequireCloudClient ().GetHistoryAsync (kind, period, timeZone, startDate, endDate, cancellationToken);
 		}
@@ -627,7 +621,7 @@ public sealed class Powerwall : IDisposable
 		string? endDate = null,
 		CancellationToken cancellationToken = default)
 		{
-		period ??= DefaultHistoryPeriod;
+		period ??= DEFAULT_HISTORY_PERIOD;
 		ValidateHistoryArguments (kind, period, _calendarHistoryKinds);
 		return RequireCloudClient ().GetCalendarHistoryAsync (kind, period, timeZone, startDate, endDate, cancellationToken);
 		}
@@ -653,10 +647,10 @@ public sealed class Powerwall : IDisposable
 		var alerts = new List<string> ();
 		var seen = new HashSet<string> (StringComparer.Ordinal);
 
-		var devices = await VitalsAsync (cancellationToken).ConfigureAwait (false);
+		IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>>? devices = await VitalsAsync (cancellationToken).ConfigureAwait (false);
 		if (devices is { Count: > 0 })
 			{
-			foreach (var device in devices.Values)
+			foreach (IReadOnlyDictionary<string, object?> device in devices.Values)
 				{
 				if (!device.TryGetValue ("alerts", out var deviceAlerts) || deviceAlerts is null)
 					continue;
@@ -673,7 +667,7 @@ public sealed class Powerwall : IDisposable
 
 		// Vitals are not present on local firmware after 23.44; fall back to /api/solar_powerwall.
 		var payload = await RequireClient ().PollAsync ("/api/solar_powerwall", cancellationToken: cancellationToken).ConfigureAwait (false);
-		var solar = JsonHelper.DeserializeOrNull<JObject> (payload);
+		JObject? solar = JsonHelper.DeserializeOrNull<JObject> (payload);
 		if (solar is null)
 			return alerts;
 
@@ -682,7 +676,7 @@ public sealed class Powerwall : IDisposable
 			if (solar[group] is not JObject flags)
 				continue;
 
-			foreach (var flag in flags.Properties ())
+			foreach (JProperty flag in flags.Properties ())
 				{
 				if (flag.Value.Type == JTokenType.Boolean && flag.Value.Value<bool> () && seen.Add (flag.Name))
 					alerts.Add (flag.Name);
@@ -697,7 +691,7 @@ public sealed class Powerwall : IDisposable
 		// Vitals attribute values are loosely typed; alerts is normally a JArray of strings.
 		if (deviceAlerts is JArray array)
 			{
-			foreach (var item in array)
+			foreach (JToken item in array)
 				{
 				var value = item.Type == JTokenType.String ? item.Value<string> () : item.ToString ();
 				if (value is not null)
@@ -745,16 +739,10 @@ public sealed class Powerwall : IDisposable
 		?? throw new PowerwallCloudNotImplementedException (
 			$"This operation is only available in cloud mode. The active connection mode is '{Mode}'.");
 
-	private static PowerwallMode ResolveMode (PowerwallOptions options)
-		{
-		if (string.IsNullOrWhiteSpace (options.Host))
-			return options.FleetApi ? PowerwallMode.FleetApi : PowerwallMode.Cloud;
-
-		if (options.CloudMode)
-			return options.FleetApi ? PowerwallMode.FleetApi : PowerwallMode.Cloud;
-
-		return PowerwallMode.Local;
-		}
+	private static PowerwallMode ResolveMode (PowerwallOptions options) =>
+		string.IsNullOrWhiteSpace (options.Host)
+			? options.FleetApi ? PowerwallMode.FleetApi : PowerwallMode.Cloud
+			: options.CloudMode ? options.FleetApi ? PowerwallMode.FleetApi : PowerwallMode.Cloud : PowerwallMode.Local;
 
 	private void ValidateConfiguration ()
 		{

@@ -139,7 +139,7 @@ internal sealed class TeslaCloudConnection : IDisposable
 	/// <returns>The product array from the <c>response</c> envelope, or <see langword="null"/> when unavailable.</returns>
 	public async Task<JArray?> GetProductsAsync (CancellationToken cancellationToken = default)
 		{
-		var response = await SendApiAsync (HttpMethod.Get, "api/1/products", null, null, cancellationToken).ConfigureAwait (false);
+		JToken? response = await SendApiAsync (HttpMethod.Get, "api/1/products", null, null, cancellationToken).ConfigureAwait (false);
 		return (response as JObject)?["response"] as JArray;
 		}
 

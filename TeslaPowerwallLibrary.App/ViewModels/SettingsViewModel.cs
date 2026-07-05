@@ -162,9 +162,15 @@ public sealed partial class SettingsViewModel : ViewModelBase
 		await RunWriteAsync (async (powerwall, token) =>
 			{
 			if (await powerwall.ChangeSiteAsync (siteId, token).ConfigureAwait (true))
+				{
 				StatusMessage = "Active site changed.";
+				var site = Sites.FirstOrDefault (s => s.SiteId == siteId);
+				_connection.SetSiteLabel (site?.SiteName ?? site?.SiteId ?? siteId);
+				}
 			else
+				{
 				StatusMessage = "That site could not be selected.";
+				}
 			}).ConfigureAwait (true);
 		}
 
@@ -182,6 +188,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
 		// triggering a redundant switch since _isLoading is set.
 		var rememberedSiteId = powerwall.CloudSiteId;
 		SelectedSite = Sites.FirstOrDefault (s => s.SiteId == rememberedSiteId) ?? Sites.FirstOrDefault ();
+
+		// Keep the shared connection label in sync in case this screen resolves the site before Connect did.
+		if (SelectedSite is not null)
+			_connection.SetSiteLabel (SelectedSite.SiteName ?? SelectedSite.SiteId);
 		}
 
 	private async Task RunWriteAsync (Func<Powerwall, CancellationToken, Task> write)

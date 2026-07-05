@@ -53,7 +53,7 @@ internal sealed class TeslaCloudTokenCache
 		{
 		lock (_gate)
 			{
-			var root = ReadRoot ();
+			JObject root = ReadRoot ();
 			if (root[_email] is not JObject entry)
 				return CloudTokenCacheEntry.Empty;
 
@@ -72,8 +72,8 @@ internal sealed class TeslaCloudTokenCache
 		{
 		lock (_gate)
 			{
-			var root = ReadRoot ();
-			var entry = root[_email] as JObject ?? new JObject ();
+			JObject root = ReadRoot ();
+			JObject entry = root[_email] as JObject ?? new JObject ();
 
 			entry["access_token"] = CloudTokenProtector.Protect (accessToken);
 			entry["refresh_token"] = CloudTokenProtector.Protect (refreshToken);
@@ -90,8 +90,8 @@ internal sealed class TeslaCloudTokenCache
 		{
 		lock (_gate)
 			{
-			var root = ReadRoot ();
-			var entry = root[_email] as JObject ?? new JObject ();
+			JObject root = ReadRoot ();
+			JObject entry = root[_email] as JObject ?? new JObject ();
 
 			if (string.IsNullOrWhiteSpace (siteId))
 				entry.Remove ("site_id");

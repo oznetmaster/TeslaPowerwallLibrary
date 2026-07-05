@@ -16,6 +16,9 @@
 		</Grid.RowDefinitions>
 
 		<TextBlock Grid.Row="0" Text="Home" Style="{StaticResource HeadingText}" Margin="8,0,8,8" />
+		<TextBlock Grid.Row="0" Text="{Binding SiteLabel}" Style="{StaticResource MutedText}"
+					HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="8,0,8,8"
+					Visibility="{Binding SiteLabel, Converter={StaticResource NullToCollapsed}}" />
 
 		<!-- Battery hero card -->
 		<Border Grid.Row="1" Style="{StaticResource Card}">

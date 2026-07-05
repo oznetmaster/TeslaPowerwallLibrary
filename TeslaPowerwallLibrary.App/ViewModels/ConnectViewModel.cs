@@ -304,7 +304,11 @@ public sealed partial class ConnectViewModel : ViewModelBase
 			}
 		catch (Exception exc) when (exc is OperationCanceledException or PowerwallException)
 			{
-			// The connection itself succeeded; if listing sites fails, proceed with the account default.
+			// The connection itself succeeded; if listing sites fails, proceed with the account default,
+			// falling back to the raw site id for the label since the friendly site name is unavailable.
+			if (!string.IsNullOrWhiteSpace (SiteId))
+				_connection.SetSiteLabel (SiteId);
+
 			EnterApp ();
 			return;
 			}
@@ -327,7 +331,12 @@ public sealed partial class ConnectViewModel : ViewModelBase
 
 		if (Sites.Count <= 1)
 			{
-			SiteId = Sites.Count == 1 ? Sites[0].SiteId : SiteId;
+			if (Sites.Count == 1)
+				{
+				SiteId = Sites[0].SiteId;
+				SelectedSite = Sites[0];
+				}
+
 			EnterApp ();
 			return;
 			}
@@ -341,6 +350,12 @@ public sealed partial class ConnectViewModel : ViewModelBase
 	private void EnterApp ()
 		{
 		ShowSiteSelection = false;
+
+		// Local mode's label (the gateway host) is set by PowerwallConnectionService.ConnectAsync; cloud
+		// mode's label is the resolved site name, once known.
+		if (IsCloudMode && SelectedSite is not null)
+			_connection.SetSiteLabel (SelectedSite.SiteName ?? SelectedSite.SiteId);
+
 		if (RememberCredentials)
 			SaveToSettings ();
 

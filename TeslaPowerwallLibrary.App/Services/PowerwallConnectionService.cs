@@ -34,6 +34,12 @@ public sealed class PowerwallConnectionService : IDisposable
 	/// <summary>Raised when a poll iteration fails, carrying a short human-readable message.</summary>
 	public event EventHandler<string>? PollFailed;
 
+	/// <summary>
+	/// Raised when <see cref="SiteLabel"/> changes: after a successful connect resolves the active site (or
+	/// local gateway host), and after a site switch from the Settings screen.
+	/// </summary>
+	public event EventHandler? SiteLabelChanged;
+
 	/// <summary>Gets the connected Powerwall, or throws when no connection has been established.</summary>
 	/// <exception cref="InvalidOperationException">Thrown when not connected.</exception>
 	public Powerwall Powerwall =>
@@ -44,6 +50,20 @@ public sealed class PowerwallConnectionService : IDisposable
 
 	/// <summary>Gets the resolved connection mode, or <see cref="PowerwallMode.Unknown"/> when not connected.</summary>
 	public PowerwallMode Mode => _powerwall?.Mode ?? PowerwallMode.Unknown;
+
+	/// <summary>
+	/// Gets a human-readable label for what the app is currently connected to: the Tesla energy site name
+	/// (cloud mode) or the gateway host (local mode). <see langword="null"/> when not yet resolved.
+	/// </summary>
+	public string? SiteLabel { get; private set; }
+
+	/// <summary>Sets <see cref="SiteLabel"/> and raises <see cref="SiteLabelChanged"/>.</summary>
+	/// <param name="label">The label to display, or <see langword="null"/> to clear it.</param>
+	public void SetSiteLabel (string? label)
+		{
+		SiteLabel = label;
+		SiteLabelChanged?.Invoke (this, EventArgs.Empty);
+		}
 
 	/// <summary>
 	/// Gets the poll cadence for the current connection: a fast interval for local gateway access and a
@@ -87,6 +107,11 @@ public sealed class PowerwallConnectionService : IDisposable
 		await StopPollingAsync ().ConfigureAwait (false);
 		_powerwall?.Dispose ();
 		_powerwall = candidate;
+
+		// Local mode has no site name to resolve, so the gateway host doubles as the site label. Cloud mode's
+		// label (the Tesla site name) is set by the caller once GetSitesAsync resolves it, and again on any
+		// later site switch from the Settings screen.
+		SetSiteLabel (candidate.Mode == PowerwallMode.Local ? options.Host : null);
 		return true;
 		}
 
@@ -197,6 +222,7 @@ public sealed class PowerwallConnectionService : IDisposable
 		await StopPollingAsync ().ConfigureAwait (false);
 		_powerwall?.Dispose ();
 		_powerwall = null;
+		SetSiteLabel (null);
 		}
 
 	/// <summary>Stops polling and releases the underlying connection.</summary>

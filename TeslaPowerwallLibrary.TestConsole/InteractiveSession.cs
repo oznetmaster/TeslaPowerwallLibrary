@@ -305,7 +305,7 @@ internal static class InteractiveSession
 			{
 			ConsoleHelpers.WriteError ($"Usage: {command} <kind> [period]");
 			ConsoleHelpers.WriteError ($"  kind:   {ConsoleHelpers.FormatChoices (kinds)}");
-			ConsoleHelpers.WriteError ($"  period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DefaultHistoryPeriod)} (optional; {ConsoleHelpers.DefaultChoiceLegend})");
+			ConsoleHelpers.WriteError ($"  period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)} (optional; {ConsoleHelpers.DefaultChoiceLegend})");
 			ConsoleHelpers.WriteError ($"  example: {command} {kinds[0]} {Powerwall.HistoryPeriods[0]}");
 			return;
 			}
@@ -354,10 +354,10 @@ internal static class InteractiveSession
 		Console.WriteLine ("  alerts            Active device alerts");
 		Console.WriteLine ("  history <kind> [period]           Raw energy history (DEPRECATED - Tesla removed this endpoint; use calendarhistory)");
 		Console.WriteLine ($"                      kind:   {ConsoleHelpers.FormatChoices (Powerwall.HistoryKinds)}");
-		Console.WriteLine ($"                      period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DefaultHistoryPeriod)}");
+		Console.WriteLine ($"                      period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)}");
 		Console.WriteLine ("  calendarhistory <kind> [period]   Calendar-aligned energy history (cloud mode)");
 		Console.WriteLine ($"                      kind:   {ConsoleHelpers.FormatChoices (Powerwall.CalendarHistoryKinds)}");
-		Console.WriteLine ($"                      period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DefaultHistoryPeriod)}");
+		Console.WriteLine ($"                      period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)}");
 		Console.WriteLine ("  login <cloud|local>       Sign in to a new account and reconnect");
 		Console.WriteLine ("  switchaccount <cloud|local>  Reconnect using this session's known cloud/local credentials");
 		Console.WriteLine ("  poll <api>        GET a raw API endpoint and print the response");

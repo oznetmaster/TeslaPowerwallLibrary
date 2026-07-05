@@ -187,7 +187,7 @@ static Command CreateHistoryCommand ()
 
 	var periodArgument = new Argument<string?> ("period")
 		{
-		Description = $"Aggregation period ({ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DefaultHistoryPeriod)}). Optional; {ConsoleHelpers.DefaultChoiceLegend}.",
+		Description = $"Aggregation period ({ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)}). Optional; {ConsoleHelpers.DefaultChoiceLegend}.",
 		Arity = ArgumentArity.ZeroOrOne
 		};
 
@@ -213,7 +213,7 @@ static Command CreateCalendarHistoryCommand ()
 
 	var periodArgument = new Argument<string?> ("period")
 		{
-		Description = $"Aggregation period ({ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DefaultHistoryPeriod)}). Optional; {ConsoleHelpers.DefaultChoiceLegend}.",
+		Description = $"Aggregation period ({ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)}). Optional; {ConsoleHelpers.DefaultChoiceLegend}.",
 		Arity = ArgumentArity.ZeroOrOne
 		};
 

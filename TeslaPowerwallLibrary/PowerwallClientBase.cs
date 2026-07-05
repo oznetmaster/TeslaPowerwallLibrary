@@ -108,7 +108,7 @@ public abstract class PowerwallClientBase
 	/// <returns>A <see cref="PowerSnapshot"/>; flows that cannot be parsed default to zero.</returns>
 	public virtual async Task<PowerSnapshot> PowerAsync (CancellationToken cancellationToken = default)
 		{
-		var aggregates = await GetMeterAggregatesAsync (cancellationToken).ConfigureAwait (false);
+		MeterAggregates? aggregates = await GetMeterAggregatesAsync (cancellationToken).ConfigureAwait (false);
 		return new PowerSnapshot
 			{
 			Site = aggregates?.Site?.InstantPower ?? 0.0,
@@ -139,11 +139,11 @@ public abstract class PowerwallClientBase
 
 		if (verbose)
 			{
-			var aggregates = await GetMeterAggregatesAsync (cancellationToken).ConfigureAwait (false);
+			MeterAggregates? aggregates = await GetMeterAggregatesAsync (cancellationToken).ConfigureAwait (false);
 			return SelectSensorReading (aggregates, sensor)?.InstantPower;
 			}
 
-		var power = await PowerAsync (cancellationToken).ConfigureAwait (false);
+		PowerSnapshot power = await PowerAsync (cancellationToken).ConfigureAwait (false);
 		return sensor switch
 			{
 			"site" => power.Site,

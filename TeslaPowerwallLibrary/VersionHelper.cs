@@ -32,7 +32,7 @@ public static class VersionHelper
 
 		var token = version.Split (' ')[0];
 		var filtered = new string (token.Where (static c => char.IsDigit (c) || c is '.' or '/' or '\\').ToArray ());
-		var parts = filtered.Split ('.').ToList ();
+		List<string> parts = filtered.Split ('.').ToList ();
 
 		while (parts.Count < 3)
 			parts.Add ("0");
