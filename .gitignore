@@ -361,3 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Repository-local generated documentation output (local Release-build docfx target;
+# docfx_project/_site and docfx_project/api/*.yml are covered by their own nested .gitignore files)
+docs/

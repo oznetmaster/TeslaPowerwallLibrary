@@ -120,4 +120,49 @@
 	<ItemGroup>
 		<None Include="..\README.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
+
+	<!-- Detect docfx.exe from docfx.console package or global dotnet tool -->
+	<Choose>
+		<When Condition="Exists('$(USERPROFILE)\.dotnet\tools\docfx.exe')">
+			<PropertyGroup>
+				<DocfxExe>$(USERPROFILE)\.dotnet\tools\docfx.exe</DocfxExe>
+			</PropertyGroup>
+		</When>
+		<When Condition="Exists('C:\ProgramData\chocolatey\bin\docfx.exe')">
+			<PropertyGroup>
+				<DocfxExe>C:\ProgramData\chocolatey\bin\docfx.exe</DocfxExe>
+			</PropertyGroup>
+		</When>
+		<When Condition="Exists('$(Pkgdocfx_console)\tools\docfx.exe')">
+			<PropertyGroup>
+				<DocfxExe>$(Pkgdocfx_console)\tools\docfx.exe</DocfxExe>
+			</PropertyGroup>
+		</When>
+		<Otherwise>
+			<PropertyGroup>
+				<DocfxExe></DocfxExe>
+			</PropertyGroup>
+		</Otherwise>
+	</Choose>
+
+	<Target Name="GenerateDocfxDoc" AfterTargets="Build" Condition="'$(Configuration)' == 'Release' and '$(TargetFramework)' == 'net472'">
+		<PropertyGroup>
+			<DocsDir>$(MSBuildProjectDirectory)\..\docs</DocsDir>
+			<DocfxConfig>$(MSBuildProjectDirectory)\..\docfx_project\docfx.json</DocfxConfig>
+		</PropertyGroup>
+
+		<Warning Text="DOCFX: DocFX not found. Skipping docs." Condition="'$(DocfxExe)' == ''" />
+		<Warning Text="DOCFX: docfx.json not found at '$(DocfxConfig)'. Skipping docs." Condition="'$(DocfxExe)' != '' and !Exists('$(DocfxConfig)')" />
+
+		<!--1) Metadata -->
+		<Message Importance="high" Text="DOCFX: Generating metadata from $(DocfxConfig)" Condition="'$(DocfxExe)' != '' and Exists('$(DocfxConfig)')" />
+		<Exec Command="&quot;$(DocfxExe)&quot; metadata &quot;$(DocfxConfig)&quot;" ContinueOnError="true" IgnoreExitCode="true" Condition="'$(DocfxExe)' != '' and Exists('$(DocfxConfig)')" />
+
+		<!--2) Build site directly into docs -->
+		<Message Importance="high" Text="DOCFX: Building site to $(DocsDir)" Condition="'$(DocfxExe)' != '' and Exists('$(DocfxConfig)')" />
+		<RemoveDir Directories="$(DocsDir)" Condition="Exists('$(DocsDir)')" />
+		<MakeDir Directories="$(DocsDir)" Condition="'$(DocfxExe)' != '' and Exists('$(DocfxConfig)')" />
+		<Exec Command="&quot;$(DocfxExe)&quot; build &quot;$(DocfxConfig)&quot; --output &quot;$(DocsDir)&quot; --logLevel Error" ContinueOnError="true" IgnoreExitCode="true" Condition="'$(DocfxExe)' != '' and Exists('$(DocfxConfig)')" />
+
+	</Target>
 </Project>

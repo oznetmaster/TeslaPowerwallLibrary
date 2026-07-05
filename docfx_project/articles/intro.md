@@ -1,42 +1,62 @@
 # Getting started
 
-Drayton, Wiser, and Schneider Electric are trademarks of Schneider Electric SE, its subsidiaries, or affiliated companies. This project is an independent, unofficial .NET library and is not affiliated with or endorsed by Schneider Electric.
+Tesla and Powerwall are trademarks of Tesla, Inc. This project is an independent, unofficial .NET library
+and is not affiliated with or endorsed by Tesla.
 
 ## Installation
 
 ```bash
-dotnet add package WiserHeatAPIv2
+dotnet add package TeslaPowerwallLibrary
 ```
 
-## Connect to a hub
+## Connect to a local gateway
 
 ```csharp
-using WiserHeatApiV2;
+using TeslaPowerwallLibrary;
 
-var api = new WiserAPI("192.168.1.50", "your-wiser-secret");
-await api.InitializeAsync();
-```
-
-## Discover hubs on the local network
-
-```csharp
-using WiserHeatApiV2;
-
-List<WiserDiscoveredHub> hubs = await WiserDiscovery.DiscoverHubAsync(60, 2);
-foreach (var hub in hubs)
+var options = new PowerwallOptions
 {
-    Console.WriteLine(hub.Url);
-}
+    Host = "10.0.1.99",
+    Password = "your-customer-password"
+};
+
+using var powerwall = new Powerwall(options);
+await powerwall.ConnectAsync();
 ```
 
-## Refresh hub state
+## Connect using the Tesla Owners cloud API
 
 ```csharp
-await api.ReadHubDataAsync();
+using TeslaPowerwallLibrary;
+
+var options = new PowerwallOptions
+{
+    Email = "you@example.com",
+    CloudMode = true,
+    AccessToken = "your-access-token",
+    RefreshToken = "your-refresh-token"
+};
+
+using var powerwall = new Powerwall(options);
+await powerwall.ConnectAsync();
+```
+
+After the first successful cloud connect, the library persists the (possibly rotated) tokens internally,
+keyed by `Email`, so later runs can omit `AccessToken` and `RefreshToken` entirely.
+
+## Read status and history
+
+```csharp
+var status = await powerwall.StatusAsync();
+var systemStatus = await powerwall.SystemStatusAsync();
+var energyHistory = await powerwall.GetCalendarHistoryAsync("energy", period: "day");
 ```
 
 ## Notes
 
-- The library communicates with a local Wiser hub, not a cloud API.
-- A valid Wiser hub IP address or discovered hub endpoint and hub secret are required.
-- The .NET implementation is adapted from the Python `wiserHeatAPIv2` project.
+- The library supports both direct local network access to the Powerwall gateway and Tesla Owners (cloud) API access; select the mode using `PowerwallOptions`.
+- Local mode requires the gateway host/IP address and the customer password configured on the gateway.
+- Local mode targets the Gateway 2 / Powerwall+ local REST API. Powerwall 3 gateways use a different local protocol (TEDAPI) that is not yet implemented in this library and reject the plain REST endpoints with a `403` error; Powerwall 3 owners should use Cloud mode for now.
+- Cloud mode requires a Tesla account email and OAuth tokens obtained via the Tesla login flow.
+- The .NET implementation is adapted from the Python `pypowerwall` project.
+

@@ -4,11 +4,14 @@
       "src": [
         {
           "files": [
-            "WiserHeatAPIv2/WiserHeatAPIv2.csproj"
+            "TeslaPowerwallLibrary/TeslaPowerwallLibrary.csproj"
           ],
           "src": ".."
         }
       ],
+      "properties": {
+        "TargetFramework": "net472"
+      },
       "dest": "api",
       "disableGitFeatures": false
     }
@@ -42,25 +45,12 @@
       }
     ],
     "globalMetadata": {
-      "_appTitle": "WiserHeatAPIv2 API"
+      "_appTitle": "TeslaPowerwallLibrary API"
     },
+    "output": "_site",
     "template": [
       "default",
       "modern"
     ]
-  },
-  "pdf": {
-    "content": [
-      {
-        "files": [
-          "api/**.yml"
-        ]
-      }
-    ],
-    "dest": "pdf",
-    "wkhtmltopdf": {
-      "path": "C:/Program Files/wkhtmltopdf/bin/wkhtmltopdf.exe",
-      "additionalArguments": "--enable-local-file-access"
-    }
   }
 }
