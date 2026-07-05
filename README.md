@@ -103,4 +103,4 @@ This library is adapted from the Python [pypowerwall](https://pypi.org/project/p
 
 ## License
 
-MIT © 2026 Neil Colvin — see [LICENSE](TeslaPowerwallLibrary/LICENSE).
+MIT © 2026 Neil Colvin, © 2022 Jason Cox — see [LICENSE](TeslaPowerwallLibrary/LICENSE).
