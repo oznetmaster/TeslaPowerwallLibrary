@@ -85,6 +85,17 @@
 					</StackPanel>
 				</Border>
 
+				<!-- Account -->
+				<Border Style="{StaticResource Card}">
+					<StackPanel>
+						<TextBlock Text="Account" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,12" />
+						<Button Content="Switch account" Command="{Binding SwitchAccountCommand}"
+								HorizontalAlignment="Left" />
+						<TextBlock Text="Signs out and returns to the connect screen."
+									Style="{StaticResource MutedText}" Margin="0,8,0,0" />
+					</StackPanel>
+				</Border>
+
 			</StackPanel>
 		</ScrollViewer>
 

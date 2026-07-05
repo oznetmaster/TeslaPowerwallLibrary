@@ -10,6 +10,7 @@
 		<ImplicitUsings>disable</ImplicitUsings>
 		<IsPackable>false</IsPackable>
 		<GenerateDocumentationFile>false</GenerateDocumentationFile>
+		<ApplicationIcon>Resources\Solar.ico</ApplicationIcon>
 
 		<!--
 			LiveCharts' WPF view renders via SkiaSharp, whose transitive OpenTK / OpenTK.GLWpfControl /
@@ -27,6 +28,11 @@
 
 	<ItemGroup>
 	  <Page Include="App.xaml" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Remove="Resources\Solar.ico" />
+		<Resource Include="Resources\Solar.ico" />
 	</ItemGroup>
 
 	<ItemGroup>

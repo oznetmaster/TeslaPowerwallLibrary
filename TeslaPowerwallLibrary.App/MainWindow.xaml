@@ -5,7 +5,8 @@
 		Title="Tesla Powerwall" Height="720" Width="1080"
 		WindowStartupLocation="CenterScreen"
 		Background="{StaticResource BackgroundBrush}"
-		FontFamily="Segoe UI">
+		FontFamily="Segoe UI"
+		Icon="Resources/Solar.ico">
 	<Window.DataContext>
 		<vm:ShellViewModel />
 	</Window.DataContext>
@@ -19,15 +20,12 @@
 		<Border Grid.Column="0" Background="{StaticResource SurfaceBrush}">
 			<DockPanel>
 				<StackPanel DockPanel.Dock="Top" Margin="16,20,16,20">
-					<TextBlock Text="⚡ Powerwall" FontSize="18" FontWeight="Bold"
-								Foreground="{StaticResource TextBrush}" />
+					<StackPanel Orientation="Horizontal">
+						<Image Source="Resources/Solar.ico" Width="24" Height="24" Margin="0,0,8,0" />
+						<TextBlock Text="Powerwall" FontSize="18" FontWeight="Bold" VerticalAlignment="Center"
+									Foreground="{StaticResource TextBrush}" />
+					</StackPanel>
 					<TextBlock Text="Desktop" Style="{StaticResource MutedText}" />
-				</StackPanel>
-
-				<StackPanel DockPanel.Dock="Bottom" Margin="8,8,8,16"
-							Visibility="{Binding IsConnected, Converter={StaticResource BoolToVisibility}}">
-					<Button Content="Switch account" Style="{StaticResource NavButton}"
-							Command="{Binding DisconnectCommand}" />
 				</StackPanel>
 
 				<StackPanel Visibility="{Binding IsConnected, Converter={StaticResource BoolToVisibility}}">

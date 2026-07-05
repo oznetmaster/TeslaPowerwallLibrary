@@ -24,6 +24,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
 	private readonly PowerwallConnectionService _connection;
 	private bool _isLoading;
 
+	/// <summary>Raised when the user requests to switch accounts (sign out and return to the connect screen).</summary>
+	public event EventHandler? SwitchAccountRequested;
+
 	/// <summary>Initializes a new instance of the <see cref="SettingsViewModel"/> class.</summary>
 	/// <param name="connection">The shared connection service.</param>
 	public SettingsViewModel (PowerwallConnectionService connection)
@@ -148,6 +151,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
 			StatusMessage = "Grid export rule updated.";
 			}).ConfigureAwait (true);
 		}
+
+	/// <summary>Requests that the app sign out of the current account and return to the connect screen.</summary>
+	[RelayCommand]
+	private void SwitchAccount () => SwitchAccountRequested?.Invoke (this, EventArgs.Empty);
 
 	partial void OnSelectedSiteChanged (CloudSite? value)
 		{

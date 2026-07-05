@@ -52,6 +52,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 		System = new SystemViewModel (_connection);
 
 		Connect.Connected += OnConnected;
+		Settings.SwitchAccountRequested += OnSwitchAccountRequested;
 
 		_current = Connect;
 		_currentScreen = AppScreen.Connect;
@@ -137,6 +138,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 		OnPropertyChanged (nameof (IsConnected));
 		}
 
+	private async void OnSwitchAccountRequested (object? sender, EventArgs e) => await DisconnectAsync ().ConfigureAwait (true);
+
 	private void OnConnected (object? sender, EventArgs e)
 		{
 		_connection.StartPolling ();
@@ -148,6 +151,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 	public void Dispose ()
 		{
 		Connect.Connected -= OnConnected;
+		Settings.SwitchAccountRequested -= OnSwitchAccountRequested;
 		_connection.Dispose ();
 		}
 	}
