@@ -4,7 +4,7 @@
 namespace TeslaPowerwallLibrary;
 
 /// <summary>
-/// Carries the Tesla Owners API tokens that are current after an OAuth access-token refresh. Raised by
+/// Carries the Tesla™ Owners API tokens that are current after an OAuth access-token refresh. Raised by
 /// <see cref="Powerwall.CloudTokensRefreshed"/> so long-running callers can persist rotated tokens (the
 /// refresh token may change on each refresh) and reuse them on a later run instead of re-authenticating.
 /// </summary>

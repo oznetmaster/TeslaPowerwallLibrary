@@ -10,8 +10,8 @@
 	<Grid HorizontalAlignment="Center" VerticalAlignment="Center" Width="440">
 		<Border Style="{StaticResource Card}">
 			<StackPanel>
-				<TextBlock Text="⚡ Connect to Powerwall" Style="{StaticResource HeadingText}" />
-				<TextBlock Text="Choose how to reach your Tesla Energy Gateway."
+				<TextBlock Text="⚡ Connect to Powerwall™" Style="{StaticResource HeadingText}" />
+				<TextBlock Text="Choose how to reach your Tesla™ Energy Gateway."
 							Style="{StaticResource MutedText}" Margin="0,4,0,16" TextWrapping="Wrap" />
 
 				<!-- Sign-in form (hidden once a site must be chosen) -->

@@ -12,7 +12,7 @@ using Newtonsoft.Json.Linq;
 namespace TeslaPowerwallLibrary.Cloud;
 
 /// <summary>
-/// File-backed cache of Tesla Owners API tokens and the selected site, keyed by customer email. This is the
+/// File-backed cache of Tesla™ Owners API tokens and the selected site, keyed by customer email. This is the
 /// library's internal equivalent of the upstream <c>teslapy</c> cache file plus the <c>pypowerwall</c> site
 /// persistence: tokens are loaded when a cloud connection is created, rewritten whenever Tesla rotates them,
 /// and the selected site is remembered across runs. Owning this inside the library frees every consumer from

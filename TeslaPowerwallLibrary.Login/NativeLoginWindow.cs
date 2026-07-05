@@ -179,7 +179,7 @@ internal sealed class NativeLoginWindow
 		var y = Math.Max (0, (screenHeight - WindowHeight) / 2);
 
 		_hwnd = NativeMethods.CreateWindowEx (
-			0, WindowClassName, "Tesla Powerwall Login", NativeMethods.WS_OVERLAPPEDWINDOW,
+			0, WindowClassName, "Tesla™ Powerwall™ Login", NativeMethods.WS_OVERLAPPEDWINDOW,
 			x, y, WindowWidth, WindowHeight, IntPtr.Zero, IntPtr.Zero, hInstance, IntPtr.Zero);
 
 		if (_hwnd == IntPtr.Zero)

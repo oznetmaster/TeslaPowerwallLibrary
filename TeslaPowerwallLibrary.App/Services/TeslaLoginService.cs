@@ -10,7 +10,7 @@ using TeslaPowerwallLibrary.Login;
 namespace TeslaPowerwallLibrary.App.Services;
 
 /// <summary>
-/// The outcome of attempting to acquire Tesla cloud tokens through the interactive browser login.
+/// The outcome of attempting to acquire Tesla™ cloud tokens through the interactive browser login.
 /// </summary>
 public enum TeslaLoginStatus
 	{

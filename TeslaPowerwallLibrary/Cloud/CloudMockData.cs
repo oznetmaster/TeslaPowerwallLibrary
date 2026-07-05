@@ -5,7 +5,7 @@
 namespace TeslaPowerwallLibrary.Cloud;
 
 /// <summary>
-/// Static mock JSON payloads returned by cloud-mode endpoints that have no real Tesla Owners API
+/// Static mock JSON payloads returned by cloud-mode endpoints that have no real Tesla™ Owners API
 /// equivalent. Faithfully ported from the upstream pypowerwall <c>mock_data.py</c> module so that
 /// cloud mode mirrors the local gateway response shapes for these endpoints.
 /// </summary>

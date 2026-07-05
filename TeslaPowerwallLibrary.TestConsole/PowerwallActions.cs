@@ -11,7 +11,7 @@ using TeslaPowerwallLibrary.Models;
 namespace TeslaPowerwallLibrary.TestConsole;
 
 /// <summary>
-/// Renders Powerwall data to the console. Each method targets a connected <see cref="Powerwall"/> and is
+/// Renders Powerwall™ data to the console. Each method targets a connected <see cref="Powerwall"/> and is
 /// shared between the one-shot command-line subcommands and the interactive REPL.
 /// </summary>
 internal static class PowerwallActions
@@ -42,7 +42,7 @@ internal static class PowerwallActions
 		ConsoleHelpers.WriteField ("Name", name);
 		}
 
-	/// <summary>Prints the battery charge level, both raw and Tesla-app scaled.</summary>
+	/// <summary>Prints the battery charge level, both raw and Tesla™-app scaled.</summary>
 	public static async Task LevelAsync (Powerwall powerwall, CancellationToken cancellationToken)
 		{
 		var raw = await powerwall.LevelAsync (cancellationToken: cancellationToken).ConfigureAwait (false);

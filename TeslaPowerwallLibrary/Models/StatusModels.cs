@@ -91,7 +91,7 @@ public sealed record SitemasterStatus
 	[JsonProperty ("running")]
 	public bool? Running { get; init; }
 
-	/// <summary>Indicates whether the gateway is connected to Tesla.</summary>
+	/// <summary>Indicates whether the gateway is connected to Tesla™.</summary>
 	[JsonProperty ("connected_to_tesla")]
 	public bool? ConnectedToTesla { get; init; }
 

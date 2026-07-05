@@ -43,7 +43,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
 	/// <summary>Gets the selectable grid export rules.</summary>
 	public ObservableCollection<string> ExportRules { get; }
 
-	/// <summary>Gets the available Tesla energy sites (cloud mode only).</summary>
+	/// <summary>Gets the available Tesla™ energy sites (cloud mode only).</summary>
 	public ObservableCollection<CloudSite> Sites { get; }
 
 	/// <summary>Gets a value indicating whether cloud-only controls are available.</summary>

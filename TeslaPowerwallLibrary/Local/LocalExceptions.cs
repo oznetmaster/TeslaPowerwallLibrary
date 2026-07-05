@@ -5,7 +5,7 @@
 namespace TeslaPowerwallLibrary.Local;
 
 /// <summary>
-/// Thrown when authentication with the local Powerwall gateway fails (for example, an incorrect customer password).
+/// Thrown when authentication with the local Powerwall™ gateway fails (for example, an incorrect customer password).
 /// </summary>
 public class LoginException : PowerwallException
 	{

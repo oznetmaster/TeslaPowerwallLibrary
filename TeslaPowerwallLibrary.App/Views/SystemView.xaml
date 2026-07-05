@@ -57,7 +57,7 @@
 				<!-- Battery blocks -->
 				<Border Style="{StaticResource Card}">
 					<StackPanel>
-						<TextBlock Text="Powerwalls" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,12" />
+						<TextBlock Text="Powerwall™s" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,12" />
 						<ItemsControl ItemsSource="{Binding Batteries}">
 							<ItemsControl.ItemTemplate>
 								<DataTemplate>

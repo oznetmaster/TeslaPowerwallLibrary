@@ -15,7 +15,7 @@
 
 		<!-- Migrated from AssemblyInfo.cs -->
 		<AssemblyTitle>TeslaPowerwallLibrary</AssemblyTitle>
-		<Description>An independent, unofficial .NET client library for the Tesla Powerwall API. This project is not affiliated with or endorsed by Tesla, and is adapted from the original Python pypowerwall project for .NET applications targeting both .NET Framework 4.7.2 and .NET 10.</Description>
+		<Description>An independent, unofficial .NET client library for the Tesla™ Powerwall™ API. This project is not affiliated with or endorsed by Tesla, and is adapted from the original Python pypowerwall project for .NET applications targeting both .NET Framework 4.7.2 and .NET 10.</Description>
 		<Company>Neil Colvin</Company>
 		<Product>TeslaPowerwallLibrary</Product>
 		<Copyright>Copyright © 2026 Neil Colvin</Copyright>

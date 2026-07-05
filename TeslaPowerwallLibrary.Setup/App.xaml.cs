@@ -8,7 +8,7 @@ using System.Windows;
 namespace TeslaPowerwallLibrary.Setup;
 
 /// <summary>
-/// Interaction logic for the Tesla Powerwall setup application. This Windows tool is a thin wrapper
+/// Interaction logic for the Tesla™ Powerwall™ setup application. This Windows tool is a thin wrapper
 /// around the shared <c>TeslaPowerwallLibrary.Login</c> library: it performs the Tesla OAuth 2.0 PKCE
 /// login through an embedded browser and presents the resulting refresh and access tokens for manual
 /// copy/paste into an application's configuration.

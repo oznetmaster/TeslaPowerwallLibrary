@@ -6,7 +6,7 @@ using System.Windows;
 namespace TeslaPowerwallLibrary.App;
 
 /// <summary>
-/// Interaction logic for the Tesla Powerwall desktop application. This unofficial desktop client mirrors much
+/// Interaction logic for the Tesla™ Powerwall™ desktop application. This unofficial desktop client mirrors much
 /// of the Tesla mobile energy app experience using the <c>TeslaPowerwallLibrary</c> as its backend.
 /// </summary>
 public partial class App : Application

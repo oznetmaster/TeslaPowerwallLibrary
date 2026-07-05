@@ -5,7 +5,7 @@
 namespace TeslaPowerwallLibrary;
 
 /// <summary>
-/// Library-wide constant values shared across the Tesla Powerwall client.
+/// Library-wide constant values shared across the Tesla™ Powerwall™ client.
 /// </summary>
 public static class Constants
 	{

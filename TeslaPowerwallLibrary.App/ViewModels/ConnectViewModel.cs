@@ -17,7 +17,7 @@ using TeslaPowerwallLibrary.Cloud;
 namespace TeslaPowerwallLibrary.App.ViewModels;
 
 /// <summary>
-/// Drives the connect screen. Supports a Cloud/Local mode picker: cloud mode signs in with a Tesla account
+/// Drives the connect screen. Supports a Cloud/Local mode picker: cloud mode signs in with a Tesla™ account
 /// (browser login or pasted tokens), then presents a site picker populated from the cloud; local mode
 /// connects with a gateway host and password. The last account, region, and site are loaded from and saved
 /// to per-user, DPAPI-protected settings.

@@ -5,7 +5,7 @@
 namespace TeslaPowerwallLibrary;
 
 /// <summary>
-/// HTTP client extensions used by the Tesla Powerwall client.
+/// HTTP client extensions used by the Tesla™ Powerwall™ client.
 /// </summary>
 public static class HttpClientExtensions
 	{

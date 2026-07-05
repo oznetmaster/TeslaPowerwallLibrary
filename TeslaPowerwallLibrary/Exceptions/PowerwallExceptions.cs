@@ -5,7 +5,7 @@
 namespace TeslaPowerwallLibrary;
 
 /// <summary>
-/// Base type for all exceptions raised by the Tesla Powerwall client library.
+/// Base type for all exceptions raised by the Tesla™ Powerwall™ client library.
 /// </summary>
 public class PowerwallException : Exception
 	{

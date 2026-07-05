@@ -17,7 +17,7 @@ using TeslaPowerwallLibrary.Models;
 namespace TeslaPowerwallLibrary.Local;
 
 /// <summary>
-/// Local-mode Powerwall client that communicates directly with a Tesla Energy Gateway over HTTPS.
+/// Local-mode Powerwall™ client that communicates directly with a Tesla™ Energy Gateway over HTTPS.
 /// Faithfully adapts the behavior of the Python <c>PyPowerwallLocal</c> class using an async,
 /// strongly-typed, cancellable API surface.
 /// </summary>

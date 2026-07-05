@@ -21,7 +21,7 @@ namespace TeslaPowerwallLibrary.Login;
 
 /// <summary>
 /// Faithful C# adaptation of the upstream <c>pypowerwall</c> <c>tesla_auth</c> module that backs the
-/// <c>python -m pypowerwall authtoken</c> command. Implements the Tesla OAuth 2.0 PKCE flow: building the
+/// <c>python -m pypowerwall authtoken</c> command. Implements the Tesla™ OAuth 2.0 PKCE flow: building the
 /// authorize URL, parsing the <c>tesla://auth/callback</c> redirect, exchanging the authorization code for
 /// tokens, and extracting the account email from the returned id_token.
 /// </summary>

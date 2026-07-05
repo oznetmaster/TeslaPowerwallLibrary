@@ -8,7 +8,7 @@ using TeslaPowerwallLibrary.Login;
 namespace TeslaPowerwallLibrary.TestConsole;
 
 /// <summary>
-/// The outcome of attempting to acquire Tesla cloud tokens through the interactive browser login.
+/// The outcome of attempting to acquire Tesla™ cloud tokens through the interactive browser login.
 /// </summary>
 internal enum SetupLaunchStatus
 	{

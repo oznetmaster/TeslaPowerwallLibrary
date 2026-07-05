@@ -13,7 +13,7 @@ namespace TeslaPowerwallLibrary.Setup;
 
 /// <summary>
 /// Interaction logic for <see cref="MainWindow"/>. A thin wrapper around the shared
-/// <c>TeslaPowerwallLibrary.Login</c> library: starts the Tesla OAuth login (hosted in its own native
+/// <c>TeslaPowerwallLibrary.Login</c> library: starts the Tesla™ OAuth login (hosted in its own native
 /// window by the library) and presents the resulting refresh and access tokens — the Windows equivalent
 /// of <c>python -m pypowerwall authtoken</c>.
 /// </summary>

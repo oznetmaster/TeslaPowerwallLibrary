@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 namespace TeslaPowerwallLibrary.Login;
 
 /// <summary>
-/// The outcome of an interactive Tesla cloud login attempt.
+/// The outcome of an interactive Tesla™ cloud login attempt.
 /// </summary>
 public enum TeslaCloudLoginStatus
 	{

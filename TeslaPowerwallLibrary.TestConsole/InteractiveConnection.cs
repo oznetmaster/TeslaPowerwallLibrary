@@ -28,13 +28,13 @@ internal sealed class InteractiveConnection : IDisposable
 		_noSave = noSave;
 		}
 
-	/// <summary>Gets the currently connected Powerwall for the session.</summary>
+	/// <summary>Gets the currently connected Powerwall™ for the session.</summary>
 	public Powerwall Powerwall { get; private set; }
 
 	/// <summary>Gets the options backing the current connection, carrying both credential groups.</summary>
 	public PowerwallOptions Options { get; private set; }
 
-	/// <summary>Gets the normalized Tesla region (<c>us</c> or <c>cn</c>) used for cloud browser login.</summary>
+	/// <summary>Gets the normalized Tesla™ region (<c>us</c> or <c>cn</c>) used for cloud browser login.</summary>
 	public string Region => _region;
 
 	/// <summary>

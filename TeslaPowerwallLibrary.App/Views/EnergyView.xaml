@@ -37,8 +37,8 @@
 					IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
 		</StackPanel>
 
-		<!-- Component picker: exactly one of Solar / Home / Powerwall / Grid is graphed at a time, matching
-			  the Tesla app's own single-series presentation, instead of combining every component onto one
+		<!-- Component picker: exactly one of Solar / Home / Powerwall™ / Grid is graphed at a time, matching
+			  the Tesla™ app's own single-series presentation, instead of combining every component onto one
 			  chart. The shared GroupName makes the RadioButtons mutually exclusive in the UI; the view model
 			  also enforces the invariant itself (see EnergyViewModel.OnComponentSelectionChanged). -->
 		<ItemsControl Grid.Row="2" ItemsSource="{Binding Components}" Margin="8,0,8,12">

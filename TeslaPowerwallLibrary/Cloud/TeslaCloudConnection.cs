@@ -13,7 +13,7 @@ using Newtonsoft.Json.Linq;
 namespace TeslaPowerwallLibrary.Cloud;
 
 /// <summary>
-/// Encapsulates the Tesla Owners API connection: OAuth access-token refresh against the Tesla SSO
+/// Encapsulates the Tesla™ Owners API connection: OAuth access-token refresh against the Tesla SSO
 /// service and authenticated energy-site REST calls against <c>owner-api.teslamotors.com</c>.
 /// Adapts the relevant behavior of the upstream <c>teslapy</c> library used by <c>pypowerwall</c>.
 /// </summary>

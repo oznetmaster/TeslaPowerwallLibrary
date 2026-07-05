@@ -24,7 +24,7 @@ public sealed class AppSettings
 	[JsonProperty ("host")]
 	public string? Host { get; set; }
 
-	/// <summary>Gets or sets the encrypted (DPAPI, base64) Powerwall password; never stored in plaintext.</summary>
+	/// <summary>Gets or sets the encrypted (DPAPI, base64) Powerwall™ password; never stored in plaintext.</summary>
 	[JsonProperty ("protectedPassword")]
 	public string? ProtectedPassword { get; set; }
 

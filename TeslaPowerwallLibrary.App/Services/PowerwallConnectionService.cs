@@ -18,7 +18,7 @@ public sealed class PowerwallConnectionService : IDisposable
 	private static readonly TimeSpan _localPollInterval = TimeSpan.FromSeconds (5);
 
 	/// <summary>
-	/// Poll cadence for cloud-backed connections (Owners API / FleetAPI). Tesla only refreshes cloud data
+	/// Poll cadence for cloud-backed connections (Owners API / FleetAPI). Tesla™ only refreshes cloud data
 	/// every few minutes, but the client cannot know where it sits in that cycle, so a one-minute poll
 	/// bounds worst-case staleness while staying light on the API.
 	/// </summary>

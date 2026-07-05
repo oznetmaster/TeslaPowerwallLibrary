@@ -5,7 +5,7 @@
 namespace TeslaPowerwallLibrary.FleetApi;
 
 /// <summary>
-/// Thrown when the Tesla FleetAPI configuration file is missing or unreadable.
+/// Thrown when the Tesla™ FleetAPI configuration file is missing or unreadable.
 /// </summary>
 public class PowerwallFleetApiNoTeslaAuthFileException : PowerwallException
 	{

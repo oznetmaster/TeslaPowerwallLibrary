@@ -9,7 +9,7 @@ using System.Text;
 namespace TeslaPowerwallLibrary.App.Services;
 
 /// <summary>
-/// Protects and unprotects small secrets (such as the Powerwall password and Tesla tokens) at rest using the
+/// Protects and unprotects small secrets (such as the Powerwall™ password and Tesla tokens) at rest using the
 /// Windows Data Protection API (DPAPI), scoped to the current user. Secrets are never written in plaintext.
 /// </summary>
 internal static class CredentialProtector

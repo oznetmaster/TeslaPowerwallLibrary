@@ -5,7 +5,7 @@
 namespace TeslaPowerwallLibrary.Cloud;
 
 /// <summary>
-/// Thrown when the Tesla Owners (cloud) authentication file is missing or unreadable.
+/// Thrown when the Tesla™ Owners (cloud) authentication file is missing or unreadable.
 /// </summary>
 public class PowerwallCloudNoTeslaAuthFileException : PowerwallException
 	{

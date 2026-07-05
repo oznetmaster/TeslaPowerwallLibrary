@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 namespace TeslaPowerwallLibrary.Login;
 
 /// <summary>
-/// Win32 interop declarations used to host a plain, dependency-free top-level window for the Tesla
+/// Win32 interop declarations used to host a plain, dependency-free top-level window for the Tesla™
 /// login WebView2 control, avoiding any WPF or WinForms dependency in the shared login library.
 /// </summary>
 internal static class NativeMethods

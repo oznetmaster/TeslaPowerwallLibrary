@@ -10,7 +10,7 @@ using System.Text;
 namespace TeslaPowerwallLibrary.Cloud;
 
 /// <summary>
-/// Protects small secrets (Tesla Owners API tokens) at rest for the library-owned cloud token cache using the
+/// Protects small secrets (Tesla™ Owners API tokens) at rest for the library-owned cloud token cache using the
 /// Windows Data Protection API (DPAPI), scoped to the current user. DPAPI is available both on .NET Framework
 /// (built into the platform) and on modern .NET running on Windows (via the ProtectedData package), so a value
 /// protected by a process running under one target framework can still be recovered by a process running

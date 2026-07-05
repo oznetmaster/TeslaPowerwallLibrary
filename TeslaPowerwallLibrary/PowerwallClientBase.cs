@@ -7,7 +7,7 @@ using TeslaPowerwallLibrary.Models;
 namespace TeslaPowerwallLibrary;
 
 /// <summary>
-/// Abstract, async-first base class shared by all Powerwall access modes (local, cloud, FleetAPI, TEDAPI).
+/// Abstract, async-first base class shared by all Powerwall™ access modes (local, cloud, FleetAPI, TEDAPI).
 /// Mirrors the behavior of the Python <c>PyPowerwallBase</c> class while exposing idiomatic, cancellable
 /// <see cref="Task"/>-returning members and strongly-typed results.
 /// </summary>

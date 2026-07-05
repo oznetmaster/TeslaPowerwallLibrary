@@ -13,7 +13,7 @@ using TeslaPowerwallLibrary.Models;
 namespace TeslaPowerwallLibrary;
 
 /// <summary>
-/// High-level, async-first client representing a Tesla Energy Gateway Powerwall device.
+/// High-level, async-first client representing a Tesla™ Energy Gateway Powerwall™ device.
 /// This is the primary entry point of the library and delegates to a mode-specific
 /// <see cref="PowerwallClientBase"/> implementation (currently local mode).
 /// </summary>

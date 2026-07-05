@@ -345,7 +345,7 @@ internal static class InteractiveSession
 		Console.WriteLine ("  summary           Combined dashboard of the above");
 		Console.WriteLine ("  setreserve <n>    Set backup reserve level (0-100)");
 		Console.WriteLine ("  setmode <mode>    Set mode (self_consumption|backup|autonomous)");
-		Console.WriteLine ("  sites             List Tesla energy sites (cloud mode)");
+		Console.WriteLine ("  sites             List Tesla™ energy sites (cloud mode)");
 		Console.WriteLine ("  changesite <id|name>   Switch the active site by id or name (cloud mode)");
 		Console.WriteLine ("  gridconfig        Show grid charging and export settings (cloud mode)");
 		Console.WriteLine ("  setgridcharging <on|off>              Enable/disable grid charging (cloud mode)");

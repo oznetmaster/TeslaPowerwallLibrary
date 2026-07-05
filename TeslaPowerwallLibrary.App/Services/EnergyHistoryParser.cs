@@ -17,7 +17,7 @@ namespace TeslaPowerwallLibrary.App.Services;
 /// <param name="HomeKwh">Home (consumer) energy used.</param>
 /// <param name="FromGridKwh">Energy imported from the grid.</param>
 /// <param name="ToGridKwh">Energy exported to the grid.</param>
-/// <param name="BatteryChargeKwh">Gross energy charged into the Powerwall battery (from solar, grid, or generator).</param>
+/// <param name="BatteryChargeKwh">Gross energy charged into the Powerwall™ battery (from solar, grid, or generator).</param>
 /// <param name="BatteryDischargeKwh">Gross energy discharged from the Powerwall battery.</param>
 public sealed record EnergyHistoryPoint (
 	DateTimeOffset Timestamp,

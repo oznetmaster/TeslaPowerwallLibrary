@@ -5,7 +5,7 @@
 namespace TeslaPowerwallLibrary.Cloud;
 
 /// <summary>
-/// Describes a single Tesla energy site (Powerwall or solar) available to the authenticated account.
+/// Describes a single Tesla™ energy site (Powerwall™ or solar) available to the authenticated account.
 /// Returned by <see cref="Powerwall.GetSitesAsync"/> and mirrors the upstream pypowerwall
 /// <c>getsites()</c> site inventory.
 /// </summary>

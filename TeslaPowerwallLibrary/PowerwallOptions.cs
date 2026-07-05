@@ -12,7 +12,7 @@ public enum PowerwallMode
 	/// <summary>The connection mode could not be determined.</summary>
 	Unknown,
 
-	/// <summary>Direct local network access to the Tesla Energy Gateway.</summary>
+	/// <summary>Direct local network access to the Tesla™ Energy Gateway.</summary>
 	Local,
 
 	/// <summary>Tesla Owners (cloud) API access.</summary>

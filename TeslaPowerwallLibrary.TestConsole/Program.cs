@@ -34,7 +34,7 @@ rootCommand.Subcommands.Add (CreateReadCommand ("operation", "Show the operation
 rootCommand.Subcommands.Add (CreateReadCommand ("timeremaining", "Show the estimated backup time remaining.", PowerwallActions.TimeRemainingAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("system", "Show the full system status with battery blocks.", PowerwallActions.SystemStatusAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("summary", "Show a combined dashboard of all readings.", PowerwallActions.SummaryAsync));
-rootCommand.Subcommands.Add (CreateReadCommand ("sites", "List the Tesla energy sites for the account (cloud mode).", PowerwallActions.SitesAsync));
+rootCommand.Subcommands.Add (CreateReadCommand ("sites", "List the Tesla™ energy sites for the account (cloud mode).", PowerwallActions.SitesAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("gridconfig", "Show the grid charging and export settings (cloud mode).", PowerwallActions.GridConfigAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("vitals", "Show device vitals (cloud mode, or local firmware that exposes vitals).", PowerwallActions.VitalsAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("alerts", "Show the active device alerts.", PowerwallActions.AlertsAsync));
@@ -340,7 +340,7 @@ static async Task<int> RunInteractiveAsync (ParseResult parseResult, Cancellatio
 			{
 			var hint = resolved.Options.CloudMode
 				? "Failed to connect to the Tesla cloud. Check the access/refresh tokens, email, and network connectivity."
-				: "Failed to connect to the Powerwall. Check the host, password, and network connectivity.";
+				: "Failed to connect to the Powerwall™. Check the host, password, and network connectivity.";
 			ConsoleHelpers.WriteError (hint);
 			powerwall.Dispose ();
 			return 1;

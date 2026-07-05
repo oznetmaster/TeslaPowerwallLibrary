@@ -7,7 +7,7 @@ using System.Globalization;
 namespace TeslaPowerwallLibrary.TestConsole;
 
 /// <summary>
-/// Shared command-line options for connecting to a Powerwall, plus resolution logic that merges
+/// Shared command-line options for connecting to a Powerwall™, plus resolution logic that merges
 /// command-line values, environment variables, and interactive prompts (in that order of precedence).
 /// </summary>
 internal static class CliOptions
@@ -33,7 +33,7 @@ internal static class CliOptions
 		Recursive = true
 		};
 
-	/// <summary>Forces Tesla Owners (cloud) mode even when a host is configured.</summary>
+	/// <summary>Forces Tesla™ Owners (cloud) mode even when a host is configured.</summary>
 	public static Option<bool> Cloud { get; } = new ("--cloud")
 		{
 		Description = "Use Tesla Owners (cloud) mode instead of local gateway access.",

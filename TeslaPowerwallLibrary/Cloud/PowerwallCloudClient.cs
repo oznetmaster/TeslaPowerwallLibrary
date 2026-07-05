@@ -13,7 +13,7 @@ using Newtonsoft.Json.Linq;
 namespace TeslaPowerwallLibrary.Cloud;
 
 /// <summary>
-/// Tesla Owners (cloud) mode client. Communicates with the Tesla Owners API to retrieve Powerwall data
+/// Tesla™ Owners (cloud) mode client. Communicates with the Tesla Owners API to retrieve Powerwall™ data
 /// and maps the cloud responses onto the same local-gateway API shapes used by the rest of the library.
 /// Faithfully adapts the behavior of the Python <c>PyPowerwallCloud</c> class using an async,
 /// strongly-typed, cancellable API surface.
