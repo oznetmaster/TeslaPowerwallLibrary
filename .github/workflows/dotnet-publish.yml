@@ -88,21 +88,53 @@ jobs:
               dotnet nuget push $package.FullName --api-key "${{ secrets.NUGET_API_KEY }}" --source "https://api.nuget.org/v3/index.json" --skip-duplicate
           }
 
+      - name: Publish applications
+        shell: pwsh
+        run: |
+          $apps = @(
+              @{ Project = 'TeslaPowerwallLibrary.App/TeslaPowerwallLibrary.App.csproj'; Name = 'TeslaPowerwallApp'; Frameworks = @('net10.0-windows') },
+              @{ Project = 'TeslaPowerwallLibrary.Setup/TeslaPowerwallLibrary.Setup.csproj'; Name = 'TeslaPowerwallSetup'; Frameworks = @('net10.0-windows') },
+              @{ Project = 'TeslaPowerwallLibrary.TestConsole/TeslaPowerwallLibrary.TestConsole.csproj'; Name = 'TeslaPowerwallTestConsole'; Frameworks = @('net472', 'net10.0-windows') }
+          )
+
+          foreach ($app in $apps) {
+              foreach ($framework in $app.Frameworks) {
+                  $outputDir = "${{ env.ARTIFACT_DIR }}/publish/$($app.Name)-$framework"
+                  dotnet publish $app.Project --configuration Release --no-restore --no-build --framework $framework --output $outputDir -p:Version=${{ steps.version.outputs.package_version }}
+                  if ($LASTEXITCODE -ne 0) {
+                      throw "Publish failed for $($app.Project) ($framework)"
+                  }
+              }
+          }
+
       - name: Collect release assets
         shell: pwsh
         run: |
           $releaseDir = "${{ env.ARTIFACT_DIR }}/release"
           New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
 
-          $projectDir = Split-Path -Parent "${{ env.PROJECT_PATH }}"
-          $frameworks = @('net472', 'net10.0')
-          foreach ($framework in $frameworks) {
-              $outputDir = Join-Path $projectDir "bin/Release/$framework"
-              foreach ($extension in @('dll', 'xml')) {
-                  $sourcePath = Join-Path $outputDir "TeslaPowerwallLibrary.$extension"
-                  if (Test-Path $sourcePath) {
-                      Copy-Item $sourcePath (Join-Path $releaseDir "TeslaPowerwallLibrary.$framework.$extension") -Force
+          $libraries = @(
+              @{ ProjectDir = 'TeslaPowerwallLibrary'; AssemblyName = 'TeslaPowerwallLibrary'; Frameworks = @('net472', 'net10.0') },
+              @{ ProjectDir = 'TeslaPowerwallLibrary.Login'; AssemblyName = 'TeslaPowerwallLibrary.Login'; Frameworks = @('net472', 'net10.0-windows') }
+          )
+
+          foreach ($library in $libraries) {
+              foreach ($framework in $library.Frameworks) {
+                  $outputDir = Join-Path $library.ProjectDir "bin/Release/$framework"
+                  foreach ($extension in @('dll', 'xml')) {
+                      $sourcePath = Join-Path $outputDir "$($library.AssemblyName).$extension"
+                      if (Test-Path $sourcePath) {
+                          Copy-Item $sourcePath (Join-Path $releaseDir "$($library.AssemblyName).$framework.$extension") -Force
+                      }
                   }
+              }
+          }
+
+          $publishDir = "${{ env.ARTIFACT_DIR }}/publish"
+          if (Test-Path $publishDir) {
+              Get-ChildItem -Path $publishDir -Directory | ForEach-Object {
+                  $zipPath = Join-Path $releaseDir "$($_.Name).zip"
+                  Compress-Archive -Path (Join-Path $_.FullName '*') -DestinationPath $zipPath -Force
               }
           }
 
@@ -117,3 +149,4 @@ jobs:
           files: |
             ${{ env.ARTIFACT_DIR }}/release/*.dll
             ${{ env.ARTIFACT_DIR }}/release/*.xml
+            ${{ env.ARTIFACT_DIR }}/release/*.zip
