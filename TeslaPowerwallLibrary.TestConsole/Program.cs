@@ -27,6 +27,7 @@ rootCommand.Options.Add (CliOptions.NoSave);
 
 rootCommand.Subcommands.Add (CreateReadCommand ("status", "Show gateway status, version, DIN, and uptime.", PowerwallActions.StatusAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("sitename", "Show the configured site name.", PowerwallActions.SiteNameAsync));
+rootCommand.Subcommands.Add (CreateReadCommand ("email", "Show the email address of the account currently in use.", PowerwallActions.EmailAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("level", "Show the battery charge level (raw and scaled).", PowerwallActions.LevelAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("power", "Show instantaneous site/solar/battery/load power.", PowerwallActions.PowerAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("grid", "Show the normalized grid status.", PowerwallActions.GridAsync));

@@ -49,11 +49,17 @@ public static class TeslaLoginService
 	/// </summary>
 	/// <param name="region">The Tesla region to authenticate against (<c>us</c> or <c>cn</c>).</param>
 	/// <param name="timeout">Maximum time to wait for the user to complete the login.</param>
+	/// <param name="email">
+	/// An optional email address used only to prefill the Tesla sign-in page. The user can still complete
+	/// login with a different account; the returned <see cref="TeslaCloudTokens.Email"/> reflects whichever
+	/// account actually signed in.
+	/// </param>
 	/// <param name="cancellationToken">A token used to abandon the login early.</param>
 	/// <returns>The login result, including tokens on success.</returns>
-	public static async Task<TeslaLoginResult> AcquireTokensAsync (string region, TimeSpan timeout, CancellationToken cancellationToken = default)
+	public static async Task<TeslaLoginResult> AcquireTokensAsync (
+		string region, TimeSpan timeout, string? email = null, CancellationToken cancellationToken = default)
 		{
-		var result = await TeslaCloudLogin.SignInAsync (region, timeout, cancellationToken).ConfigureAwait (true);
+		var result = await TeslaCloudLogin.SignInAsync (region, timeout, email, cancellationToken).ConfigureAwait (true);
 
 		return result.Status switch
 			{

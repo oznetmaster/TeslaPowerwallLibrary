@@ -163,7 +163,8 @@ public sealed partial class ConnectViewModel : ViewModelBase
 			IsCloudMode = true;
 			StatusMessage = "Opening the Tesla login window. Complete the sign-in in the browser that appears...";
 
-			var result = await TeslaLoginService.AcquireTokensAsync (Region, TimeSpan.FromMinutes (5)).ConfigureAwait (true);
+			var emailHint = string.IsNullOrWhiteSpace (Email) ? null : Email.Trim ();
+			var result = await TeslaLoginService.AcquireTokensAsync (Region, TimeSpan.FromMinutes (5), emailHint).ConfigureAwait (true);
 			switch (result.Status)
 				{
 				case TeslaLoginStatus.Success:

@@ -160,7 +160,7 @@ internal static class CliOptions
 			&& string.IsNullOrWhiteSpace (refreshToken)
 			&& !Powerwall.HasStoredCloudTokens (resolvedEmail))
 			{
-			var acquired = await TryAcquireCloudTokensInteractivelyAsync (region).ConfigureAwait (false);
+			var acquired = await TryAcquireCloudTokensInteractivelyAsync (region, email).ConfigureAwait (false);
 			if (acquired is not null)
 				{
 				accessToken = acquired.AccessToken;
@@ -195,7 +195,7 @@ internal static class CliOptions
 
 	// Prompts the user to launch the Tesla browser login and returns the captured tokens, or null
 	// when the user declines or cancels.
-	private static async Task<CloudTokens?> TryAcquireCloudTokensInteractivelyAsync (string? region)
+	private static async Task<CloudTokens?> TryAcquireCloudTokensInteractivelyAsync (string? region, string? email = null)
 		{
 		ConsoleHelpers.WriteHeading ("Tesla Cloud Login");
 		Console.WriteLine ("  No Tesla cloud tokens were found. Tesla requires a browser login (it handles");
@@ -205,17 +205,23 @@ internal static class CliOptions
 		if (answer is { Length: > 0 } && answer.StartsWith ("n", StringComparison.OrdinalIgnoreCase))
 			return null;
 
-		return await LaunchTeslaLoginAsync (region).ConfigureAwait (false);
+		return await LaunchTeslaLoginAsync (region, email).ConfigureAwait (false);
 		}
 
 	/// <summary>
 	/// Launches the Tesla browser login and returns the captured tokens, or <see langword="null"/> when the
 	/// user cancels or the login fails. Used both at startup and by the interactive <c>login cloud</c> command.
 	/// </summary>
-	internal static async Task<CloudTokens?> LaunchTeslaLoginAsync (string? region)
+	/// <param name="region">The Tesla region to authenticate against (<c>us</c> or <c>cn</c>).</param>
+	/// <param name="email">
+	/// An optional email address used only to prefill the Tesla sign-in page. The user can still complete
+	/// login with a different account; the returned <see cref="CloudTokens.Email"/> reflects whichever
+	/// account actually signed in.
+	/// </param>
+	internal static async Task<CloudTokens?> LaunchTeslaLoginAsync (string? region, string? email = null)
 		{
 		Console.WriteLine ("  Launching Tesla login. Complete the sign-in in the window that opens...");
-		var result = await SetupLauncher.AcquireTokensAsync (NormalizeRegion (region), TimeSpan.FromMinutes (5)).ConfigureAwait (false);
+		var result = await SetupLauncher.AcquireTokensAsync (NormalizeRegion (region), TimeSpan.FromMinutes (5), email).ConfigureAwait (false);
 
 		switch (result.Status)
 			{

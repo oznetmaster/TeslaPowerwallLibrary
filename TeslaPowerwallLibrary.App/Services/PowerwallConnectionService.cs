@@ -51,6 +51,9 @@ public sealed class PowerwallConnectionService : IDisposable
 	/// <summary>Gets the resolved connection mode, or <see cref="PowerwallMode.Unknown"/> when not connected.</summary>
 	public PowerwallMode Mode => _powerwall?.Mode ?? PowerwallMode.Unknown;
 
+	/// <summary>Gets the customer email of the active connection, or <see langword="null"/> when not connected.</summary>
+	public string? Email => _powerwall?.Email;
+
 	/// <summary>
 	/// Gets a human-readable label for what the app is currently connected to: the Tesla energy site name
 	/// (cloud mode) or the gateway host (local mode). <see langword="null"/> when not yet resolved.

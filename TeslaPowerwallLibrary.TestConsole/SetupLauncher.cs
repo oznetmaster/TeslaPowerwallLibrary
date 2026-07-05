@@ -46,10 +46,15 @@ internal static class SetupLauncher
 	/// </summary>
 	/// <param name="region">The Tesla region to authenticate against (<c>us</c> or <c>cn</c>).</param>
 	/// <param name="timeout">Maximum time to wait for the user to complete the login.</param>
+	/// <param name="email">
+	/// An optional email address used only to prefill the Tesla sign-in page. The user can still complete
+	/// login with a different account; the returned <see cref="CloudTokens.Email"/> reflects whichever
+	/// account actually signed in.
+	/// </param>
 	/// <returns>The launch result, including tokens on success.</returns>
-	public static async Task<SetupLaunchResult> AcquireTokensAsync (string region, TimeSpan timeout)
+	public static async Task<SetupLaunchResult> AcquireTokensAsync (string region, TimeSpan timeout, string? email = null)
 		{
-		var result = await TeslaCloudLogin.SignInAsync (region, timeout).ConfigureAwait (false);
+		var result = await TeslaCloudLogin.SignInAsync (region, timeout, email).ConfigureAwait (false);
 
 		return result.Status switch
 			{

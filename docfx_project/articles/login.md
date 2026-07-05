@@ -38,8 +38,20 @@ var result = await TeslaCloudLogin.SignInAsync (
 if (result.Status == TeslaCloudLoginStatus.Success)
 	{
 	var tokens = result.Tokens!;
-	// Persist tokens.RefreshToken / tokens.AccessToken, then pass them to PowerwallOptions.
+	// tokens.Email is the account email Tesla returned in the id_token. Cloud-mode token
+	// caching is keyed by email, so pass all three values to PowerwallOptions:
+	//   Email = tokens.Email, RefreshToken = tokens.RefreshToken, AccessToken = tokens.AccessToken
 	}
+```
+
+If a likely email is already known (for example, from a previous sign-in or saved settings), pass it as
+the optional `email` parameter to prefill Tesla's sign-in page:
+
+```csharp
+var result = await TeslaCloudLogin.SignInAsync (
+	region: "us",
+	timeout: TimeSpan.FromMinutes (5),
+	email: previouslyKnownEmail);
 ```
 
 `SignInAsync` opens the sign-in window and returns once the user completes authentication, cancels, or the
@@ -48,12 +60,19 @@ loop, so it does not require and will not interfere with a caller's existing UI 
 
 - `region` — the Tesla region to authenticate against (`us` or `cn`).
 - `timeout` — the maximum time to wait for the user to complete the login.
+- `email` — an optional address used only to prefill the sign-in page (sent as Tesla's `login_hint`). This
+  is a convenience hint, not a constraint: the user can still complete login with a different account, and
+  the returned `tokens.Email` always reflects whichever account actually signed in, which may differ from
+  this hint.
 - `cancellationToken` — an optional token used to abandon the login early.
 
 The returned `TeslaCloudLoginResult` reports a `Status` of `Success`, `Cancelled`, or `Failed`, along with
-the captured `TeslaCloudLoginTokens` (`RefreshToken`, `AccessToken`, `Email`) on success. The caller is
-responsible for persisting the returned tokens; `TeslaCloudLogin` performs no persistence of its own. The
-tokens can then be supplied to `PowerwallOptions` for Cloud mode — see
+the captured `TeslaCloudLoginTokens` (`RefreshToken`, `AccessToken`, `Email`) on success. `Email` is the
+account email Tesla returned in the id_token — capture it along with the tokens, because
+`TeslaPowerwallLibrary`'s cloud-mode token cache is keyed by email; without it, `PowerwallOptions.Email`
+would have to be known ahead of time by some other means for the library to find the cached tokens again on
+a later run. The caller is responsible for persisting the returned tokens; `TeslaCloudLogin` performs no
+persistence of its own. All three values can then be supplied to `PowerwallOptions` for Cloud mode — see
 [Connect using the Tesla Owners cloud API](intro.md#connect-using-the-tesla-owners-cloud-api).
 
 ## API reference

@@ -67,7 +67,7 @@ public partial class MainWindow : Window
 		try
 			{
 			var result = await TeslaCloudLogin.SignInAsync (
-				SelectedRegion, TimeSpan.FromMinutes (5), _loginCts.Token).ConfigureAwait (true);
+				SelectedRegion, TimeSpan.FromMinutes (5), cancellationToken: _loginCts.Token).ConfigureAwait (true);
 
 			switch (result.Status)
 				{

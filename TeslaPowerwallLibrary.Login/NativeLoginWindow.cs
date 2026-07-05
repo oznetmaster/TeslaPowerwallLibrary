@@ -71,6 +71,7 @@ internal sealed class NativeLoginWindow
 		new (TaskCreationOptions.RunContinuationsAsynchronously);
 
 	private readonly string _region;
+	private readonly string? _email;
 	private readonly TimeSpan _timeout;
 	private readonly CancellationToken _cancellationToken;
 
@@ -83,9 +84,10 @@ internal sealed class NativeLoginWindow
 	private bool _exchangeStarted;
 	private bool _completed;
 
-	private NativeLoginWindow (string region, TimeSpan timeout, CancellationToken cancellationToken)
+	private NativeLoginWindow (string region, string? email, TimeSpan timeout, CancellationToken cancellationToken)
 		{
 		_region = region;
+		_email = email;
 		_timeout = timeout;
 		_cancellationToken = cancellationToken;
 		}
@@ -95,12 +97,16 @@ internal sealed class NativeLoginWindow
 	/// completes, cancels, or the operation fails or times out.
 	/// </summary>
 	/// <param name="region">The Tesla region to authenticate against (<c>us</c> or <c>cn</c>).</param>
+	/// <param name="email">
+	/// An optional email address used only to prefill the Tesla sign-in page. The user may still complete
+	/// login with a different account.
+	/// </param>
 	/// <param name="timeout">Maximum time to wait for the user to complete the login.</param>
 	/// <param name="cancellationToken">A token used to abandon the login early.</param>
 	/// <returns>The login result, including tokens on success.</returns>
-	public static Task<TeslaCloudLoginResult> RunAsync (string region, TimeSpan timeout, CancellationToken cancellationToken)
+	public static Task<TeslaCloudLoginResult> RunAsync (string region, string? email, TimeSpan timeout, CancellationToken cancellationToken)
 		{
-		var window = new NativeLoginWindow (region, timeout, cancellationToken);
+		var window = new NativeLoginWindow (region, email, timeout, cancellationToken);
 
 		var thread = new Thread (window.ThreadMain)
 			{
@@ -193,7 +199,7 @@ internal sealed class NativeLoginWindow
 		{
 		try
 			{
-			_authRequest = TeslaAuth.BuildAuthUrl (_region);
+			_authRequest = TeslaAuth.BuildAuthUrl (_region, _email);
 
 			// Use an isolated, app-specific user-data folder so login state never leaks into other apps.
 			var userDataFolder = System.IO.Path.Combine (

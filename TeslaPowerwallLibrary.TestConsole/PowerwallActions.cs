@@ -42,6 +42,14 @@ internal static class PowerwallActions
 		ConsoleHelpers.WriteField ("Name", name);
 		}
 
+	/// <summary>Prints the customer email of the active connection.</summary>
+	public static Task EmailAsync (Powerwall powerwall, CancellationToken cancellationToken)
+		{
+		ConsoleHelpers.WriteHeading ("Email");
+		ConsoleHelpers.WriteField ("Email", powerwall.Email);
+		return Task.CompletedTask;
+		}
+
 	/// <summary>Prints the battery charge level, both raw and Tesla™-app scaled.</summary>
 	public static async Task LevelAsync (Powerwall powerwall, CancellationToken cancellationToken)
 		{

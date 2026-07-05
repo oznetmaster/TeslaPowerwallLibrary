@@ -84,8 +84,14 @@ internal static class TeslaAuth
 	/// <c>tesla://auth/callback</c> redirect, and the <c>openid email offline_access</c> scopes.
 	/// </summary>
 	/// <param name="region">The region code, <c>us</c> or <c>cn</c>.</param>
+	/// <param name="email">
+	/// An optional email address used only to prefill Tesla's sign-in page (sent as <c>login_hint</c>,
+	/// mirroring upstream <c>pypowerwall</c>). This is a convenience hint, not a constraint: the user can
+	/// still sign in with a different account, and the email returned in <see cref="TeslaTokens.Email"/>
+	/// after a successful login reflects whichever account actually completed authentication.
+	/// </param>
 	/// <returns>The authorize request containing the URL, PKCE code verifier, and CSRF state.</returns>
-	public static TeslaAuthRequest BuildAuthUrl (string region)
+	public static TeslaAuthRequest BuildAuthUrl (string region, string? email = null)
 		{
 		var authHost = ResolveAuthHost (region);
 
@@ -102,6 +108,8 @@ internal static class TeslaAuth
 		AppendQueryParameter (query, "response_type", "code");
 		AppendQueryParameter (query, "scope", Scopes);
 		AppendQueryParameter (query, "state", state);
+		if (!string.IsNullOrWhiteSpace (email))
+			AppendQueryParameter (query, "login_hint", email!.Trim ());
 
 		var authUrl = $"{authHost}{AuthUrlPath}?{query}";
 		return new TeslaAuthRequest (authUrl, codeVerifier, state);

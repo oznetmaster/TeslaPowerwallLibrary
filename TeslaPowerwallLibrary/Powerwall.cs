@@ -68,6 +68,14 @@ public sealed class Powerwall : IDisposable
 	public PowerwallMode Mode { get; private set; }
 
 	/// <summary>
+	/// Gets the customer email associated with this connection: the account used for cloud/FleetAPI
+	/// authentication and cloud token cache lookups, or the account label configured for local mode. Mirrors
+	/// the upstream <c>pypowerwall</c> <c>self.email</c> attribute, letting callers display which account is
+	/// currently active even though the token cache can hold entries for many different accounts.
+	/// </summary>
+	public string Email => _client?.Email ?? _options.Email;
+
+	/// <summary>
 	/// Determines whether the library has cloud tokens persisted for the specified account, so callers can
 	/// decide whether a first-time interactive login is required. Tokens are cached internally after the first
 	/// successful cloud connect and reused automatically thereafter.

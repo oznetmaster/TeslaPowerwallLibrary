@@ -45,6 +45,14 @@ public sealed class PowerwallTests
 		}
 
 	[TestMethod]
+	public void WhenNotConnectedThenEmailFallsBackToOptions ()
+		{
+		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
+
+		Assert.AreEqual ("user@example.com", powerwall.Email);
+		}
+
+	[TestMethod]
 	public void WhenOptionsAreNullThenConstructorThrowsArgumentNullException ()
 		{
 		Assert.ThrowsExactly<ArgumentNullException> (static () => _ = new Powerwall (null!));

@@ -49,6 +49,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
 	/// <summary>Gets a value indicating whether cloud-only controls are available.</summary>
 	public bool IsCloudMode => _connection.Mode == PowerwallMode.Cloud;
 
+	/// <summary>Gets the customer email of the active connection, for display next to "Switch account".</summary>
+	public string? Email => _connection.Email;
+
 	/// <summary>Gets or sets the backup reserve percentage.</summary>
 	[ObservableProperty]
 	[NotifyPropertyChangedFor (nameof (ReserveText))]
@@ -81,6 +84,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
 		StatusMessage = null;
 		IsBusy = true;
 		_isLoading = true;
+		// The connection's account may have changed (switch account / sign in again) since this view-model
+		// was last shown, so refresh the bound email every time the screen loads.
+		OnPropertyChanged (nameof (Email));
 		try
 			{
 			using var cts = new CancellationTokenSource (TimeSpan.FromSeconds (30));

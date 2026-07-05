@@ -51,12 +51,18 @@ public static class TeslaCloudLogin
 	/// </summary>
 	/// <param name="region">The Tesla region to authenticate against (<c>us</c> or <c>cn</c>).</param>
 	/// <param name="timeout">Maximum time to wait for the user to complete the login.</param>
+	/// <param name="email">
+	/// An optional email address used only to prefill Tesla's sign-in page (sent as <c>login_hint</c>).
+	/// This is a convenience hint, not a constraint: the user can still complete login with a different
+	/// account, and the returned <see cref="TeslaCloudLoginTokens.Email"/> always reflects the account that
+	/// actually signed in, which may differ from this hint.
+	/// </param>
 	/// <param name="cancellationToken">A token used to abandon the login early.</param>
 	/// <returns>The login result, including tokens on success.</returns>
 	public static Task<TeslaCloudLoginResult> SignInAsync (
-		string region, TimeSpan timeout, CancellationToken cancellationToken = default)
+		string region, TimeSpan timeout, string? email = null, CancellationToken cancellationToken = default)
 		{
 		var safeRegion = string.Equals (region, "cn", StringComparison.OrdinalIgnoreCase) ? "cn" : "us";
-		return NativeLoginWindow.RunAsync (safeRegion, timeout, cancellationToken);
+		return NativeLoginWindow.RunAsync (safeRegion, email, timeout, cancellationToken);
 		}
 	}

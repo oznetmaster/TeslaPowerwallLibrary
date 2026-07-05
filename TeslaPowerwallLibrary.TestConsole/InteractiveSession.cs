@@ -77,6 +77,10 @@ internal static class InteractiveSession
 				await PowerwallActions.SiteNameAsync (powerwall, cancellationToken).ConfigureAwait (false);
 				return true;
 
+			case "email":
+				await PowerwallActions.EmailAsync (powerwall, cancellationToken).ConfigureAwait (false);
+				return true;
+
 			case "level":
 				await PowerwallActions.LevelAsync (powerwall, cancellationToken).ConfigureAwait (false);
 				return true;
@@ -336,6 +340,7 @@ internal static class InteractiveSession
 		ConsoleHelpers.WriteHeading ("Commands");
 		Console.WriteLine ("  status            Gateway status, version, DIN, and uptime");
 		Console.WriteLine ("  sitename          Configured site name");
+		Console.WriteLine ("  email             Email address of the account currently in use");
 		Console.WriteLine ("  level             Battery charge level (raw and scaled)");
 		Console.WriteLine ("  power             Instantaneous site/solar/battery/load power");
 		Console.WriteLine ("  grid              Normalized grid status");
