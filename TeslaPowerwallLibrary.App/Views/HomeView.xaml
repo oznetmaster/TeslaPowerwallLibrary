@@ -53,7 +53,7 @@
 			</Border>
 			<Border Style="{StaticResource Card}">
 				<StackPanel>
-					<TextBlock Text="🔋 Powerwall™" Foreground="{StaticResource BatteryBrush}" FontWeight="SemiBold" />
+					<TextBlock Text="🔋 Powerwall" Foreground="{StaticResource BatteryBrush}" FontWeight="SemiBold" />
 					<TextBlock Text="{Binding BatteryText}" Style="{StaticResource MetricValue}" Margin="0,8,0,0" />
 					<TextBlock Text="{Binding BatteryFlowText}" Style="{StaticResource MutedText}" Margin="0,4,0,0" />
 				</StackPanel>
