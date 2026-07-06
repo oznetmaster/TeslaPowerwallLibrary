@@ -202,7 +202,8 @@ public sealed class Powerwall : IDisposable
 					_options.AccessToken,
 					_options.RefreshToken,
 					_options.SiteId,
-					_options.AuthPath);
+					_options.AuthPath,
+					_options.NoCloudTokenPersistence);
 				try
 					{
 					await cloudClient.AuthenticateAsync (cancellationToken).ConfigureAwait (false);
@@ -764,7 +765,7 @@ public sealed class Powerwall : IDisposable
 				}
 			}
 
-		if (Mode == PowerwallMode.Cloud && !Validation.IsValidEmail (_options.Email))
+		if (Mode == PowerwallMode.Cloud && !_options.NoCloudTokenPersistence && !Validation.IsValidEmail (_options.Email))
 			{
 			throw new PowerwallInvalidConfigurationException (
 				$"A valid email address is required to run in cloud mode: '{_options.Email}' did not pass validation.");

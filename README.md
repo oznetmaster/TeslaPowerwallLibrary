@@ -80,7 +80,31 @@ using var powerwall = new Powerwall(options);
 await powerwall.ConnectAsync();
 ```
 
-After the first successful cloud connect, the library persists the (possibly rotated) tokens internally, keyed by `Email`, so later runs can omit `AccessToken` and `RefreshToken` entirely.
+After the first successful cloud connect, the library persists the (possibly rotated) tokens internally, keyed by `Email`, so later runs can omit `AccessToken` and `RefreshToken` entirely. When a non-empty `AuthPath` is supplied, that location is authoritative — no fallback is attempted, and an inaccessible path throws `PowerwallCloudTokenCacheStorageException` instead of silently continuing without persistence.
+
+### Cloud mode without library-owned token storage
+
+Set `NoCloudTokenPersistence` when the host has no suitable place for the library to keep a file (for example a Mono-hosted embedded environment). No cache file is ever read or written; `AuthPath` is ignored, `AccessToken`/`RefreshToken` must be supplied on every run, and `Email` is not validated since it is otherwise used only as the cache key:
+
+```csharp
+using TeslaPowerwallLibrary;
+
+var options = new PowerwallOptions
+{
+	 CloudMode = true,
+	 AccessToken = "your-access-token",
+	 RefreshToken = "your-refresh-token",
+	 NoCloudTokenPersistence = true
+};
+
+using var powerwall = new Powerwall(options);
+powerwall.CloudTokensRefreshed += (sender, e) =>
+{
+	 // Persist e.AccessToken / e.RefreshToken using your own storage.
+};
+
+await powerwall.ConnectAsync();
+```
 
 ## Repository Contents
 

@@ -2,6 +2,8 @@
 // Adapted from the Python pypowerwall project Copyright © 2022 Jason A. Cox.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
+using System.IO;
+
 using TeslaPowerwallLibrary.Cloud;
 
 namespace TeslaPowerwallLibrary.Tests;
@@ -263,5 +265,74 @@ public sealed class PowerwallTests
 
 		await Assert.ThrowsExactlyAsync<ArgumentException> (
 			async () => await powerwall.GetCalendarHistoryAsync (kind));
+		}
+
+	[TestMethod]
+	public void WhenNoCloudTokenPersistenceIsTrueThenInvalidEmailDoesNotThrow ()
+		{
+		using var powerwall = new Powerwall (new PowerwallOptions
+			{
+			CloudMode = true,
+			Email = "not-an-email",
+			NoCloudTokenPersistence = true
+			});
+
+		Assert.AreEqual (PowerwallMode.Cloud, powerwall.Mode);
+		}
+
+	[TestMethod]
+	public void WhenNoCloudTokenPersistenceIsFalseThenInvalidEmailStillThrows ()
+		{
+		Assert.ThrowsExactly<PowerwallInvalidConfigurationException> (
+			static () => _ = new Powerwall (new PowerwallOptions
+				{
+				CloudMode = true,
+				Email = "not-an-email",
+				NoCloudTokenPersistence = false
+				}));
+		}
+
+	[TestMethod]
+	public void WhenNoCloudTokenPersistenceIsSetThenPowerwallCloudClientExposesIt ()
+		{
+		using var client = new PowerwallCloudClient (
+			"user@example.com",
+			cacheExpireSeconds: 5,
+			timeout: TimeSpan.FromSeconds (5),
+			accessToken: "access-token",
+			refreshToken: "refresh-token",
+			siteId: null,
+			authPath: @"C:\some\path",
+			noCloudTokenPersistence: true);
+
+		Assert.IsTrue (client.NoCloudTokenPersistence);
+		Assert.AreEqual (@"C:\some\path", client.AuthPath);
+		}
+
+	[TestMethod]
+	public void WhenExplicitAuthPathIsUnwritableThenClearStoredCloudTokensThrowsStorageException ()
+		{
+		// A path nested under a file (rather than a directory) can never be created, forcing a write
+		// failure at an explicitly configured location, which must fail fast instead of being swallowed.
+		var blockingFile = Path.Combine (Path.GetTempPath (), $"pwl-blocking-{Guid.NewGuid ():N}");
+		var authPath = Path.Combine (blockingFile, "cache.json");
+		File.WriteAllText (blockingFile, string.Empty);
+		try
+			{
+			Assert.ThrowsExactly<PowerwallCloudTokenCacheStorageException> (
+				() => Powerwall.ClearStoredCloudTokens ("user@example.com", authPath));
+			}
+		finally
+			{
+			File.Delete (blockingFile);
+			}
+		}
+
+	[TestMethod]
+	public void WhenTokenCacheStorageExceptionIsCreatedThenItIsAPowerwallException ()
+		{
+		var exception = new PowerwallCloudTokenCacheStorageException ("storage failed");
+
+		Assert.IsInstanceOfType<PowerwallException> (exception);
 		}
 	}

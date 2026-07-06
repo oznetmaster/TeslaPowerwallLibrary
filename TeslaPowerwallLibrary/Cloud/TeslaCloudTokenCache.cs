@@ -31,16 +31,21 @@ internal sealed class TeslaCloudTokenCache
 	private readonly object _gate = new ();
 	private readonly string _filePath;
 	private readonly string _email;
+	private readonly bool _isExplicitPath;
 
 	/// <summary>Initializes a new instance of the <see cref="TeslaCloudTokenCache"/> class.</summary>
 	/// <param name="authPath">
 	/// Directory or file path for the cache. When empty, a per-user default under the local application data
-	/// folder is used. When a directory is supplied, the default cache file name is appended.
+	/// folder is used and storage failures are logged but otherwise ignored. When non-empty, the location is
+	/// authoritative: no fallback is attempted, and a failure to read or write it raises
+	/// <see cref="PowerwallCloudTokenCacheStorageException"/>. When a directory is supplied, the default
+	/// cache file name is appended.
 	/// </param>
 	/// <param name="email">The customer email the cached entry is keyed by.</param>
 	public TeslaCloudTokenCache (string? authPath, string email)
 		{
 		_email = string.IsNullOrWhiteSpace (email) ? Constants.DEFAULT_EMAIL : email;
+		_isExplicitPath = !string.IsNullOrWhiteSpace (authPath);
 		_filePath = ResolveFilePath (authPath);
 		}
 
@@ -115,6 +120,13 @@ internal sealed class TeslaCloudTokenCache
 			}
 		catch (Exception exc) when (exc is IOException or UnauthorizedAccessException or JsonException)
 			{
+			if (_isExplicitPath)
+				{
+				throw new PowerwallCloudTokenCacheStorageException (
+					$"Unable to read the Tesla cloud token cache at the explicitly configured location '{_filePath}': {exc.Message}",
+					exc);
+				}
+
 			_log.Warn ($"Unable to read Tesla cloud token cache '{_filePath}': {exc.Message}");
 			return new JObject ();
 			}
@@ -132,7 +144,15 @@ internal sealed class TeslaCloudTokenCache
 			}
 		catch (Exception exc) when (exc is IOException or UnauthorizedAccessException)
 			{
-			// Persisting tokens is best-effort; a failure here must not disrupt an active connection.
+			if (_isExplicitPath)
+				{
+				throw new PowerwallCloudTokenCacheStorageException (
+					$"Unable to write the Tesla cloud token cache at the explicitly configured location '{_filePath}': {exc.Message}",
+					exc);
+				}
+
+			// Persisting tokens at the default per-user location is best-effort; a failure here must not
+			// disrupt an active connection.
 			_log.Warn ($"Unable to write Tesla cloud token cache '{_filePath}': {exc.Message}");
 			}
 		}

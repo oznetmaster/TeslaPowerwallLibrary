@@ -37,7 +37,13 @@ public sealed record PowerwallOptions
 	/// <summary>Customer password configured on the Powerwall gateway.</summary>
 	public string Password { get; init; } = string.Empty;
 
-	/// <summary>Customer email.</summary>
+	/// <summary>
+	/// Customer email. In local mode this is sent to the gateway during login. In cloud/FleetAPI mode Tesla
+	/// authentication is entirely token-based (<see cref="AccessToken"/>/<see cref="RefreshToken"/>) and this
+	/// value is used only as the cloud token cache key and for diagnostic display; a valid email is required
+	/// unless <see cref="NoCloudTokenPersistence"/> is <see langword="true"/>, in which case there is no cache
+	/// to key and the value is not validated.
+	/// </summary>
 	public string Email { get; init; } = Constants.DEFAULT_EMAIL;
 
 	/// <summary>IANA time zone for the location of the Powerwall.</summary>
@@ -74,10 +80,26 @@ public sealed record PowerwallOptions
 
 	/// <summary>
 	/// Directory or file used by the library to persist cloud-mode Tesla tokens and the selected site, keyed
-	/// by <see cref="Email"/>. When empty, a per-user default under the local application data folder is used.
-	/// When a directory is supplied, the default cache file name is appended.
+	/// by <see cref="Email"/>. When empty, a per-user default under the local application data folder is used
+	/// and storage failures are logged but otherwise ignored. When non-empty, the location is authoritative:
+	/// no fallback is attempted, and a failure to read or write it raises
+	/// <see cref="Cloud.PowerwallCloudTokenCacheStorageException"/>. When a directory is supplied, the default
+	/// cache file name is appended. Ignored entirely when <see cref="NoCloudTokenPersistence"/> is
+	/// <see langword="true"/>.
 	/// </summary>
 	public string AuthPath { get; init; } = string.Empty;
+
+	/// <summary>
+	/// When <see langword="true"/>, disables the library's cloud token cache entirely: <see cref="AuthPath"/>
+	/// is ignored and no file is ever read or written. <see cref="Email"/> is not required to pass format
+	/// validation in this mode, since it is otherwise used only as the cache key and for diagnostic display,
+	/// not for Tesla authentication. Callers must supply <see cref="AccessToken"/> and <see cref="RefreshToken"/>
+	/// on every run and should subscribe to <see cref="Powerwall.CloudTokensRefreshed"/> to receive rotated
+	/// tokens and persist them using their own storage. Use this on hosts where the library's default per-user
+	/// file cache is not appropriate (for example Mono-hosted embedded environments without a writable per-user
+	/// profile folder).
+	/// </summary>
+	public bool NoCloudTokenPersistence { get; init; }
 
 	/// <summary>Authentication mode for local access: <c>cookie</c> (default) or <c>token</c>.</summary>
 	public string AuthMode { get; init; } = "cookie";

@@ -134,3 +134,34 @@ public class PowerwallCloudEndpointRemovedException : PowerwallException
 		{
 		}
 	}
+
+/// <summary>
+/// Thrown when an explicitly configured Tesla cloud token cache location (a non-empty
+/// <see cref="PowerwallOptions.AuthPath"/>) cannot be read or written - for example, the directory cannot be
+/// created, or the process lacks permission to access it. An explicit location has no fallback: this
+/// exception surfaces the failure immediately instead of silently continuing without persistence, which
+/// matters most on runtimes without a writable per-user profile folder (for example Mono-hosted embedded
+/// environments), where the caller supplies a known storage location itself.
+/// </summary>
+public class PowerwallCloudTokenCacheStorageException : PowerwallException
+	{
+	/// <summary>Initializes a new instance of the <see cref="PowerwallCloudTokenCacheStorageException"/> class.</summary>
+	public PowerwallCloudTokenCacheStorageException ()
+		{
+		}
+
+	/// <summary>Initializes a new instance of the <see cref="PowerwallCloudTokenCacheStorageException"/> class with a specified error message.</summary>
+	/// <param name="message">The message that describes the error.</param>
+	public PowerwallCloudTokenCacheStorageException (string message)
+		: base (message)
+		{
+		}
+
+	/// <summary>Initializes a new instance of the <see cref="PowerwallCloudTokenCacheStorageException"/> class with a specified error message and inner exception.</summary>
+	/// <param name="message">The message that describes the error.</param>
+	/// <param name="innerException">The exception that is the cause of the current exception.</param>
+	public PowerwallCloudTokenCacheStorageException (string message, Exception innerException)
+		: base (message, innerException)
+		{
+		}
+	}

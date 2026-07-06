@@ -36,7 +36,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 	private readonly Dictionary<string, double> _cloudCacheTimes = [];
 	private readonly string? _accessToken;
 	private readonly string? _refreshToken;
-	private readonly TeslaCloudTokenCache _tokenCache;
+	private readonly TeslaCloudTokenCache? _tokenCache;
 
 	private TeslaCloudConnection? _connection;
 	private string? _resolvedSiteId;
@@ -45,13 +45,22 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PowerwallCloudClient"/> class.
 	/// </summary>
-	/// <param name="email">Customer email used for Tesla Owners API authentication.</param>
+	/// <param name="email">
+	/// Customer email. Tesla Owners API authentication is entirely token-based, so this value is not sent to
+	/// Tesla; it is used only as the token cache key and for diagnostic display. Ignored (beyond display) when
+	/// <paramref name="noCloudTokenPersistence"/> is <see langword="true"/>.
+	/// </param>
 	/// <param name="cacheExpireSeconds">Number of seconds before cached responses expire.</param>
 	/// <param name="timeout">Per-request HTTP timeout.</param>
 	/// <param name="accessToken">Tesla Owners API OAuth access token.</param>
 	/// <param name="refreshToken">Tesla Owners API OAuth refresh token used to renew the access token.</param>
 	/// <param name="siteId">Optional site identifier to select when an account has multiple sites.</param>
 	/// <param name="authPath">Path to cloud authentication and site cache files.</param>
+	/// <param name="noCloudTokenPersistence">
+	/// When <see langword="true"/>, disables the token cache entirely: <paramref name="authPath"/> is ignored,
+	/// <paramref name="accessToken"/>/<paramref name="refreshToken"/> must be supplied on every call, and
+	/// rotated tokens are only ever surfaced through <see cref="TokensRefreshed"/>.
+	/// </param>
 	public PowerwallCloudClient (
 		string email,
 		int cacheExpireSeconds,
@@ -59,16 +68,18 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		string? accessToken = null,
 		string? refreshToken = null,
 		string? siteId = null,
-		string authPath = "")
+		string authPath = "",
+		bool noCloudTokenPersistence = false)
 		: base (email)
 		{
 		CacheExpireSeconds = cacheExpireSeconds;
 		Timeout = timeout;
 		SiteId = siteId;
 		AuthPath = authPath ?? string.Empty;
+		NoCloudTokenPersistence = noCloudTokenPersistence;
 		_accessToken = accessToken;
 		_refreshToken = refreshToken;
-		_tokenCache = new TeslaCloudTokenCache (AuthPath, email);
+		_tokenCache = noCloudTokenPersistence ? null : new TeslaCloudTokenCache (AuthPath, email);
 		}
 
 	/// <summary>Gets the configured site identifier, when one was supplied.</summary>
@@ -82,6 +93,9 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 
 	/// <summary>Gets the path to cloud authentication and site cache files.</summary>
 	public string AuthPath { get; }
+
+	/// <summary>Gets a value indicating whether the library-owned token cache is disabled for this instance.</summary>
+	public bool NoCloudTokenPersistence { get; }
 
 	/// <summary>
 	/// Raised after the underlying Tesla connection refreshes its OAuth tokens, carrying the current
@@ -104,8 +118,9 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 
 		// Load any library-persisted tokens/site for this email. Explicitly supplied values (a first-time
 		// login or a caller override) take precedence over the cache; otherwise reuse what we persisted on a
-		// previous run, so callers never have to manage token storage themselves.
-		CloudTokenCacheEntry cached = _tokenCache.Load ();
+		// previous run, so callers never have to manage token storage themselves. When the cache is disabled
+		// the caller must supply both tokens on every call and is solely responsible for persisting rotations.
+		CloudTokenCacheEntry cached = _tokenCache?.Load () ?? CloudTokenCacheEntry.Empty;
 		var accessToken = string.IsNullOrWhiteSpace (_accessToken) ? cached.AccessToken : _accessToken;
 		var refreshToken = string.IsNullOrWhiteSpace (_refreshToken) ? cached.RefreshToken : _refreshToken;
 		SiteId ??= cached.SiteId;
@@ -150,9 +165,10 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		SiteId ??= _resolvedSiteId;
 
 		// Persist the tokens now in use (an initial refresh above may have produced new ones) and the resolved
-		// site, so a later run reconnects without any caller involvement.
-		_tokenCache.SaveTokens (_connection.AccessToken, _connection.RefreshToken);
-		_tokenCache.SaveSite (_resolvedSiteId);
+		// site, so a later run reconnects without any caller involvement. Skipped entirely in no-cache mode;
+		// the caller already receives the current tokens via TokensRefreshed on any subsequent rotation.
+		_tokenCache?.SaveTokens (_connection.AccessToken, _connection.RefreshToken);
+		_tokenCache?.SaveSite (_resolvedSiteId);
 		_log.Debug ($"Connected to Tesla cloud - using site {_resolvedSiteId} for {Email}");
 		}
 
@@ -220,7 +236,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 			_resolvedSiteId = siteId;
 			SiteId = siteId;
 			ClearCloudCache ();
-			_tokenCache.SaveSite (siteId);
+			_tokenCache?.SaveSite (siteId);
 			var siteName = site.Value<string> ("site_name") ?? "Unknown";
 			_log.Debug ($"Changed site to {siteId} ({siteName}) for {Email}");
 			return true;
@@ -970,9 +986,10 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 
 	private void OnConnectionTokensRefreshed (object? sender, CloudTokensRefreshedEventArgs e)
 		{
-		// Tesla rotated the tokens; persist them so the next run reconnects without a fresh login, then
-		// surface the event to any observer.
-		_tokenCache.SaveTokens (e.AccessToken, e.RefreshToken);
+		// Tesla rotated the tokens; persist them so the next run reconnects without a fresh login (unless the
+		// caller has opted out of library-owned persistence), then surface the event to any observer so a
+		// no-cache caller can persist the rotation itself.
+		_tokenCache?.SaveTokens (e.AccessToken, e.RefreshToken);
 		TokensRefreshed?.Invoke (this, e);
 		}
 
