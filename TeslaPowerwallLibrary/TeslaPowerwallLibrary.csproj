@@ -19,11 +19,11 @@
 		<Company>Neil Colvin</Company>
 		<Product>TeslaPowerwallLibrary</Product>
 		<Copyright>Copyright © 2026 Neil Colvin</Copyright>
-		<AssemblyVersion>0.1.0.0</AssemblyVersion>
-		<FileVersion>0.1.0.0</FileVersion>
+		<AssemblyVersion>0.2.0.0</AssemblyVersion>
+		<FileVersion>0.2.0.0</FileVersion>
 		<PackageId>TeslaPowerwallLibrary</PackageId>
-		<Version>0.1.0.0</Version>
-		<PackageReleaseNotes>Initial release.</PackageReleaseNotes>
+		<Version>0.2.0.0</Version>
+		<PackageReleaseNotes>Adds configurable cloud token persistence: an explicit AuthPath is now authoritative and fail-fast, and a new NoCloudTokenPersistence mode lets callers own token storage entirely via the existing token-refresh event.</PackageReleaseNotes>
 		<Authors>Neil Colvin</Authors>
 		<PackageTags>tesla;powerwall;smart-home;iot;rest;api;nuget</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
