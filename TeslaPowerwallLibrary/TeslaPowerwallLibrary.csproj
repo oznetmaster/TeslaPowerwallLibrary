@@ -19,11 +19,11 @@
 		<Company>Neil Colvin</Company>
 		<Product>TeslaPowerwallLibrary</Product>
 		<Copyright>Copyright © 2026 Neil Colvin</Copyright>
-		<AssemblyVersion>1.0.0.0</AssemblyVersion>
-		<FileVersion>1.0.0.0</FileVersion>
+		<AssemblyVersion>1.0.1.0</AssemblyVersion>
+		<FileVersion>1.0.1.0</FileVersion>
 		<PackageId>TeslaPowerwallLibrary</PackageId>
-		<Version>1.0.0.0</Version>
-		<PackageReleaseNotes>First stable release. Provides local-network and Tesla Owners cloud API access to status, power flow, energy history, and control operations, with configurable cloud token persistence (library-managed cache, explicit authoritative AuthPath, or fully caller-owned via NoCloudTokenPersistence).</PackageReleaseNotes>
+		<Version>1.0.1.0</Version>
+		<PackageReleaseNotes>Replaces the preview-version net472 dependencies on Microsoft.Bcl.AsyncInterfaces and Microsoft.Bcl.Memory with the stable 10.0.9 releases; no functional changes.</PackageReleaseNotes>
 		<Authors>Neil Colvin</Authors>
 		<PackageTags>tesla;powerwall;smart-home;iot;rest;api;nuget</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -103,9 +103,9 @@
 	<!-- net472-specific packages -->
 	<ItemGroup Condition=" '$(TargetFramework)' == 'net472' ">
 		<PackageReference Include="Hafner.Compatibility.MetaPackage" Version="1.9.0" />
-		<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="11.0.0-preview.4.26230.115" />
+		<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.9" />
 		<PackageReference Include="Microsoft.Bcl.HashCode" Version="6.0.0" />
-		<PackageReference Include="Microsoft.Bcl.Memory" Version="11.0.0-preview.4.26230.115" />
+		<PackageReference Include="Microsoft.Bcl.Memory" Version="10.0.9" />
 		<PackageReference Include="System.Net.Http" Version="4.3.4" />
 		<PackageReference Include="System.Threading.Tasks.Extensions" Version="4.6.3" />
 	</ItemGroup>
