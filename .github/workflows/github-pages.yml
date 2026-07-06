@@ -58,10 +58,36 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deploy_1.outputs.page_url || steps.deploy_2.outputs.page_url || steps.deploy_3.outputs.page_url }}
     runs-on: windows-latest
     needs: build
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
+      # actions/deploy-pages@v4 occasionally fails immediately with a generic
+      # "Deployment failed, try again later." error from the Pages API. This has
+      # been observed to be transient, so retry a few times with a short delay
+      # before treating it as a real failure.
+      - name: Deploy to GitHub Pages (attempt 1)
+        id: deploy_1
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      - name: Wait before retry 1
+        if: steps.deploy_1.outcome == 'failure'
+        shell: pwsh
+        run: Start-Sleep -Seconds 20
+
+      - name: Deploy to GitHub Pages (attempt 2)
+        id: deploy_2
+        if: steps.deploy_1.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      - name: Wait before retry 2
+        if: steps.deploy_1.outcome == 'failure' && steps.deploy_2.outcome == 'failure'
+        shell: pwsh
+        run: Start-Sleep -Seconds 20
+
+      - name: Deploy to GitHub Pages (attempt 3)
+        id: deploy_3
+        if: steps.deploy_1.outcome == 'failure' && steps.deploy_2.outcome == 'failure'
         uses: actions/deploy-pages@v4
