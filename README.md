@@ -80,11 +80,11 @@ using var powerwall = new Powerwall(options);
 await powerwall.ConnectAsync();
 ```
 
-After the first successful cloud connect, the library persists the (possibly rotated) tokens internally, keyed by `Email`, so later runs can omit `AccessToken` and `RefreshToken` entirely. When a non-empty `AuthPath` is supplied, that location is authoritative — no fallback is attempted, and an inaccessible path throws `PowerwallCloudTokenCacheStorageException` instead of silently continuing without persistence.
+After the first successful cloud connect, the library persists the (possibly rotated) tokens internally, keyed by `Email`, so later runs can omit `AccessToken` and `RefreshToken` entirely. `AccessToken` is optional even on a first connect: when omitted (or stale), the library silently derives a new one from `RefreshToken`. When a non-empty `AuthPath` is supplied, that location is authoritative — no fallback is attempted, and an inaccessible path throws `PowerwallCloudTokenCacheStorageException` instead of silently continuing without persistence.
 
 ### Cloud mode without library-owned token storage
 
-Set `NoCloudTokenPersistence` when the host has no suitable place for the library to keep a file (for example a Mono-hosted embedded environment). No cache file is ever read or written; `AuthPath` is ignored, `AccessToken`/`RefreshToken` must be supplied on every run, and `Email` is not validated since it is otherwise used only as the cache key:
+Set `NoCloudTokenPersistence` when the host has no suitable place for the library to keep a file (for example a Mono-hosted embedded environment). No cache file is ever read or written; `AuthPath` is ignored, and `Email` is not validated since it is otherwise used only as the cache key. Only `RefreshToken` needs to be supplied on every run — `AccessToken` remains optional and is silently (re)derived from it when absent or stale. Because `AccessToken` was not supplied here, `CloudTokensRefreshed` only fires when Tesla rotates the refresh token itself, and `e.AccessToken` is `null` in that case:
 
 ```csharp
 using TeslaPowerwallLibrary;
@@ -92,7 +92,6 @@ using TeslaPowerwallLibrary;
 var options = new PowerwallOptions
 {
 	 CloudMode = true,
-	 AccessToken = "your-access-token",
 	 RefreshToken = "your-refresh-token",
 	 NoCloudTokenPersistence = true
 };
@@ -100,11 +99,15 @@ var options = new PowerwallOptions
 using var powerwall = new Powerwall(options);
 powerwall.CloudTokensRefreshed += (sender, e) =>
 {
-	 // Persist e.AccessToken / e.RefreshToken using your own storage.
+	 // Only raised here because RefreshToken alone was supplied above: fires when Tesla rotates the
+	 // refresh token itself (not on every access-token renewal), and e.AccessToken is null.
+	 // Persist e.RefreshToken using your own storage so the next run can reuse it.
 };
 
 await powerwall.ConnectAsync();
 ```
+
+
 
 ## Repository Contents
 

@@ -19,11 +19,11 @@
 		<Company>Neil Colvin</Company>
 		<Product>TeslaPowerwallLibrary</Product>
 		<Copyright>Copyright © 2026 Neil Colvin</Copyright>
-		<AssemblyVersion>1.0.1.0</AssemblyVersion>
-		<FileVersion>1.0.1.0</FileVersion>
+		<AssemblyVersion>1.0.2.0</AssemblyVersion>
+		<FileVersion>1.0.2.0</FileVersion>
 		<PackageId>TeslaPowerwallLibrary</PackageId>
-		<Version>1.0.1.0</Version>
-		<PackageReleaseNotes>Replaces the preview-version net472 dependencies on Microsoft.Bcl.AsyncInterfaces and Microsoft.Bcl.Memory with the stable 10.0.9 releases; no functional changes.</PackageReleaseNotes>
+		<Version>1.0.2.0</Version>
+		<PackageReleaseNotes>Clarifies and corrects cloud token refresh event semantics: CloudTokensRefreshed now always fires when the connection was constructed with an access token, and fires only on an actual refresh-token rotation (with a null AccessToken) when the connection was bootstrapped from a refresh token alone. Internal token persistence remains unconditional on every refresh in library-owned cache mode.</PackageReleaseNotes>
 		<Authors>Neil Colvin</Authors>
 		<PackageTags>tesla;powerwall;smart-home;iot;rest;api;nuget</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>

@@ -62,19 +62,22 @@ public sealed record PowerwallOptions
 	public string? SiteId { get; init; }
 
 	/// <summary>
-	/// Tesla Owners API OAuth access token used for cloud mode. Supply this only for a first-time login or to
-	/// override the cached token; after the initial connect the library persists tokens internally (keyed by
-	/// <see cref="Email"/>) and reuses them automatically on later runs, so callers do not need to store tokens
-	/// themselves. Obtain the initial token by completing the Tesla OAuth flow separately (for example, with
-	/// the upstream <c>pypowerwall setup</c> tool); the library refreshes it using <see cref="RefreshToken"/>
-	/// but does not perform interactive login.
+	/// Tesla Owners API OAuth access token used for cloud mode. Optional: when omitted (or when the supplied
+	/// value is stale or rejected), the library silently derives a new one from <see cref="RefreshToken"/> -
+	/// there is no need to supply this at all for a normal connect. Supply it only as an optimization to skip
+	/// that one derivation round-trip on the very first connect after a fresh login. After the initial connect
+	/// the library persists tokens internally (keyed by <see cref="Email"/>) and reuses them automatically on
+	/// later runs, so callers do not need to store tokens themselves. Whether this was supplied also affects how
+	/// often <see cref="Powerwall.CloudTokensRefreshed"/> fires - see that event's documentation.
 	/// </summary>
 	public string? AccessToken { get; init; }
 
 	/// <summary>
-	/// Tesla Owners API OAuth refresh token used to renew an expired <see cref="AccessToken"/> in cloud mode.
-	/// Supply this only for a first-time login or to override the cached token; the library persists the
-	/// (possibly rotated) refresh token internally and reuses it on later runs.
+	/// Tesla Owners API OAuth refresh token used to renew an expired or absent <see cref="AccessToken"/> in
+	/// cloud mode. This is the one credential a first-time login must supply - obtain it by completing the
+	/// Tesla OAuth flow separately (for example with the upstream <c>pypowerwall setup</c> tool). The library
+	/// persists the (possibly rotated) refresh token internally and reuses it on later runs, so it too can be
+	/// omitted once a prior connect has succeeded.
 	/// </summary>
 	public string? RefreshToken { get; init; }
 
@@ -93,11 +96,12 @@ public sealed record PowerwallOptions
 	/// When <see langword="true"/>, disables the library's cloud token cache entirely: <see cref="AuthPath"/>
 	/// is ignored and no file is ever read or written. <see cref="Email"/> is not required to pass format
 	/// validation in this mode, since it is otherwise used only as the cache key and for diagnostic display,
-	/// not for Tesla authentication. Callers must supply <see cref="AccessToken"/> and <see cref="RefreshToken"/>
-	/// on every run and should subscribe to <see cref="Powerwall.CloudTokensRefreshed"/> to receive rotated
-	/// tokens and persist them using their own storage. Use this on hosts where the library's default per-user
-	/// file cache is not appropriate (for example Mono-hosted embedded environments without a writable per-user
-	/// profile folder).
+	/// not for Tesla authentication. Callers must supply <see cref="RefreshToken"/> on every run (
+	/// <see cref="AccessToken"/> remains optional and is silently re-derived when absent or stale) and should
+	/// subscribe to <see cref="Powerwall.CloudTokensRefreshed"/> to persist the new value using their own
+	/// storage; when <see cref="AccessToken"/> was omitted, that event only fires when the refresh token itself
+	/// changes. Use this on hosts where the library's default per-user file cache is not appropriate (for
+	/// example Mono-hosted embedded environments without a writable per-user profile folder).
 	/// </summary>
 	public bool NoCloudTokenPersistence { get; init; }
 

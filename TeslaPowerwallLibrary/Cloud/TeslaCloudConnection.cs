@@ -32,10 +32,10 @@ internal sealed class TeslaCloudConnection : IDisposable
 	private string? _refreshToken;
 
 	/// <summary>
-	/// Raised after a successful access-token refresh, carrying the current tokens so owners can persist
-	/// a rotated refresh token. Raised on the calling (possibly background) thread.
+	/// Raised after every successful access-token refresh, carrying the current tokens and whether the
+	/// refresh token itself changed. Raised on the calling (possibly background) thread.
 	/// </summary>
-	public event EventHandler<CloudTokensRefreshedEventArgs>? TokensRefreshed;
+	public event EventHandler<ConnectionTokensRefreshedEventArgs>? TokensRefreshed;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="TeslaCloudConnection"/> class.
@@ -47,11 +47,18 @@ internal sealed class TeslaCloudConnection : IDisposable
 		{
 		_accessToken = string.IsNullOrWhiteSpace (accessToken) ? null : accessToken;
 		_refreshToken = string.IsNullOrWhiteSpace (refreshToken) ? null : refreshToken;
+		AccessTokenProvidedAtConstruction = _accessToken is not null;
 		_httpClient = new HttpClient { Timeout = timeout };
 		}
 
 	/// <summary>Gets a value indicating whether any usable token (access or refresh) is available.</summary>
 	public bool HasToken => _accessToken is not null || _refreshToken is not null;
+
+	/// <summary>
+	/// Gets a value indicating whether a non-null access token was supplied to the constructor (as opposed to
+	/// this connection having bootstrapped its first access token from the refresh token alone).
+	/// </summary>
+	public bool AccessTokenProvidedAtConstruction { get; }
 
 	/// <summary>Gets the current access token, which may be renewed after a refresh.</summary>
 	public string? AccessToken => _accessToken;
@@ -60,7 +67,8 @@ internal sealed class TeslaCloudConnection : IDisposable
 	public string? RefreshToken => _refreshToken;
 
 	/// <summary>
-	/// Renews the access token using the refresh token against the Tesla SSO service.
+	/// Renews the access token using the refresh token against the Tesla SSO service. Always raises
+	/// <see cref="TokensRefreshed"/> on success, reporting whether the refresh token itself was rotated.
 	/// </summary>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns><see langword="true"/> when a new access token was obtained; otherwise <see langword="false"/>.</returns>
@@ -115,13 +123,17 @@ internal sealed class TeslaCloudConnection : IDisposable
 					return false;
 					}
 
+				var priorRefreshToken = _refreshToken;
 				_accessToken = newAccessToken;
 				var newRefreshToken = json.Value<string> ("refresh_token");
 				if (!string.IsNullOrWhiteSpace (newRefreshToken))
 					_refreshToken = newRefreshToken;
 
 				_log.Debug ("Tesla cloud access token refreshed.");
-				TokensRefreshed?.Invoke (this, new CloudTokensRefreshedEventArgs (_accessToken, _refreshToken));
+
+				var refreshTokenChanged = !string.Equals (priorRefreshToken, _refreshToken, StringComparison.Ordinal);
+				TokensRefreshed?.Invoke (this, new ConnectionTokensRefreshedEventArgs (_accessToken, _refreshToken, refreshTokenChanged));
+
 				return true;
 				}
 			catch (JsonException exc)

@@ -19,9 +19,10 @@ namespace TeslaPowerwallLibrary.Cloud;
 /// strongly-typed, cancellable API surface.
 /// </summary>
 /// <remarks>
-/// OAuth tokens must be supplied programmatically via <see cref="PowerwallOptions.AccessToken"/> and
-/// <see cref="PowerwallOptions.RefreshToken"/>. This client refreshes an expired access token but does not
-/// perform interactive browser login; obtain the initial tokens with an external setup tool.
+/// A <see cref="PowerwallOptions.RefreshToken"/> must be supplied programmatically (or already cached from a
+/// prior connect); <see cref="PowerwallOptions.AccessToken"/> is optional and, when absent or rejected, is
+/// silently (re)derived from the refresh token. This client refreshes an expired access token but does not
+/// perform interactive browser login; obtain the initial refresh token with an external setup tool.
 /// </remarks>
 public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 	{
@@ -98,8 +99,12 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 	public bool NoCloudTokenPersistence { get; }
 
 	/// <summary>
-	/// Raised after the underlying Tesla connection refreshes its OAuth tokens, carrying the current
-	/// tokens so callers can persist a rotated refresh token. Raised on the calling thread.
+	/// Raised after the underlying Tesla connection refreshes its OAuth tokens. Firing depends on whether an
+	/// access token was supplied when this client was constructed (either explicitly via the
+	/// <c>accessToken</c> constructor parameter, or resolved from the library's own token cache): when one
+	/// was, every refresh is reported in full; when none was (a pure refresh-token bootstrap), a refresh is
+	/// only reported when Tesla also rotated the refresh token, and <see cref="CloudTokensRefreshedEventArgs.AccessToken"/>
+	/// is <see langword="null"/> in that case. Raised on the calling thread.
 	/// </summary>
 	public event EventHandler<CloudTokensRefreshedEventArgs>? TokensRefreshed;
 
@@ -119,7 +124,9 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		// Load any library-persisted tokens/site for this email. Explicitly supplied values (a first-time
 		// login or a caller override) take precedence over the cache; otherwise reuse what we persisted on a
 		// previous run, so callers never have to manage token storage themselves. When the cache is disabled
-		// the caller must supply both tokens on every call and is solely responsible for persisting rotations.
+		// the caller must supply at least a refresh token on every call (the access token is optional and is
+		// silently re-derived below when absent) and is solely responsible for persisting a rotated refresh
+		// token via TokensRefreshed.
 		CloudTokenCacheEntry cached = _tokenCache?.Load () ?? CloudTokenCacheEntry.Empty;
 		var accessToken = string.IsNullOrWhiteSpace (_accessToken) ? cached.AccessToken : _accessToken;
 		var refreshToken = string.IsNullOrWhiteSpace (_refreshToken) ? cached.RefreshToken : _refreshToken;
@@ -984,13 +991,26 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 	private static string? Serialize (JToken? token) =>
 		token is null ? null : token.ToString (Formatting.None);
 
-	private void OnConnectionTokensRefreshed (object? sender, CloudTokensRefreshedEventArgs e)
+	private void OnConnectionTokensRefreshed (object? sender, ConnectionTokensRefreshedEventArgs e)
 		{
-		// Tesla rotated the tokens; persist them so the next run reconnects without a fresh login (unless the
-		// caller has opted out of library-owned persistence), then surface the event to any observer so a
-		// no-cache caller can persist the rotation itself.
+		// Tesla refreshed the tokens; always persist internally so the next run reconnects without a fresh
+		// login (unless the caller has opted out of library-owned persistence). This happens regardless of
+		// whether the public event below fires.
 		_tokenCache?.SaveTokens (e.AccessToken, e.RefreshToken);
-		TokensRefreshed?.Invoke (this, e);
+
+		// Surface on the public event according to whether an access token was supplied when the raising
+		// connection was constructed (either explicitly by the caller, or resolved from the library's own
+		// cache):
+		//  - Access token was provided: every refresh is significant to the caller (it owns/tracks the access
+		//    token too), so report it in full on every call.
+		//  - No access token was provided (pure refresh-token bootstrap): the caller never had an access
+		//    token to begin with and only cares about the durable credential, so only report when the
+		//    refresh token itself changed, and omit the access token from the notification.
+		var accessTokenProvided = (sender as TeslaCloudConnection)?.AccessTokenProvidedAtConstruction ?? false;
+		if (accessTokenProvided)
+			TokensRefreshed?.Invoke (this, new CloudTokensRefreshedEventArgs (e.AccessToken, e.RefreshToken));
+		else if (e.RefreshTokenChanged)
+			TokensRefreshed?.Invoke (this, new CloudTokensRefreshedEventArgs (null, e.RefreshToken));
 		}
 
 	/// <summary>Releases the underlying Tesla cloud connection.</summary>

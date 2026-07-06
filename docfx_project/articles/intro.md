@@ -42,7 +42,8 @@ await powerwall.ConnectAsync();
 ```
 
 After the first successful cloud connect, the library persists the (possibly rotated) tokens internally,
-keyed by `Email`, so later runs can omit `AccessToken` and `RefreshToken` entirely.
+keyed by `Email`, so later runs can omit `AccessToken` and `RefreshToken` entirely. `AccessToken` is optional
+even on a first connect: when omitted (or stale), the library silently derives a new one from `RefreshToken`.
 
 ## Read status and history
 

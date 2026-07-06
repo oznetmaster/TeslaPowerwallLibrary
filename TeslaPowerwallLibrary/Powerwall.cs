@@ -134,10 +134,18 @@ public sealed class Powerwall : IDisposable
 	public bool IsClientConnected => _client is not null;
 
 	/// <summary>
-	/// Raised in cloud mode after the Tesla Owners API access token is refreshed, carrying the current
-	/// tokens. Long-running callers should persist the (possibly rotated) refresh token so it can be
-	/// reused on a later run. Raised on the thread that triggered the refresh, which may be a background
-	/// polling thread; handlers must be thread-safe and non-blocking.
+	/// Raised in cloud mode after the underlying Tesla connection refreshes its OAuth tokens. Firing depends
+	/// on whether <see cref="PowerwallOptions.AccessToken"/> was supplied (either explicitly, or because the
+	/// library's own token cache already had one) when the connection was established: when one was, every
+	/// refresh is reported in full, including the current <see cref="CloudTokensRefreshedEventArgs.AccessToken"/>;
+	/// when none was (a pure refresh-token bootstrap), a refresh is only reported when Tesla also rotated the
+	/// refresh token, and <see cref="CloudTokensRefreshedEventArgs.AccessToken"/> is <see langword="null"/> in
+	/// that case since the caller never tracked an access token to begin with. Long-running callers -
+	/// especially those using <see cref="PowerwallOptions.NoCloudTokenPersistence"/> - should persist
+	/// <see cref="CloudTokensRefreshedEventArgs.RefreshToken"/> so it can be reused on a later run. Raised on
+	/// the thread that triggered the refresh, which may be a background polling thread; handlers must be
+	/// thread-safe and non-blocking. Subscribed before the initial <see cref="ConnectAsync"/> authenticates, so
+	/// a refresh occurring during that first connect is not missed.
 	/// </summary>
 	public event EventHandler<CloudTokensRefreshedEventArgs>? CloudTokensRefreshed;
 
@@ -204,6 +212,12 @@ public sealed class Powerwall : IDisposable
 					_options.SiteId,
 					_options.AuthPath,
 					_options.NoCloudTokenPersistence);
+
+				// Subscribe before authenticating: a refresh-token rotation can occur during the initial
+				// bootstrap refresh (when only a refresh token was supplied) or while resolving the site, and
+				// must reach the caller even if the connection attempt subsequently fails for an unrelated
+				// reason (for example no sites found).
+				cloudClient.TokensRefreshed += OnCloudTokensRefreshed;
 				try
 					{
 					await cloudClient.AuthenticateAsync (cancellationToken).ConfigureAwait (false);
@@ -212,18 +226,19 @@ public sealed class Powerwall : IDisposable
 					{
 					// Missing or unusable tokens are a configuration problem the caller must fix (run setup),
 					// so surface it rather than reporting a transient connection failure.
+					cloudClient.TokensRefreshed -= OnCloudTokensRefreshed;
 					cloudClient.Dispose ();
 					throw;
 					}
 				catch (Exception exc) when (exc is PowerwallException)
 					{
 					_log.Warn ($"Failed to connect using Cloud mode: {exc.Message}");
+					cloudClient.TokensRefreshed -= OnCloudTokensRefreshed;
 					cloudClient.Dispose ();
 					return false;
 					}
 
 				_client = cloudClient;
-				cloudClient.TokensRefreshed += OnCloudTokensRefreshed;
 				return true;
 
 			case PowerwallMode.FleetApi:
