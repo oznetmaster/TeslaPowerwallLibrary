@@ -282,6 +282,18 @@ internal sealed class TeslaCloudConnection : IDisposable
 		return await SendApiAsync (HttpMethod.Post, uri, settings, null, cancellationToken).ConfigureAwait (false) as JObject;
 		}
 
+	/// <summary>Enables or disables Storm Watch (predictive storm pre-charging) for the specified site.</summary>
+	/// <param name="siteId">The Tesla energy site identifier.</param>
+	/// <param name="enabled"><see langword="true"/> to enable Storm Watch; <see langword="false"/> to disable it.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The full response envelope, or <see langword="null"/> when the call fails.</returns>
+	public async Task<JObject?> SetStormModeAsync (string siteId, bool enabled, CancellationToken cancellationToken = default)
+		{
+		var body = new JObject { ["enabled"] = enabled };
+		var uri = $"api/1/energy_sites/{siteId}/storm_mode";
+		return await SendApiAsync (HttpMethod.Post, uri, body, null, cancellationToken).ConfigureAwait (false) as JObject;
+		}
+
 	private async Task<JObject?> GetSiteEndpointAsync (string siteId, string segment, IReadOnlyDictionary<string, string> query, CancellationToken cancellationToken)
 		{
 		var uri = $"api/1/energy_sites/{siteId}/{segment}";

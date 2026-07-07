@@ -37,6 +37,7 @@ rootCommand.Subcommands.Add (CreateReadCommand ("system", "Show the full system 
 rootCommand.Subcommands.Add (CreateReadCommand ("summary", "Show a combined dashboard of all readings.", PowerwallActions.SummaryAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("sites", "List the Tesla™ energy sites for the account (cloud mode).", PowerwallActions.SitesAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("gridconfig", "Show the grid charging and export settings (cloud mode).", PowerwallActions.GridConfigAsync));
+rootCommand.Subcommands.Add (CreateReadCommand ("stormwatch", "Show whether Storm Watch is enabled (cloud mode).", PowerwallActions.StormWatchAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("vitals", "Show device vitals (cloud mode, or local firmware that exposes vitals).", PowerwallActions.VitalsAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("alerts", "Show the active device alerts.", PowerwallActions.AlertsAsync));
 rootCommand.Subcommands.Add (CreateInteractiveCommand ());
@@ -45,6 +46,7 @@ rootCommand.Subcommands.Add (CreateSetModeCommand ());
 rootCommand.Subcommands.Add (CreateChangeSiteCommand ());
 rootCommand.Subcommands.Add (CreateSetGridChargingCommand ());
 rootCommand.Subcommands.Add (CreateSetGridExportCommand ());
+rootCommand.Subcommands.Add (CreateSetStormWatchCommand ());
 rootCommand.Subcommands.Add (CreateHistoryCommand ());
 rootCommand.Subcommands.Add (CreateCalendarHistoryCommand ());
 rootCommand.Subcommands.Add (CreatePollCommand ());
@@ -173,6 +175,32 @@ static Command CreateSetGridExportCommand ()
 		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
 			{
 			await PowerwallActions.SetGridExportAsync (powerwall, parseResult.GetValue (modeArgument) ?? string.Empty, token).ConfigureAwait (false);
+			return 0;
+			}, cancellationToken));
+
+	return command;
+	}
+
+static Command CreateSetStormWatchCommand ()
+	{
+	var modeArgument = new Argument<string> ("mode")
+		{
+		Description = "Storm Watch mode (on | off)."
+		};
+
+	var command = new Command ("setstormwatch", "Enable or disable Storm Watch (predictive pre-charging ahead of severe weather) (cloud mode).");
+	command.Arguments.Add (modeArgument);
+	command.SetAction ((parseResult, cancellationToken) =>
+		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
+			{
+			var value = parseResult.GetValue (modeArgument);
+			if (!TryParseOnOff (value, out var enabled))
+				{
+				ConsoleHelpers.WriteError ("Usage: setstormwatch <on|off>");
+				return 2;
+				}
+
+			await PowerwallActions.SetStormWatchAsync (powerwall, enabled, token).ConfigureAwait (false);
 			return 0;
 			}, cancellationToken));
 

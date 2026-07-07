@@ -19,7 +19,7 @@ Tesla and Powerwall are trademarks of Tesla, Inc. This project is an independent
 
 - Local network access to the Powerwall gateway (status, power flow, grid status, system status, and energy/calendar history)
 - Tesla Owners (cloud) API access, including interactive OAuth login and automatic token persistence
-- Control operations such as backup reserve level, operating mode, grid charging, and grid export
+- Control operations such as backup reserve level, operating mode, grid charging, grid export, and Storm Watch (cloud only)
 - Response caching with configurable expiry to reduce load on the gateway
 - Multi-target support for .NET Framework 4.7.2 and .NET 10
 

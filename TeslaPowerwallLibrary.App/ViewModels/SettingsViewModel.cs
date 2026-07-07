@@ -69,6 +69,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
 	[ObservableProperty]
 	private string? _selectedExportRule;
 
+	/// <summary>Gets or sets a value indicating whether Storm Watch is enabled.</summary>
+	[ObservableProperty]
+	private bool _stormWatchEnabled;
+
 	/// <summary>Gets or sets the selected site.</summary>
 	[ObservableProperty]
 	private CloudSite? _selectedSite;
@@ -158,6 +162,21 @@ public sealed partial class SettingsViewModel : ViewModelBase
 			}).ConfigureAwait (true);
 		}
 
+	/// <summary>Applies the Storm Watch preference (cloud mode only).</summary>
+	/// <returns>A task that completes when Storm Watch has been written.</returns>
+	[RelayCommand]
+	private async Task ApplyStormWatchAsync ()
+		{
+		if (!IsCloudMode)
+			return;
+
+		await RunWriteAsync (async (powerwall, token) =>
+			{
+			await powerwall.SetStormWatchAsync (StormWatchEnabled, token).ConfigureAwait (true);
+			StatusMessage = "Storm Watch updated.";
+			}).ConfigureAwait (true);
+		}
+
 	/// <summary>Requests that the app sign out of the current account and return to the connect screen.</summary>
 	[RelayCommand]
 	private void SwitchAccount () => SwitchAccountRequested?.Invoke (this, EventArgs.Empty);
@@ -191,6 +210,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
 		{
 		GridChargingEnabled = await powerwall.GetGridChargingAsync (cancellationToken: token).ConfigureAwait (true) ?? false;
 		SelectedExportRule = await powerwall.GetGridExportAsync (cancellationToken: token).ConfigureAwait (true);
+		StormWatchEnabled = await powerwall.GetStormWatchAsync (cancellationToken: token).ConfigureAwait (true) ?? false;
 
 		var sites = await powerwall.GetSitesAsync (token).ConfigureAwait (true);
 		Sites.Clear ();

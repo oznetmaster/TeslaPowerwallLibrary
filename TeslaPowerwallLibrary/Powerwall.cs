@@ -594,6 +594,27 @@ public sealed class Powerwall : IDisposable
 		RequireCloudClient ().GetGridExportAsync (force, cancellationToken);
 
 	/// <summary>
+	/// Enables or disables Storm Watch (predictive pre-charging ahead of severe weather) (cloud mode only).
+	/// This is the same setting available from the Tesla™ app.
+	/// </summary>
+	/// <param name="enabled"><see langword="true"/> to enable Storm Watch; <see langword="false"/> to disable it.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The raw response body, or <see langword="null"/> when the call fails.</returns>
+	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	public Task<string?> SetStormWatchAsync (bool enabled, CancellationToken cancellationToken = default) =>
+		RequireCloudClient ().SetStormWatchAsync (enabled, cancellationToken);
+
+	/// <summary>
+	/// Returns whether Storm Watch is currently enabled (cloud mode only).
+	/// </summary>
+	/// <param name="force">When <see langword="true"/>, bypasses the cache.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns><see langword="true"/> when Storm Watch is enabled, <see langword="false"/> when disabled, or <see langword="null"/> when unavailable.</returns>
+	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	public Task<bool?> GetStormWatchAsync (bool force = false, CancellationToken cancellationToken = default) =>
+		RequireCloudClient ().GetStormWatchAsync (force, cancellationToken);
+
+	/// <summary>
 	/// Returns raw energy history for the active site (cloud mode only).
 	/// </summary>
 	/// <remarks>

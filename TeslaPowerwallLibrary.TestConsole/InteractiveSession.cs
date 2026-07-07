@@ -137,6 +137,14 @@ internal static class InteractiveSession
 				await SetGridExportAsync (powerwall, argument, cancellationToken).ConfigureAwait (false);
 				return true;
 
+			case "stormwatch":
+				await PowerwallActions.StormWatchAsync (powerwall, cancellationToken).ConfigureAwait (false);
+				return true;
+
+			case "setstormwatch":
+				await SetStormWatchAsync (powerwall, argument, cancellationToken).ConfigureAwait (false);
+				return true;
+
 			case "vitals":
 				await PowerwallActions.VitalsAsync (powerwall, cancellationToken).ConfigureAwait (false);
 				return true;
@@ -300,6 +308,23 @@ internal static class InteractiveSession
 		await PowerwallActions.SetGridExportAsync (powerwall, mode, cancellationToken).ConfigureAwait (false);
 		}
 
+	private static async Task SetStormWatchAsync (Powerwall powerwall, string? argument, CancellationToken cancellationToken)
+		{
+		var value = argument?.Trim ().ToLowerInvariant ();
+		bool enabled;
+		if (value is "on" or "yes" or "true")
+			enabled = true;
+		else if (value is "off" or "no" or "false")
+			enabled = false;
+		else
+			{
+			ConsoleHelpers.WriteError ("Usage: setstormwatch <on|off>");
+			return;
+			}
+
+		await PowerwallActions.SetStormWatchAsync (powerwall, enabled, cancellationToken).ConfigureAwait (false);
+		}
+
 	private static async Task HistoryAsync (Powerwall powerwall, string? argument, bool calendar, CancellationToken cancellationToken)
 		{
 		var command = calendar ? "calendarhistory" : "history";
@@ -355,6 +380,8 @@ internal static class InteractiveSession
 		Console.WriteLine ("  gridconfig        Show grid charging and export settings (cloud mode)");
 		Console.WriteLine ("  setgridcharging <on|off>              Enable/disable grid charging (cloud mode)");
 		Console.WriteLine ("  setgridexport <battery_ok|pv_only|never>  Set grid export rule (cloud mode)");
+		Console.WriteLine ("  stormwatch        Show whether Storm Watch is enabled (cloud mode)");
+		Console.WriteLine ("  setstormwatch <on|off>                Enable/disable Storm Watch (cloud mode)");
 		Console.WriteLine ("  vitals            Device vitals (cloud mode, or local firmware that exposes vitals)");
 		Console.WriteLine ("  alerts            Active device alerts");
 		Console.WriteLine ("  history <kind> [period]           Raw energy history (DEPRECATED - Tesla removed this endpoint; use calendarhistory)");

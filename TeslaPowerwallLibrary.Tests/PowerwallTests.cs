@@ -181,6 +181,24 @@ public sealed class PowerwallTests
 		}
 
 	[TestMethod]
+	public async Task WhenNotConnectedThenGetStormWatchThrowsInvalidOperation ()
+		{
+		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
+			async () => await powerwall.GetStormWatchAsync ());
+		}
+
+	[TestMethod]
+	public async Task WhenNotConnectedThenSetStormWatchThrowsInvalidOperation ()
+		{
+		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
+			async () => await powerwall.SetStormWatchAsync (true));
+		}
+
+	[TestMethod]
 	public async Task WhenNotConnectedThenVitalsThrowsInvalidOperation ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });

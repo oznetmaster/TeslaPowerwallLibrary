@@ -331,6 +331,43 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 		}
 
 	/// <summary>
+	/// Enables or disables Storm Watch (predictive pre-charging ahead of severe weather) for the active site.
+	/// This is the same setting exposed by the Tesla™ app; Tesla's upstream <c>teslapy</c>/<c>teslajsonpy</c>
+	/// endpoint registries list the underlying <c>STORM_MODE_SETTINGS</c> endpoint, but pypowerwall does not
+	/// implement a convenience wrapper for it.
+	/// </summary>
+	/// <param name="enabled"><see langword="true"/> to enable Storm Watch; <see langword="false"/> to disable it.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The raw response body, or <see langword="null"/> when the call fails.</returns>
+	public async Task<string?> SetStormWatchAsync (bool enabled, CancellationToken cancellationToken = default)
+		{
+		EnsureConnected ();
+
+		JObject? response = await _connection!.SetStormModeAsync (_resolvedSiteId!, enabled, cancellationToken).ConfigureAwait (false);
+		InvalidateCloudCache ("SITE_CONFIG");
+		return Serialize (response);
+		}
+
+	/// <summary>
+	/// Returns whether Storm Watch is currently enabled for the active site. This is the same setting exposed
+	/// by the Tesla™ app.
+	/// </summary>
+	/// <param name="force">When <see langword="true"/>, bypasses the cache.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns><see langword="true"/> when Storm Watch is enabled, <see langword="false"/> when disabled, or <see langword="null"/> when unavailable.</returns>
+	public async Task<bool?> GetStormWatchAsync (bool force = false, CancellationToken cancellationToken = default)
+		{
+		EnsureConnected ();
+
+		JObject? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
+		JToken? userSettings = config?["response"]?["user_settings"];
+		if (userSettings is null)
+			return null;
+
+		return userSettings.Value<bool?> ("storm_mode_enabled") ?? false;
+		}
+
+	/// <summary>
 	/// Returns raw energy history for the active site (cloud mode only). Faithfully adapts the upstream
 	/// pypowerwall/FleetAPI <c>get_history()</c> method.
 	/// </summary>

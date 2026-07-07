@@ -248,6 +248,23 @@ internal static class PowerwallActions
 		ConsoleHelpers.WriteField ("Response", result);
 		}
 
+	/// <summary>Prints whether Storm Watch is currently enabled (cloud mode only).</summary>
+	public static async Task StormWatchAsync (Powerwall powerwall, CancellationToken cancellationToken)
+		{
+		var enabled = await powerwall.GetStormWatchAsync (cancellationToken: cancellationToken).ConfigureAwait (false);
+		ConsoleHelpers.WriteHeading ("Storm Watch");
+		ConsoleHelpers.WriteField ("Storm Watch", enabled switch { true => "enabled", false => "disabled", null => "n/a" });
+		}
+
+	/// <summary>Enables or disables Storm Watch and prints the result (cloud mode only).</summary>
+	public static async Task SetStormWatchAsync (Powerwall powerwall, bool enabled, CancellationToken cancellationToken)
+		{
+		var result = await powerwall.SetStormWatchAsync (enabled, cancellationToken).ConfigureAwait (false);
+		ConsoleHelpers.WriteHeading ("Set Storm Watch");
+		ConsoleHelpers.WriteSuccess ($"  Storm Watch {(enabled ? "enabled" : "disabled")}.");
+		ConsoleHelpers.WriteField ("Response", result);
+		}
+
 	/// <summary>Prints device vitals as a per-device map of telemetry values.</summary>
 	public static async Task VitalsAsync (Powerwall powerwall, CancellationToken cancellationToken)
 		{

@@ -70,6 +70,13 @@
 							<Button Content="Apply" Command="{Binding ApplyGridExportCommand}" Margin="16,0,0,0"
 									IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
 						</StackPanel>
+
+						<StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+							<CheckBox Content="Storm Watch" Foreground="{StaticResource TextBrush}"
+									  IsChecked="{Binding StormWatchEnabled}" VerticalAlignment="Center" />
+							<Button Content="Apply" Command="{Binding ApplyStormWatchCommand}" Margin="16,0,0,0"
+									IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+						</StackPanel>
 					</StackPanel>
 				</Border>
 

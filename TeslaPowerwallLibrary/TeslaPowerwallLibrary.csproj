@@ -19,11 +19,11 @@
 		<Company>Neil Colvin</Company>
 		<Product>TeslaPowerwallLibrary</Product>
 		<Copyright>Copyright © 2026 Neil Colvin</Copyright>
-		<AssemblyVersion>1.0.2.0</AssemblyVersion>
-		<FileVersion>1.0.2.0</FileVersion>
+		<AssemblyVersion>1.0.3.0</AssemblyVersion>
+		<FileVersion>1.0.3.0</FileVersion>
 		<PackageId>TeslaPowerwallLibrary</PackageId>
-		<Version>1.0.2.0</Version>
-		<PackageReleaseNotes>Clarifies and corrects cloud token refresh event semantics: CloudTokensRefreshed now always fires when the connection was constructed with an access token, and fires only on an actual refresh-token rotation (with a null AccessToken) when the connection was bootstrapped from a refresh token alone. Internal token persistence remains unconditional on every refresh in library-owned cache mode.</PackageReleaseNotes>
+		<Version>1.0.3.0</Version>
+		<PackageReleaseNotes>Adds Storm Watch control (cloud only): Powerwall.GetStormWatchAsync/SetStormWatchAsync let callers read and toggle Storm Watch (predictive pre-charging ahead of severe weather) the same way the Tesla app does, via the Tesla Owners cloud API.</PackageReleaseNotes>
 		<Authors>Neil Colvin</Authors>
 		<PackageTags>tesla;powerwall;smart-home;iot;rest;api;nuget</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>

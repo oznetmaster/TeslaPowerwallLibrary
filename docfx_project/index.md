@@ -11,7 +11,7 @@ and is not affiliated with or endorsed by Tesla.
 - Local network access to the Powerwall gateway (status, power flow, history, and control)
 - Tesla Owners (cloud) API access, including interactive OAuth login and token persistence
 - Access to gateway status, system status, grid status, and energy history
-- Control helpers such as backup reserve level, operating mode, grid charging, and grid export
+- Control helpers such as backup reserve level, operating mode, grid charging, grid export, and Storm Watch (cloud only)
 - Multi-target support for .NET Framework 4.7.2 and .NET 10
 
 ## Gateway hardware compatibility
