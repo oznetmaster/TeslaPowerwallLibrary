@@ -51,7 +51,9 @@ even on a first connect: when omitted (or stale), the library silently derives a
 var status = await powerwall.StatusAsync();
 var systemStatus = await powerwall.SystemStatusAsync();
 
-// Strongly typed calendar-history convenience methods (cloud mode only) parse the raw JSON for you:
+// Strongly typed calendar-history convenience methods (cloud mode only) deserialize the raw JSON for you,
+// directly into records with a few computed convenience properties layered on top (for example
+// EnergyHistoryPoint.SolarKwh, which sums and converts the underlying raw watt-hour fields):
 IReadOnlyList<EnergyHistoryPoint> energyHistory = await powerwall.GetEnergyCalendarHistoryAsync(period: "day");
 IReadOnlyList<PowerHistoryPoint> powerHistory = await powerwall.GetPowerCalendarHistoryAsync(period: "day");
 IReadOnlyList<StateOfEnergyHistoryPoint> soeHistory = await powerwall.GetStateOfEnergyCalendarHistoryAsync(period: "day");

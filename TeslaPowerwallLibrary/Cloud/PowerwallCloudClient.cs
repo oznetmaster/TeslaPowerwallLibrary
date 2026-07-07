@@ -26,9 +26,9 @@ namespace TeslaPowerwallLibrary.Cloud;
 /// </remarks>
 public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 	{
-	private const int CounterMax = 64;
-	private const int SiteConfigTtlSeconds = 59;
-	private const double ReserveScaleBuffer = 5.0 / 0.95;
+	private const int COUNTER_MAX = 64;
+	private const int SITE_CONFIG_TTL_SECONDS = 59;
+	private const double RESERVE_SCALE_BUFFER = 5.0 / 0.95;
 
 	private static readonly ILog _log = LogManager.GetLogger (typeof (PowerwallCloudClient));
 
@@ -573,7 +573,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 			return null;
 
 		var percentageCharged = battery["response"]?.Value<double?> ("percentage_charged") ?? 0;
-		var soe = (percentageCharged + ReserveScaleBuffer) * 0.95;
+		var soe = (percentageCharged + RESERVE_SCALE_BUFFER) * 0.95;
 		return new JObject { ["percentage"] = soe };
 		}
 
@@ -771,7 +771,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 			return null;
 
 		var backupReservePercent = response.Value<double?> ("backup_reserve_percent") ?? 0;
-		var backup = (backupReservePercent + ReserveScaleBuffer) * 0.95;
+		var backup = (backupReservePercent + RESERVE_SCALE_BUFFER) * 0.95;
 		return new JObject
 			{
 			["real_mode"] = response["default_real_mode"],
@@ -795,11 +795,15 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 
 		string gridStatus;
 		if (powerResponse.Value<string> ("island_status") == "on_grid")
+			{
 			gridStatus = "SystemGridConnected";
+			}
 		else
+			{
 			gridStatus = powerResponse.Value<string> ("grid_status") is "Active" or "Unknown"
 				? "SystemGridConnected"
 				: "SystemIslandedActive";
+			}
 
 		var data = JObject.Parse (CloudMockData.SYSTEM_STATUS_TEMPLATE);
 		MergeInto (data, new JObject
@@ -869,7 +873,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 	private Task<JObject?> GetSiteConfigAsync (bool force, CancellationToken cancellationToken) =>
 		GetCachedSiteDataAsync (
 			"SITE_CONFIG",
-			SiteConfigTtlSeconds,
+			SITE_CONFIG_TTL_SECONDS,
 			(c, ct) => c.GetSiteConfigAsync (_resolvedSiteId!, ct),
 			force,
 			cancellationToken);
@@ -886,7 +890,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IDisposable
 			cancellationToken).ConfigureAwait (false);
 
 		if (!cachedBefore && response is not null)
-			_counter = (_counter + 1) % CounterMax;
+			_counter = (_counter + 1) % COUNTER_MAX;
 
 		return response;
 		}

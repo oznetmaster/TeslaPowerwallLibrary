@@ -109,7 +109,7 @@ await powerwall.ConnectAsync();
 
 ### Read energy and calendar history (cloud mode only)
 
-`GetCalendarHistoryAsync` returns the raw JSON body for any history `kind` (`power`, `soe`, `energy`, `backup`, `self_consumption`, `time_of_use_energy`, or `savings`), mirroring the upstream Python library's behavior. For the kinds with a verified, stable schema, typed convenience methods parse that JSON into strongly typed records so callers do not need to do it themselves:
+`GetCalendarHistoryAsync` returns the raw JSON body for any history `kind` (`power`, `soe`, `energy`, `backup`, `self_consumption`, `time_of_use_energy`, or `savings`), mirroring the upstream Python library's behavior. For the kinds with a verified, stable schema, typed convenience methods deserialize that JSON directly into strongly typed records (via Newtonsoft.Json `[JsonProperty]` mappings, no hand-written parsing) so callers do not need to do it themselves:
 
 ```csharp
 IReadOnlyList<EnergyHistoryPoint> energy = await powerwall.GetEnergyCalendarHistoryAsync(period: "day");
@@ -118,6 +118,8 @@ IReadOnlyList<StateOfEnergyHistoryPoint> soe = await powerwall.GetStateOfEnergyC
 IReadOnlyList<SelfConsumptionHistoryPoint> selfConsumption = await powerwall.GetSelfConsumptionCalendarHistoryAsync(period: "day");
 BackupHistory backup = await powerwall.GetBackupCalendarHistoryAsync(period: "day");
 ```
+
+Each record exposes Tesla's raw fields plus a few computed convenience properties layered on top — for example `EnergyHistoryPoint` sums and converts the raw watt-hour fields into `SolarKwh`, `HomeKwh`, `FromGridKwh`, `ToGridKwh`, `BatteryChargeKwh`, and `BatteryDischargeKwh`.
 
 `time_of_use_energy` and `savings` have no typed model yet (Tesla returns an empty payload for both unless a time-of-use tariff is configured); call `GetCalendarHistoryAsync` directly for those. `GetHistoryAsync` (the older, non-calendar-aligned `/history` endpoint) has been permanently removed by Tesla and always throws `PowerwallCloudEndpointRemovedException`; use the calendar-history methods above instead.
 

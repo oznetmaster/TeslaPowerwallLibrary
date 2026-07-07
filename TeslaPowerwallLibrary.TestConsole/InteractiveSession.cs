@@ -292,9 +292,13 @@ internal static class InteractiveSession
 		var value = argument?.Trim ().ToLowerInvariant ();
 		bool enabled;
 		if (value is "on" or "yes" or "true")
+			{
 			enabled = true;
+			}
 		else if (value is "off" or "no" or "false")
+			{
 			enabled = false;
+			}
 		else
 			{
 			ConsoleHelpers.WriteError ("Usage: setgridcharging <on|off>");
@@ -321,9 +325,13 @@ internal static class InteractiveSession
 		var value = argument?.Trim ().ToLowerInvariant ();
 		bool enabled;
 		if (value is "on" or "yes" or "true")
+			{
 			enabled = true;
+			}
 		else if (value is "off" or "no" or "false")
+			{
 			enabled = false;
+			}
 		else
 			{
 			ConsoleHelpers.WriteError ("Usage: setstormwatch <on|off>");

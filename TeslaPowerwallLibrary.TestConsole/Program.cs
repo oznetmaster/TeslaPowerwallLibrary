@@ -54,8 +54,7 @@ rootCommand.Subcommands.Add (CreateCaptureCalendarHistoryCommand ());
 rootCommand.Subcommands.Add (CreatePollCommand ());
 rootCommand.Subcommands.Add (CreateConfigCommand ());
 
-rootCommand.SetAction ((parseResult, cancellationToken) =>
-	RunInteractiveAsync (parseResult, cancellationToken));
+rootCommand.SetAction (RunInteractiveAsync);
 
 return await rootCommand.Parse (args).InvokeAsync ().ConfigureAwait (false);
 
@@ -75,8 +74,7 @@ static Command CreateReadCommand (string name, string description, Func<Powerwal
 static Command CreateInteractiveCommand ()
 	{
 	var command = new Command ("interactive", "Start an interactive REPL session (the default when no subcommand is given).");
-	command.SetAction ((parseResult, cancellationToken) =>
-		RunInteractiveAsync (parseResult, cancellationToken));
+	command.SetAction (RunInteractiveAsync);
 
 	return command;
 	}
