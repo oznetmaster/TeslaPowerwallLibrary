@@ -672,6 +672,128 @@ public sealed class Powerwall : IDisposable
 		}
 
 	/// <summary>
+	/// Returns strongly typed calendar-aligned energy history (the <c>energy</c> kind) for the active site
+	/// (cloud mode only). This is a typed convenience wrapper over <see cref="GetCalendarHistoryAsync"/>;
+	/// use that method directly if raw JSON is preferred.
+	/// </summary>
+	/// <param name="period">The aggregation period: <c>day</c>, <c>week</c>, <c>month</c>, <c>year</c>, or <c>lifetime</c>. Defaults to <c>day</c> when not specified.</param>
+	/// <param name="timeZone">Optional IANA time zone name (for example <c>America/Los_Angeles</c>).</param>
+	/// <param name="startDate">Optional inclusive RFC 3339 start timestamp.</param>
+	/// <param name="endDate">Optional inclusive RFC 3339 end timestamp.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The parsed energy-history points, in kilowatt-hours; empty when unavailable.</returns>
+	/// <exception cref="ArgumentException">Thrown when <paramref name="period"/> is not valid.</exception>
+	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	public async Task<IReadOnlyList<EnergyHistoryPoint>> GetEnergyCalendarHistoryAsync (
+		string? period = null,
+		string? timeZone = null,
+		string? startDate = null,
+		string? endDate = null,
+		CancellationToken cancellationToken = default)
+		{
+		var json = await GetCalendarHistoryAsync ("energy", period, timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
+		return CalendarHistoryParser.ParseEnergy (json);
+		}
+
+	/// <summary>
+	/// Returns strongly typed calendar-aligned power history (the <c>power</c> kind) for the active site
+	/// (cloud mode only). This is a typed convenience wrapper over <see cref="GetCalendarHistoryAsync"/>;
+	/// use that method directly if raw JSON is preferred.
+	/// </summary>
+	/// <param name="period">The aggregation period: <c>day</c>, <c>week</c>, <c>month</c>, <c>year</c>, or <c>lifetime</c>. Defaults to <c>day</c> when not specified.</param>
+	/// <param name="timeZone">Optional IANA time zone name (for example <c>America/Los_Angeles</c>).</param>
+	/// <param name="startDate">Optional inclusive RFC 3339 start timestamp.</param>
+	/// <param name="endDate">Optional inclusive RFC 3339 end timestamp.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The parsed power-history points, in watts; empty when unavailable.</returns>
+	/// <exception cref="ArgumentException">Thrown when <paramref name="period"/> is not valid.</exception>
+	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	public async Task<IReadOnlyList<PowerHistoryPoint>> GetPowerCalendarHistoryAsync (
+		string? period = null,
+		string? timeZone = null,
+		string? startDate = null,
+		string? endDate = null,
+		CancellationToken cancellationToken = default)
+		{
+		var json = await GetCalendarHistoryAsync ("power", period, timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
+		return CalendarHistoryParser.ParsePower (json);
+		}
+
+	/// <summary>
+	/// Returns strongly typed calendar-aligned state-of-energy history (the <c>soe</c> kind) for the active
+	/// site (cloud mode only). This is a typed convenience wrapper over <see cref="GetCalendarHistoryAsync"/>;
+	/// use that method directly if raw JSON is preferred.
+	/// </summary>
+	/// <param name="period">The aggregation period: <c>day</c>, <c>week</c>, <c>month</c>, <c>year</c>, or <c>lifetime</c>. Defaults to <c>day</c> when not specified.</param>
+	/// <param name="timeZone">Optional IANA time zone name (for example <c>America/Los_Angeles</c>).</param>
+	/// <param name="startDate">Optional inclusive RFC 3339 start timestamp.</param>
+	/// <param name="endDate">Optional inclusive RFC 3339 end timestamp.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The parsed state-of-energy points; empty when unavailable.</returns>
+	/// <exception cref="ArgumentException">Thrown when <paramref name="period"/> is not valid.</exception>
+	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	public async Task<IReadOnlyList<StateOfEnergyHistoryPoint>> GetStateOfEnergyCalendarHistoryAsync (
+		string? period = null,
+		string? timeZone = null,
+		string? startDate = null,
+		string? endDate = null,
+		CancellationToken cancellationToken = default)
+		{
+		var json = await GetCalendarHistoryAsync ("soe", period, timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
+		return CalendarHistoryParser.ParseStateOfEnergy (json);
+		}
+
+	/// <summary>
+	/// Returns strongly typed calendar-aligned self-consumption history (the <c>self_consumption</c> kind)
+	/// for the active site (cloud mode only). This is a typed convenience wrapper over
+	/// <see cref="GetCalendarHistoryAsync"/>; use that method directly if raw JSON is preferred.
+	/// </summary>
+	/// <param name="period">The aggregation period: <c>day</c>, <c>week</c>, <c>month</c>, <c>year</c>, or <c>lifetime</c>. Defaults to <c>day</c> when not specified.</param>
+	/// <param name="timeZone">Optional IANA time zone name (for example <c>America/Los_Angeles</c>).</param>
+	/// <param name="startDate">Optional inclusive RFC 3339 start timestamp.</param>
+	/// <param name="endDate">Optional inclusive RFC 3339 end timestamp.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The parsed self-consumption points; empty when unavailable.</returns>
+	/// <exception cref="ArgumentException">Thrown when <paramref name="period"/> is not valid.</exception>
+	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	public async Task<IReadOnlyList<SelfConsumptionHistoryPoint>> GetSelfConsumptionCalendarHistoryAsync (
+		string? period = null,
+		string? timeZone = null,
+		string? startDate = null,
+		string? endDate = null,
+		CancellationToken cancellationToken = default)
+		{
+		var json = await GetCalendarHistoryAsync ("self_consumption", period, timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
+		return CalendarHistoryParser.ParseSelfConsumption (json);
+		}
+
+	/// <summary>
+	/// Returns a strongly typed calendar-aligned backup (outage) event envelope (the <c>backup</c> kind) for
+	/// the active site (cloud mode only). This is a typed convenience wrapper over
+	/// <see cref="GetCalendarHistoryAsync"/>; use that method directly if raw JSON is preferred. Individual
+	/// event entries are exposed as loosely typed maps (mirroring <see cref="VitalsAsync"/>) because no
+	/// backup event has yet been observed to confirm a per-event field schema.
+	/// </summary>
+	/// <param name="period">The aggregation period: <c>day</c>, <c>week</c>, <c>month</c>, <c>year</c>, or <c>lifetime</c>. Defaults to <c>day</c> when not specified.</param>
+	/// <param name="timeZone">Optional IANA time zone name (for example <c>America/Los_Angeles</c>).</param>
+	/// <param name="startDate">Optional inclusive RFC 3339 start timestamp.</param>
+	/// <param name="endDate">Optional inclusive RFC 3339 end timestamp.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The parsed backup-history envelope; an empty envelope when unavailable.</returns>
+	/// <exception cref="ArgumentException">Thrown when <paramref name="period"/> is not valid.</exception>
+	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	public async Task<BackupHistory> GetBackupCalendarHistoryAsync (
+		string? period = null,
+		string? timeZone = null,
+		string? startDate = null,
+		string? endDate = null,
+		CancellationToken cancellationToken = default)
+		{
+		var json = await GetCalendarHistoryAsync ("backup", period, timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
+		return CalendarHistoryParser.ParseBackup (json);
+		}
+
+	/// <summary>
 	/// Returns device vitals as a nested map of device name to that device's telemetry values.
 	/// Vitals are available in cloud mode and on local firmware that still exposes the vitals payload.
 	/// </summary>

@@ -286,6 +286,62 @@ public sealed class PowerwallTests
 		}
 
 	[TestMethod]
+	public async Task WhenNotConnectedThenGetEnergyCalendarHistoryThrowsInvalidOperation ()
+		{
+		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
+			async () => await powerwall.GetEnergyCalendarHistoryAsync ());
+		}
+
+	[TestMethod]
+	public async Task WhenNotConnectedThenGetPowerCalendarHistoryThrowsInvalidOperation ()
+		{
+		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
+			async () => await powerwall.GetPowerCalendarHistoryAsync ());
+		}
+
+	[TestMethod]
+	public async Task WhenNotConnectedThenGetStateOfEnergyCalendarHistoryThrowsInvalidOperation ()
+		{
+		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
+			async () => await powerwall.GetStateOfEnergyCalendarHistoryAsync ());
+		}
+
+	[TestMethod]
+	public async Task WhenNotConnectedThenGetSelfConsumptionCalendarHistoryThrowsInvalidOperation ()
+		{
+		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
+			async () => await powerwall.GetSelfConsumptionCalendarHistoryAsync ());
+		}
+
+	[TestMethod]
+	public async Task WhenNotConnectedThenGetBackupCalendarHistoryThrowsInvalidOperation ()
+		{
+		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
+
+		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
+			async () => await powerwall.GetBackupCalendarHistoryAsync ());
+		}
+
+	[TestMethod]
+	[DataRow ("hour")]
+	[DataRow ("DAY")]
+	public async Task WhenPeriodIsInvalidThenGetEnergyCalendarHistoryThrowsArgumentException (string period)
+		{
+		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
+
+		await Assert.ThrowsExactlyAsync<ArgumentException> (
+			async () => await powerwall.GetEnergyCalendarHistoryAsync (period));
+		}
+
+	[TestMethod]
 	public void WhenNoCloudTokenPersistenceIsTrueThenInvalidEmailDoesNotThrow ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions

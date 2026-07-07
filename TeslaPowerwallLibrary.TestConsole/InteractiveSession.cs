@@ -161,6 +161,14 @@ internal static class InteractiveSession
 				await HistoryAsync (powerwall, argument, calendar: true, cancellationToken).ConfigureAwait (false);
 				return true;
 
+			case "typedhistory":
+				await TypedHistoryAsync (powerwall, argument, cancellationToken).ConfigureAwait (false);
+				return true;
+
+			case "capturecalendarhistory":
+				await CaptureCalendarHistoryAsync (powerwall, argument, cancellationToken).ConfigureAwait (false);
+				return true;
+
 			case "login":
 				await LoginAsync (session, argument, cancellationToken).ConfigureAwait (false);
 				return true;
@@ -349,6 +357,24 @@ internal static class InteractiveSession
 			await PowerwallActions.HistoryAsync (powerwall, kind, period, cancellationToken).ConfigureAwait (false);
 		}
 
+	private static async Task TypedHistoryAsync (Powerwall powerwall, string? argument, CancellationToken cancellationToken)
+		{
+		if (string.IsNullOrWhiteSpace (argument))
+			{
+			ConsoleHelpers.WriteError ("Usage: typedhistory <kind> [period]");
+			ConsoleHelpers.WriteError ($"  kind:   {ConsoleHelpers.FormatChoices (PowerwallActions.TypedHistoryKinds)}");
+			ConsoleHelpers.WriteError ($"  period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)} (optional; {ConsoleHelpers.DefaultChoiceLegend})");
+			ConsoleHelpers.WriteError ($"  example: typedhistory {PowerwallActions.TypedHistoryKinds[0]} {Powerwall.HistoryPeriods[0]}");
+			return;
+			}
+
+		var tokens = argument!.Split ((char[]?) null, StringSplitOptions.RemoveEmptyEntries);
+		var kind = tokens[0];
+		var period = tokens.Length > 1 ? tokens[1] : null;
+
+		await PowerwallActions.TypedHistoryAsync (powerwall, kind, period, cancellationToken).ConfigureAwait (false);
+		}
+
 	private static async Task PollAsync (Powerwall powerwall, string? argument, CancellationToken cancellationToken)
 		{
 		if (string.IsNullOrWhiteSpace (argument))
@@ -358,6 +384,21 @@ internal static class InteractiveSession
 			}
 
 		await PowerwallActions.PollAsync (powerwall, argument!, cancellationToken).ConfigureAwait (false);
+		}
+
+	private static async Task CaptureCalendarHistoryAsync (Powerwall powerwall, string? argument, CancellationToken cancellationToken)
+		{
+		if (string.IsNullOrWhiteSpace (argument))
+			{
+			ConsoleHelpers.WriteError ("Usage: capturecalendarhistory <outputDirectory> [period]");
+			return;
+			}
+
+		var tokens = argument!.Split ((char[]?) null, StringSplitOptions.RemoveEmptyEntries);
+		var outputDirectory = tokens[0];
+		var period = tokens.Length > 1 ? tokens[1] : null;
+
+		await PowerwallActions.CaptureCalendarHistoryAsync (powerwall, outputDirectory, period, cancellationToken).ConfigureAwait (false);
 		}
 
 	private static void WriteHelp ()
@@ -390,6 +431,10 @@ internal static class InteractiveSession
 		Console.WriteLine ("  calendarhistory <kind> [period]   Calendar-aligned energy history (cloud mode)");
 		Console.WriteLine ($"                      kind:   {ConsoleHelpers.FormatChoices (Powerwall.CalendarHistoryKinds)}");
 		Console.WriteLine ($"                      period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)}");
+		Console.WriteLine ("  typedhistory <kind> [period]      Strongly typed calendar-aligned history via the typed Powerwall convenience methods (cloud mode)");
+		Console.WriteLine ($"                      kind:   {ConsoleHelpers.FormatChoices (PowerwallActions.TypedHistoryKinds)}");
+		Console.WriteLine ($"                      period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)}");
+		Console.WriteLine ("  capturecalendarhistory <dir> [period]  DEV TOOL: save raw calendar history JSON for every kind to <dir>");
 		Console.WriteLine ("  login <cloud|local>       Sign in to a new account and reconnect");
 		Console.WriteLine ("  switchaccount <cloud|local>  Reconnect using this session's known cloud/local credentials");
 		Console.WriteLine ("  poll <api>        GET a raw API endpoint and print the response");

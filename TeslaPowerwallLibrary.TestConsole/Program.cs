@@ -49,6 +49,8 @@ rootCommand.Subcommands.Add (CreateSetGridExportCommand ());
 rootCommand.Subcommands.Add (CreateSetStormWatchCommand ());
 rootCommand.Subcommands.Add (CreateHistoryCommand ());
 rootCommand.Subcommands.Add (CreateCalendarHistoryCommand ());
+rootCommand.Subcommands.Add (CreateTypedHistoryCommand ());
+rootCommand.Subcommands.Add (CreateCaptureCalendarHistoryCommand ());
 rootCommand.Subcommands.Add (CreatePollCommand ());
 rootCommand.Subcommands.Add (CreateConfigCommand ());
 
@@ -259,6 +261,32 @@ static Command CreateCalendarHistoryCommand ()
 	return command;
 	}
 
+static Command CreateTypedHistoryCommand ()
+	{
+	var kindArgument = new Argument<string> ("kind")
+		{
+		Description = $"History kind ({ConsoleHelpers.FormatChoices (PowerwallActions.TypedHistoryKinds)})."
+		};
+
+	var periodArgument = new Argument<string?> ("period")
+		{
+		Description = $"Aggregation period ({ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)}). Optional; {ConsoleHelpers.DefaultChoiceLegend}.",
+		Arity = ArgumentArity.ZeroOrOne
+		};
+
+	var command = new Command ("typedhistory", "Show strongly typed calendar-aligned history for the active site, using the typed Powerwall convenience methods (cloud mode).");
+	command.Arguments.Add (kindArgument);
+	command.Arguments.Add (periodArgument);
+	command.SetAction ((parseResult, cancellationToken) =>
+		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
+			{
+			await PowerwallActions.TypedHistoryAsync (powerwall, parseResult.GetValue (kindArgument) ?? string.Empty, parseResult.GetValue (periodArgument), token).ConfigureAwait (false);
+			return 0;
+			}, cancellationToken));
+
+	return command;
+	}
+
 static bool TryParseOnOff (string? value, out bool enabled)
 	{
 	switch (value?.Trim ().ToLowerInvariant ())
@@ -277,6 +305,36 @@ static bool TryParseOnOff (string? value, out bool enabled)
 			enabled = false;
 			return false;
 		}
+	}
+
+static Command CreateCaptureCalendarHistoryCommand ()
+	{
+	var outputArgument = new Argument<string> ("outputDirectory")
+		{
+		Description = "Directory to write one calendar_history_{kind}.json file per history kind."
+		};
+
+	var periodArgument = new Argument<string?> ("period")
+		{
+		Description = $"Aggregation period ({ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)}). Optional; {ConsoleHelpers.DefaultChoiceLegend}.",
+		Arity = ArgumentArity.ZeroOrOne
+		};
+
+	var command = new Command ("capturecalendarhistory", "DEV TOOL: fetch calendar history for every kind and save each raw JSON response to a file (cloud mode).");
+	command.Arguments.Add (outputArgument);
+	command.Arguments.Add (periodArgument);
+	command.SetAction ((parseResult, cancellationToken) =>
+		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
+			{
+			await PowerwallActions.CaptureCalendarHistoryAsync (
+				powerwall,
+				parseResult.GetValue (outputArgument) ?? string.Empty,
+				parseResult.GetValue (periodArgument),
+				token).ConfigureAwait (false);
+			return 0;
+			}, cancellationToken));
+
+	return command;
 	}
 
 static Command CreatePollCommand ()

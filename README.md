@@ -107,7 +107,19 @@ powerwall.CloudTokensRefreshed += (sender, e) =>
 await powerwall.ConnectAsync();
 ```
 
+### Read energy and calendar history (cloud mode only)
 
+`GetCalendarHistoryAsync` returns the raw JSON body for any history `kind` (`power`, `soe`, `energy`, `backup`, `self_consumption`, `time_of_use_energy`, or `savings`), mirroring the upstream Python library's behavior. For the kinds with a verified, stable schema, typed convenience methods parse that JSON into strongly typed records so callers do not need to do it themselves:
+
+```csharp
+IReadOnlyList<EnergyHistoryPoint> energy = await powerwall.GetEnergyCalendarHistoryAsync(period: "day");
+IReadOnlyList<PowerHistoryPoint> power = await powerwall.GetPowerCalendarHistoryAsync(period: "day");
+IReadOnlyList<StateOfEnergyHistoryPoint> soe = await powerwall.GetStateOfEnergyCalendarHistoryAsync(period: "day");
+IReadOnlyList<SelfConsumptionHistoryPoint> selfConsumption = await powerwall.GetSelfConsumptionCalendarHistoryAsync(period: "day");
+BackupHistory backup = await powerwall.GetBackupCalendarHistoryAsync(period: "day");
+```
+
+`time_of_use_energy` and `savings` have no typed model yet (Tesla returns an empty payload for both unless a time-of-use tariff is configured); call `GetCalendarHistoryAsync` directly for those. `GetHistoryAsync` (the older, non-calendar-aligned `/history` endpoint) has been permanently removed by Tesla and always throws `PowerwallCloudEndpointRemovedException`; use the calendar-history methods above instead.
 
 ## Repository Contents
 

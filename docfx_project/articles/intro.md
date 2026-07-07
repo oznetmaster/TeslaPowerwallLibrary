@@ -50,7 +50,16 @@ even on a first connect: when omitted (or stale), the library silently derives a
 ```csharp
 var status = await powerwall.StatusAsync();
 var systemStatus = await powerwall.SystemStatusAsync();
-var energyHistory = await powerwall.GetCalendarHistoryAsync("energy", period: "day");
+
+// Strongly typed calendar-history convenience methods (cloud mode only) parse the raw JSON for you:
+IReadOnlyList<EnergyHistoryPoint> energyHistory = await powerwall.GetEnergyCalendarHistoryAsync(period: "day");
+IReadOnlyList<PowerHistoryPoint> powerHistory = await powerwall.GetPowerCalendarHistoryAsync(period: "day");
+IReadOnlyList<StateOfEnergyHistoryPoint> soeHistory = await powerwall.GetStateOfEnergyCalendarHistoryAsync(period: "day");
+IReadOnlyList<SelfConsumptionHistoryPoint> selfConsumptionHistory = await powerwall.GetSelfConsumptionCalendarHistoryAsync(period: "day");
+BackupHistory backupHistory = await powerwall.GetBackupCalendarHistoryAsync(period: "day");
+
+// Or call GetCalendarHistoryAsync directly for the raw JSON body (any kind, including time_of_use_energy and savings):
+string? rawEnergyHistory = await powerwall.GetCalendarHistoryAsync("energy", period: "day");
 ```
 
 ## Notes

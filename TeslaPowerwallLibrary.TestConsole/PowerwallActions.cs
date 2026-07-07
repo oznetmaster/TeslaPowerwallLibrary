@@ -2,6 +2,7 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System.Globalization;
+using System.IO;
 
 using Newtonsoft.Json;
 
@@ -315,12 +316,123 @@ internal static class PowerwallActions
 		WriteJsonOrStatus (body);
 		}
 
+	/// <summary>Gets the calendar-history kinds with strongly typed <see cref="Powerwall"/> convenience methods.</summary>
+	public static IReadOnlyList<string> TypedHistoryKinds { get; } =
+		["energy", "power", "soe", "self_consumption", "backup"];
+
+	/// <summary>
+	/// Prints strongly typed calendar-aligned history for the active site (cloud mode only) by calling the
+	/// typed <see cref="Powerwall"/> convenience method for <paramref name="kind"/> (for example
+	/// <see cref="Powerwall.GetEnergyCalendarHistoryAsync"/>) instead of the raw JSON API.
+	/// </summary>
+	public static async Task TypedHistoryAsync (Powerwall powerwall, string kind, string? period, CancellationToken cancellationToken)
+		{
+		ConsoleHelpers.WriteHeading ($"Typed History ({kind}{(period is null ? string.Empty : $", {period}")})");
+
+		switch (kind)
+			{
+			case "energy":
+				var energy = await powerwall.GetEnergyCalendarHistoryAsync (period, cancellationToken: cancellationToken).ConfigureAwait (false);
+				WritePoints (energy, p => p.Timestamp, p =>
+					$"solar {p.SolarKwh:N2} kWh, home {p.HomeKwh:N2} kWh, from grid {p.FromGridKwh:N2} kWh, " +
+					$"to grid {p.ToGridKwh:N2} kWh, battery charge {p.BatteryChargeKwh:N2} kWh, battery discharge {p.BatteryDischargeKwh:N2} kWh");
+				break;
+
+			case "power":
+				var power = await powerwall.GetPowerCalendarHistoryAsync (period, cancellationToken: cancellationToken).ConfigureAwait (false);
+				WritePoints (power, p => p.Timestamp, p =>
+					$"solar {ConsoleHelpers.FormatWatts (p.SolarPower)}, battery {ConsoleHelpers.FormatWatts (p.BatteryPower)}, " +
+					$"grid {ConsoleHelpers.FormatWatts (p.GridPower)}, grid services {ConsoleHelpers.FormatWatts (p.GridServicesPower)}, " +
+					$"generator {ConsoleHelpers.FormatWatts (p.GeneratorPower)}");
+				break;
+
+			case "soe":
+				var soe = await powerwall.GetStateOfEnergyCalendarHistoryAsync (period, cancellationToken: cancellationToken).ConfigureAwait (false);
+				WritePoints (soe, p => p.Timestamp, p => $"soe {p.Soe:N1} %");
+				break;
+
+			case "self_consumption":
+				var selfConsumption = await powerwall.GetSelfConsumptionCalendarHistoryAsync (period, cancellationToken: cancellationToken).ConfigureAwait (false);
+				WritePoints (selfConsumption, p => p.Timestamp, p => $"solar {p.SolarPercentage:N1} %, battery {p.BatteryPercentage:N1} %");
+				break;
+
+			case "backup":
+				var backup = await powerwall.GetBackupCalendarHistoryAsync (period, cancellationToken: cancellationToken).ConfigureAwait (false);
+				ConsoleHelpers.WriteField ("Events", backup.EventsCount.ToString (CultureInfo.InvariantCulture));
+				ConsoleHelpers.WriteField ("Total events", backup.TotalEvents.ToString (CultureInfo.InvariantCulture));
+				ConsoleHelpers.WriteField ("Next start date", backup.NextStartDate?.ToString ("O", CultureInfo.InvariantCulture));
+				ConsoleHelpers.WriteField ("Next end date", backup.NextEndDate?.ToString ("O", CultureInfo.InvariantCulture));
+				if (backup.Events.Count == 0)
+					{
+					Console.WriteLine ("  (no events)");
+					break;
+					}
+
+				foreach (var evt in backup.Events)
+					ConsoleHelpers.WriteField ("Event", string.Join (", ", evt.Select (kv => $"{kv.Key}={kv.Value}")));
+				break;
+
+			default:
+				throw new ArgumentException ($"Invalid typed history kind '{kind}'. Allowed values: {string.Join (", ", TypedHistoryKinds)}.", nameof (kind));
+			}
+		}
+
+	private static void WritePoints<T> (IReadOnlyList<T> points, Func<T, DateTimeOffset> getTimestamp, Func<T, string> formatValues)
+		{
+		if (points.Count == 0)
+			{
+			Console.WriteLine ("  (no points)");
+			return;
+			}
+
+		foreach (var point in points)
+			ConsoleHelpers.WriteField (getTimestamp (point).ToString ("yyyy-MM-dd HH:mm:ss zzz", CultureInfo.InvariantCulture), formatValues (point));
+		}
+
 	/// <summary>Polls an arbitrary API endpoint and prints the raw response body.</summary>
 	public static async Task PollAsync (Powerwall powerwall, string api, CancellationToken cancellationToken)
 		{
 		var body = await powerwall.PollAsync (api, force: true, cancellationToken).ConfigureAwait (false);
 		ConsoleHelpers.WriteHeading ($"GET {api}");
 		WriteJsonOrStatus (body);
+		}
+
+	/// <summary>
+	/// Fetches raw calendar-aligned energy history for every kind in <see cref="Powerwall.CalendarHistoryKinds"/>
+	/// (cloud mode only) and writes each response body to its own <c>calendar_history_{kind}.json</c> file under
+	/// <paramref name="outputDirectory"/>. Intended as a one-off developer/diagnostic tool for capturing real
+	/// payload samples used to design strongly typed history models; failures for one kind do not abort the rest.
+	/// </summary>
+	/// <param name="powerwall">The connected Powerwall instance (cloud mode).</param>
+	/// <param name="outputDirectory">Directory to write the captured JSON files to; created if missing.</param>
+	/// <param name="period">The aggregation period to request for every kind, or <see langword="null"/> for the default.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	public static async Task CaptureCalendarHistoryAsync (Powerwall powerwall, string outputDirectory, string? period, CancellationToken cancellationToken)
+		{
+		ConsoleHelpers.WriteHeading ("Capture Calendar History");
+		Directory.CreateDirectory (outputDirectory);
+
+		foreach (var kind in Powerwall.CalendarHistoryKinds)
+			{
+			try
+				{
+				var body = await powerwall.GetCalendarHistoryAsync (kind, period, cancellationToken: cancellationToken).ConfigureAwait (false);
+				var path = Path.Combine (outputDirectory, $"calendar_history_{kind}.json");
+
+				if (body is null)
+					{
+					ConsoleHelpers.WriteError ($"  {kind,-20} no data returned; skipped.");
+					continue;
+					}
+
+				File.WriteAllText (path, Prettify (body));
+				ConsoleHelpers.WriteSuccess ($"  {kind,-20} -> {path} ({body.Length} bytes)");
+				}
+			catch (PowerwallException exc)
+				{
+				ConsoleHelpers.WriteError ($"  {kind,-20} failed: {exc.Message}");
+				}
+			}
 		}
 
 	// Distinguishes a failed/unavailable call (null body) from a genuinely empty payload so the

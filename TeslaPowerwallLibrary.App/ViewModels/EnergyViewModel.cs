@@ -21,6 +21,7 @@ using LiveChartsCore.SkiaSharpView.Painting;
 using SkiaSharp;
 
 using TeslaPowerwallLibrary.App.Services;
+using TeslaPowerwallLibrary.Models;
 
 namespace TeslaPowerwallLibrary.App.ViewModels;
 
@@ -173,12 +174,12 @@ public sealed partial class EnergyViewModel : ViewModelBase
 		try
 			{
 			using var cts = new CancellationTokenSource (TimeSpan.FromSeconds (30));
-			string? body;
+			IReadOnlyList<EnergyHistoryPoint> points;
 			var networkStopwatch = Stopwatch.StartNew ();
 			try
 				{
-				body = await _connection.Powerwall
-					.GetCalendarHistoryAsync ("energy", SelectedPeriod, startDate: startDate, endDate: endDate, cancellationToken: cts.Token)
+				points = await _connection.Powerwall
+					.GetEnergyCalendarHistoryAsync (SelectedPeriod, startDate: startDate, endDate: endDate, cancellationToken: cts.Token)
 					.ConfigureAwait (true);
 				}
 			catch (OperationCanceledException)
@@ -193,10 +194,9 @@ public sealed partial class EnergyViewModel : ViewModelBase
 				}
 			finally
 				{
-				Debug.WriteLine ($"[Perf] EnergyViewModel.LoadAsync: GetCalendarHistoryAsync took {networkStopwatch.ElapsedMilliseconds} ms.");
+				Debug.WriteLine ($"[Perf] EnergyViewModel.LoadAsync: GetEnergyCalendarHistoryAsync took {networkStopwatch.ElapsedMilliseconds} ms.");
 				}
 
-			var points = EnergyHistoryParser.ParseEnergy (body);
 			if (points.Count == 0)
 				{
 				_buckets = Array.Empty<EnergyBucket> ();
