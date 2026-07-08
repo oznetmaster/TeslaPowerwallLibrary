@@ -54,11 +54,11 @@ var systemStatus = await powerwall.SystemStatusAsync();
 // Strongly typed calendar-history convenience methods (cloud mode only) deserialize the raw JSON for you,
 // directly into records with a few computed convenience properties layered on top (for example
 // EnergyHistoryPoint.SolarKwh, which sums and converts the underlying raw watt-hour fields):
-IReadOnlyList<EnergyHistoryPoint> energyHistory = await powerwall.GetEnergyCalendarHistoryAsync(period: "day");
-IReadOnlyList<PowerHistoryPoint> powerHistory = await powerwall.GetPowerCalendarHistoryAsync(period: "day");
-IReadOnlyList<StateOfEnergyHistoryPoint> soeHistory = await powerwall.GetStateOfEnergyCalendarHistoryAsync(period: "day");
-IReadOnlyList<SelfConsumptionHistoryPoint> selfConsumptionHistory = await powerwall.GetSelfConsumptionCalendarHistoryAsync(period: "day");
-BackupHistory backupHistory = await powerwall.GetBackupCalendarHistoryAsync(period: "day");
+IReadOnlyList<EnergyHistoryPoint> energyHistory = await powerwall.GetEnergyCalendarHistoryAsync(HistoryPeriod.Day);
+IReadOnlyList<PowerHistoryPoint> powerHistory = await powerwall.GetPowerCalendarHistoryAsync(HistoryPeriod.Day);
+IReadOnlyList<StateOfEnergyHistoryPoint> soeHistory = await powerwall.GetStateOfEnergyCalendarHistoryAsync(HistoryPeriod.Day);
+IReadOnlyList<SelfConsumptionHistoryPoint> selfConsumptionHistory = await powerwall.GetSelfConsumptionCalendarHistoryAsync(HistoryPeriod.Day);
+BackupHistory backupHistory = await powerwall.GetBackupCalendarHistoryAsync(HistoryPeriod.Day);
 
 // Or call GetCalendarHistoryAsync directly for the raw JSON body (any kind, including time_of_use_energy and savings):
 string? rawEnergyHistory = await powerwall.GetCalendarHistoryAsync("energy", period: "day");

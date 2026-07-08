@@ -179,7 +179,7 @@ public sealed partial class EnergyViewModel : ViewModelBase
 			try
 				{
 				points = await _connection.Powerwall
-					.GetEnergyCalendarHistoryAsync (SelectedPeriod, startDate: startDate, endDate: endDate, cancellationToken: cts.Token)
+					.GetEnergyCalendarHistoryAsync (ToHistoryPeriod (SelectedPeriod), startDate: startDate, endDate: endDate, cancellationToken: cts.Token)
 					.ConfigureAwait (true);
 				}
 			catch (OperationCanceledException)
@@ -267,6 +267,18 @@ public sealed partial class EnergyViewModel : ViewModelBase
 		PeriodLabel = BuildPeriodLabel (SelectedPeriod, start, end);
 		return (ToRfc3339 (start), ToRfc3339 (end));
 		}
+
+	// Converts the UI's string period (bound to Powerwall.HistoryPeriods via the Periods combo box) to the
+	// HistoryPeriod enum required by the typed Get*CalendarHistoryAsync methods.
+	private static HistoryPeriod ToHistoryPeriod (string period) =>
+		period switch
+			{
+			"week" => HistoryPeriod.Week,
+			"month" => HistoryPeriod.Month,
+			"year" => HistoryPeriod.Year,
+			LifetimePeriod => HistoryPeriod.Lifetime,
+			_ => HistoryPeriod.Day
+			};
 
 	private static (DateTimeOffset Start, DateTimeOffset End) GetPeriodRange (string period, DateTimeOffset anchor)
 		{

@@ -19,11 +19,11 @@
 		<Company>Neil Colvin</Company>
 		<Product>TeslaPowerwallLibrary</Product>
 		<Copyright>Copyright © 2026 Neil Colvin</Copyright>
-		<AssemblyVersion>1.0.3.0</AssemblyVersion>
-		<FileVersion>1.0.3.0</FileVersion>
+		<AssemblyVersion>1.1.0.0</AssemblyVersion>
+		<FileVersion>1.1.0.0</FileVersion>
 		<PackageId>TeslaPowerwallLibrary</PackageId>
-		<Version>1.0.3.0</Version>
-		<PackageReleaseNotes>Adds Storm Watch control (cloud only): Powerwall.GetStormWatchAsync/SetStormWatchAsync let callers read and toggle Storm Watch (predictive pre-charging ahead of severe weather) the same way the Tesla app does, via the Tesla Owners cloud API.</PackageReleaseNotes>
+		<Version>1.1.0.0</Version>
+		<PackageReleaseNotes>Calendar-history APIs (GetEnergyCalendarHistoryAsync, GetPowerCalendarHistoryAsync, GetStateOfEnergyCalendarHistoryAsync, GetSelfConsumptionCalendarHistoryAsync, GetBackupCalendarHistoryAsync) now return strongly-typed, Json.NET-mapped model records instead of raw JSON, and accept a new HistoryPeriod enum (Day, Week, Month, Year, Lifetime) in place of a period string. Raw string-based history APIs are unaffected.</PackageReleaseNotes>
 		<Authors>Neil Colvin</Authors>
 		<PackageTags>tesla;powerwall;smart-home;iot;rest;api;nuget</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>

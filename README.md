@@ -112,11 +112,11 @@ await powerwall.ConnectAsync();
 `GetCalendarHistoryAsync` returns the raw JSON body for any history `kind` (`power`, `soe`, `energy`, `backup`, `self_consumption`, `time_of_use_energy`, or `savings`), mirroring the upstream Python library's behavior. For the kinds with a verified, stable schema, typed convenience methods deserialize that JSON directly into strongly typed records (via Newtonsoft.Json `[JsonProperty]` mappings, no hand-written parsing) so callers do not need to do it themselves:
 
 ```csharp
-IReadOnlyList<EnergyHistoryPoint> energy = await powerwall.GetEnergyCalendarHistoryAsync(period: "day");
-IReadOnlyList<PowerHistoryPoint> power = await powerwall.GetPowerCalendarHistoryAsync(period: "day");
-IReadOnlyList<StateOfEnergyHistoryPoint> soe = await powerwall.GetStateOfEnergyCalendarHistoryAsync(period: "day");
-IReadOnlyList<SelfConsumptionHistoryPoint> selfConsumption = await powerwall.GetSelfConsumptionCalendarHistoryAsync(period: "day");
-BackupHistory backup = await powerwall.GetBackupCalendarHistoryAsync(period: "day");
+IReadOnlyList<EnergyHistoryPoint> energy = await powerwall.GetEnergyCalendarHistoryAsync(HistoryPeriod.Day);
+IReadOnlyList<PowerHistoryPoint> power = await powerwall.GetPowerCalendarHistoryAsync(HistoryPeriod.Day);
+IReadOnlyList<StateOfEnergyHistoryPoint> soe = await powerwall.GetStateOfEnergyCalendarHistoryAsync(HistoryPeriod.Day);
+IReadOnlyList<SelfConsumptionHistoryPoint> selfConsumption = await powerwall.GetSelfConsumptionCalendarHistoryAsync(HistoryPeriod.Day);
+BackupHistory backup = await powerwall.GetBackupCalendarHistoryAsync(HistoryPeriod.Day);
 ```
 
 Each record exposes Tesla's raw fields plus a few computed convenience properties layered on top — for example `EnergyHistoryPoint` sums and converts the raw watt-hour fields into `SolarKwh`, `HomeKwh`, `FromGridKwh`, `ToGridKwh`, `BatteryChargeKwh`, and `BatteryDischargeKwh`.

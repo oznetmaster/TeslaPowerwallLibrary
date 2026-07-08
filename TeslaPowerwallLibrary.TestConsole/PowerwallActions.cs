@@ -332,14 +332,14 @@ internal static class PowerwallActions
 		switch (kind)
 			{
 			case "energy":
-				var energy = await powerwall.GetEnergyCalendarHistoryAsync (period, cancellationToken: cancellationToken).ConfigureAwait (false);
+				var energy = await powerwall.GetEnergyCalendarHistoryAsync (ParsePeriod (period), cancellationToken: cancellationToken).ConfigureAwait (false);
 				WritePoints (energy, p => p.Timestamp, p =>
 					$"solar {p.SolarKwh:N2} kWh, home {p.HomeKwh:N2} kWh, from grid {p.FromGridKwh:N2} kWh, " +
 					$"to grid {p.ToGridKwh:N2} kWh, battery charge {p.BatteryChargeKwh:N2} kWh, battery discharge {p.BatteryDischargeKwh:N2} kWh");
 				break;
 
 			case "power":
-				var power = await powerwall.GetPowerCalendarHistoryAsync (period, cancellationToken: cancellationToken).ConfigureAwait (false);
+				var power = await powerwall.GetPowerCalendarHistoryAsync (ParsePeriod (period), cancellationToken: cancellationToken).ConfigureAwait (false);
 				WritePoints (power, p => p.Timestamp, p =>
 					$"solar {ConsoleHelpers.FormatWatts (p.SolarPower)}, battery {ConsoleHelpers.FormatWatts (p.BatteryPower)}, " +
 					$"grid {ConsoleHelpers.FormatWatts (p.GridPower)}, grid services {ConsoleHelpers.FormatWatts (p.GridServicesPower)}, " +
@@ -347,17 +347,17 @@ internal static class PowerwallActions
 				break;
 
 			case "soe":
-				var soe = await powerwall.GetStateOfEnergyCalendarHistoryAsync (period, cancellationToken: cancellationToken).ConfigureAwait (false);
+				var soe = await powerwall.GetStateOfEnergyCalendarHistoryAsync (ParsePeriod (period), cancellationToken: cancellationToken).ConfigureAwait (false);
 				WritePoints (soe, p => p.Timestamp, p => $"soe {p.Soe:N1} %");
 				break;
 
 			case "self_consumption":
-				var selfConsumption = await powerwall.GetSelfConsumptionCalendarHistoryAsync (period, cancellationToken: cancellationToken).ConfigureAwait (false);
+				var selfConsumption = await powerwall.GetSelfConsumptionCalendarHistoryAsync (ParsePeriod (period), cancellationToken: cancellationToken).ConfigureAwait (false);
 				WritePoints (selfConsumption, p => p.Timestamp, p => $"solar {p.SolarPercentage:N1} %, battery {p.BatteryPercentage:N1} %");
 				break;
 
 			case "backup":
-				var backup = await powerwall.GetBackupCalendarHistoryAsync (period, cancellationToken: cancellationToken).ConfigureAwait (false);
+				var backup = await powerwall.GetBackupCalendarHistoryAsync (ParsePeriod (period), cancellationToken: cancellationToken).ConfigureAwait (false);
 				ConsoleHelpers.WriteField ("Events", backup.EventsCount.ToString (CultureInfo.InvariantCulture));
 				ConsoleHelpers.WriteField ("Total events", backup.TotalEvents.ToString (CultureInfo.InvariantCulture));
 				ConsoleHelpers.WriteField ("Next start date", backup.NextStartDate?.ToString ("O", CultureInfo.InvariantCulture));
@@ -376,6 +376,19 @@ internal static class PowerwallActions
 				throw new ArgumentException ($"Invalid typed history kind '{kind}'. Allowed values: {string.Join (", ", TypedHistoryKinds)}.", nameof (kind));
 			}
 		}
+
+	/// <summary>Parses a CLI period string into the <see cref="HistoryPeriod"/> required by the typed calendar-history methods.</summary>
+	private static HistoryPeriod ParsePeriod (string? period) =>
+		period switch
+			{
+			null => HistoryPeriod.Day,
+			"day" => HistoryPeriod.Day,
+			"week" => HistoryPeriod.Week,
+			"month" => HistoryPeriod.Month,
+			"year" => HistoryPeriod.Year,
+			"lifetime" => HistoryPeriod.Lifetime,
+			_ => throw new ArgumentException ($"Invalid history period '{period}'. Allowed values: {string.Join (", ", Powerwall.HistoryPeriods)}.", nameof (period))
+			};
 
 	private static void WritePoints<T> (IReadOnlyList<T> points, Func<T, DateTimeOffset> getTimestamp, Func<T, string> formatValues)
 		{

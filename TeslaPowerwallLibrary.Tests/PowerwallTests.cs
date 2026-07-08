@@ -331,17 +331,6 @@ public sealed class PowerwallTests
 		}
 
 	[TestMethod]
-	[DataRow ("hour")]
-	[DataRow ("DAY")]
-	public async Task WhenPeriodIsInvalidThenGetEnergyCalendarHistoryThrowsArgumentException (string period)
-		{
-		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
-
-		await Assert.ThrowsExactlyAsync<ArgumentException> (
-			async () => await powerwall.GetEnergyCalendarHistoryAsync (period));
-		}
-
-	[TestMethod]
 	public void WhenNoCloudTokenPersistenceIsTrueThenInvalidEmailDoesNotThrow ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions
