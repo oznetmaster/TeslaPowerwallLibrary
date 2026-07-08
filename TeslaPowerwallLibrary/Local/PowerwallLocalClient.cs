@@ -10,7 +10,6 @@ using System.Text;
 using log4net;
 
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 using TeslaPowerwallLibrary.Models;
 
@@ -372,15 +371,15 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 
 			try
 				{
-				var json = JObject.Parse (body);
+				LocalLoginResponse? json = JsonConvert.DeserializeObject<LocalLoginResponse> (body);
 				if (_authMode == "token")
 					{
-					Token = json.Value<string> ("token");
+					Token = json?.Token;
 					_authorizationHeader = $"Bearer {Token}";
 					}
 
 				_hasAuth = true;
-				PersistAuth (json);
+				PersistAuth ();
 				}
 			catch (JsonException exc)
 				{
@@ -397,10 +396,13 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 			if (!File.Exists (_cacheFile))
 				return;
 
-			var json = JObject.Parse (File.ReadAllText (_cacheFile));
+			LocalAuthCacheEntry? entry = JsonConvert.DeserializeObject<LocalAuthCacheEntry> (File.ReadAllText (_cacheFile));
+			if (entry is null)
+				return;
+
 			if (_authMode == "token")
 				{
-				var authorization = json.Value<string> ("Authorization");
+				var authorization = entry.Authorization;
 				if (!string.IsNullOrWhiteSpace (authorization))
 					{
 					_authorizationHeader = authorization;
@@ -408,10 +410,10 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 					_hasAuth = true;
 					}
 				}
-			else if (json["AuthCookie"] is not null && json["UserRecord"] is not null)
+			else if (entry.AuthCookie is not null && entry.UserRecord is not null)
 				{
-				_cookies!.Add (new Cookie ("AuthCookie", json.Value<string> ("AuthCookie"), "/", HostWithoutPort));
-				_cookies.Add (new Cookie ("UserRecord", json.Value<string> ("UserRecord"), "/", HostWithoutPort));
+				_cookies!.Add (new Cookie ("AuthCookie", entry.AuthCookie, "/", HostWithoutPort));
+				_cookies.Add (new Cookie ("UserRecord", entry.UserRecord, "/", HostWithoutPort));
 				_hasAuth = true;
 				}
 
@@ -423,29 +425,30 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 			}
 		}
 
-	private void PersistAuth (JObject loginResponse)
+	private void PersistAuth ()
 		{
 		try
 			{
-			JObject auth;
-			if (_authMode == "token")
-				{
-				auth = new JObject { ["Authorization"] = _authorizationHeader };
-				}
-			else
-				{
-				var stored = new JObject ();
-				foreach (Cookie cookie in _cookies!.GetCookies (new Uri ($"https://{HostWithoutPort}")))
-					stored[cookie.Name] = cookie.Value;
-				auth = stored;
-				}
+			LocalAuthCacheEntry auth = _authMode == "token"
+				? new LocalAuthCacheEntry { Authorization = _authorizationHeader }
+				: BuildCookieAuthEntry ();
 
-			File.WriteAllText (_cacheFile, auth.ToString (Formatting.None));
+			File.WriteAllText (_cacheFile, JsonConvert.SerializeObject (auth));
 			}
 		catch (Exception exc) when (exc is IOException or UnauthorizedAccessException)
 			{
 			_log.Debug ($"unable to cache auth session - continuing: {exc.Message}");
 			}
+		}
+
+	private LocalAuthCacheEntry BuildCookieAuthEntry ()
+		{
+		CookieCollection cookies = _cookies!.GetCookies (new Uri ($"https://{HostWithoutPort}"));
+		return new LocalAuthCacheEntry
+			{
+			AuthCookie = cookies["AuthCookie"]?.Value,
+			UserRecord = cookies["UserRecord"]?.Value
+			};
 		}
 
 	private HttpRequestMessage CreateRequest (HttpMethod method, string url)

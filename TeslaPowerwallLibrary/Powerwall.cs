@@ -829,19 +829,19 @@ public sealed class Powerwall : IDisposable
 
 		// Vitals are not present on local firmware after 23.44; fall back to /api/solar_powerwall.
 		var payload = await RequireClient ().PollAsync ("/api/solar_powerwall", cancellationToken: cancellationToken).ConfigureAwait (false);
-		JObject? solar = JsonHelper.DeserializeOrNull<JObject> (payload);
+		SolarPowerwallAlertsResponse? solar = JsonHelper.DeserializeOrNull<SolarPowerwallAlertsResponse> (payload);
 		if (solar is null)
 			return alerts;
 
-		foreach (var group in new[] { "pvac_alerts", "pvs_alerts" })
+		foreach (IReadOnlyDictionary<string, bool>? group in new[] { solar.PvacAlerts, solar.PvsAlerts })
 			{
-			if (solar[group] is not JObject flags)
+			if (group is null)
 				continue;
 
-			foreach (JProperty flag in flags.Properties ())
+			foreach (KeyValuePair<string, bool> flag in group)
 				{
-				if (flag.Value.Type == JTokenType.Boolean && flag.Value.Value<bool> () && seen.Add (flag.Name))
-					alerts.Add (flag.Name);
+				if (flag.Value && seen.Add (flag.Key))
+					alerts.Add (flag.Key);
 				}
 			}
 

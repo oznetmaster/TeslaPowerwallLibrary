@@ -202,24 +202,24 @@ internal static class TeslaAuth
 
 	private static TeslaTokens ParseTokenResponse (string body)
 		{
-		JObject root;
+		TeslaTokenExchangeResponse root;
 		try
 			{
-			root = JObject.Parse (body);
+			root = JsonConvert.DeserializeObject<TeslaTokenExchangeResponse> (body) ?? new TeslaTokenExchangeResponse ();
 			}
 		catch (JsonException exc)
 			{
 			throw new TeslaAuthException ($"Unable to parse Tesla token response: {exc.Message}", exc);
 			}
 
-		var refreshToken = root.Value<string> ("refresh_token");
+		var refreshToken = root.RefreshToken;
 		if (string.IsNullOrEmpty (refreshToken))
 			throw new TeslaAuthException ($"No refresh_token in Tesla token response: {body}");
 
-		var accessToken = root.Value<string> ("access_token") ?? string.Empty;
-		var tokenType = root.Value<string> ("token_type") ?? "Bearer";
-		var idToken = root.Value<string> ("id_token");
-		var expiresIn = (int?) root["expires_in"] ?? 28800;
+		var accessToken = root.AccessToken ?? string.Empty;
+		var tokenType = root.TokenType ?? "Bearer";
+		var idToken = root.IdToken;
+		var expiresIn = root.ExpiresIn ?? 28800;
 		var email = idToken is null ? string.Empty : ExtractEmailFromToken (idToken);
 
 		return new TeslaTokens (refreshToken!, accessToken, email, tokenType, expiresIn, idToken);
@@ -243,14 +243,13 @@ internal static class TeslaAuth
 				return string.Empty;
 
 			var payload = Encoding.UTF8.GetString (Base64UrlDecode (parts[1]));
-			var root = JObject.Parse (payload);
+			TeslaIdTokenPayload? root = JsonConvert.DeserializeObject<TeslaIdTokenPayload> (payload);
 
-			var email = root.Value<string> ("email");
-			if (!string.IsNullOrEmpty (email))
-				return email!;
+			if (!string.IsNullOrEmpty (root?.Email))
+				return root!.Email!;
 
-			if (root["data"] is JObject data)
-				return data.Value<string> ("email") ?? string.Empty;
+			if (!string.IsNullOrEmpty (root?.Data?.Email))
+				return root!.Data!.Email!;
 			}
 		catch (Exception exc) when (exc is JsonException or FormatException)
 			{
@@ -366,6 +365,62 @@ internal sealed record TeslaTokens (
 	string TokenType,
 	int ExpiresIn,
 	string? IdToken);
+
+// CA1507 (use nameof) does not apply here: JsonProperty names are the external wire-format contract,
+// not references to the local member names they happen to be attached to.
+#pragma warning disable CA1507
+
+/// <summary>
+/// The <c>response</c> body of the Tesla OAuth <c>oauth2/v3/token</c> code-exchange endpoint.
+/// </summary>
+internal sealed record TeslaTokenExchangeResponse
+	{
+	/// <summary>The long-lived refresh token (valid ~90 days).</summary>
+	[JsonProperty ("refresh_token")]
+	public string? RefreshToken { get; init; }
+
+	/// <summary>The short-lived access token (valid ~8 hours).</summary>
+	[JsonProperty ("access_token")]
+	public string? AccessToken { get; init; }
+
+	/// <summary>The token type, normally <c>Bearer</c>.</summary>
+	[JsonProperty ("token_type")]
+	public string? TokenType { get; init; }
+
+	/// <summary>The raw OpenID id_token, when returned.</summary>
+	[JsonProperty ("id_token")]
+	public string? IdToken { get; init; }
+
+	/// <summary>The access-token lifetime, in seconds.</summary>
+	[JsonProperty ("expires_in")]
+	public int? ExpiresIn { get; init; }
+	}
+
+/// <summary>
+/// The decoded payload of a Tesla id_token JWT, used only to recover the account email.
+/// </summary>
+internal sealed record TeslaIdTokenPayload
+	{
+	/// <summary>The account email, when present directly on the payload.</summary>
+	[JsonProperty ("email")]
+	public string? Email { get; init; }
+
+	/// <summary>A nested <c>data</c> object that carries the account email on some token shapes.</summary>
+	[JsonProperty ("data")]
+	public TeslaIdTokenPayloadData? Data { get; init; }
+	}
+
+/// <summary>
+/// The nested <c>data</c> object of a <see cref="TeslaIdTokenPayload"/>.
+/// </summary>
+internal sealed record TeslaIdTokenPayloadData
+	{
+	/// <summary>The account email.</summary>
+	[JsonProperty ("email")]
+	public string? Email { get; init; }
+	}
+
+#pragma warning restore CA1507
 
 /// <summary>
 /// The exception thrown when the Tesla OAuth token exchange fails.

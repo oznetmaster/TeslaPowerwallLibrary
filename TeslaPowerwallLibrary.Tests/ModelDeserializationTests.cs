@@ -127,4 +127,24 @@ public sealed class ModelDeserializationTests
 		Assert.AreEqual ("My Home", siteName!.Name);
 		Assert.AreEqual ("America/Los_Angeles", siteName.Timezone);
 		}
+
+	[TestMethod]
+	public void WhenSolarPowerwallAlertsPayloadIsDeserializedThenAlertFlagsAreMapped ()
+		{
+		const string json = """
+			{
+			  "pvac_alerts": { "PVAC_Fault": false, "PVAC_Overtemp": true },
+			  "pvs_alerts": { "PVS_Fault": true }
+			}
+			""";
+
+		var alerts = JsonConvert.DeserializeObject<SolarPowerwallAlertsResponse> (json);
+
+		Assert.IsNotNull (alerts);
+		Assert.IsNotNull (alerts!.PvacAlerts);
+		Assert.IsFalse (alerts.PvacAlerts!["PVAC_Fault"]);
+		Assert.IsTrue (alerts.PvacAlerts["PVAC_Overtemp"]);
+		Assert.IsNotNull (alerts.PvsAlerts);
+		Assert.IsTrue (alerts.PvsAlerts!["PVS_Fault"]);
+		}
 	}

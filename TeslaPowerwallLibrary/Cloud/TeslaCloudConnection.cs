@@ -115,19 +115,17 @@ internal sealed class TeslaCloudConnection : IDisposable
 
 			try
 				{
-				var json = JObject.Parse (payload);
-				var newAccessToken = json.Value<string> ("access_token");
-				if (string.IsNullOrWhiteSpace (newAccessToken))
+				var tokens = JsonConvert.DeserializeObject<TeslaCloudTokenResponse> (payload);
+				if (tokens is null || string.IsNullOrWhiteSpace (tokens.AccessToken))
 					{
 					_log.Error ("Tesla cloud token refresh response did not contain an access token.");
 					return false;
 					}
 
 				var priorRefreshToken = _refreshToken;
-				_accessToken = newAccessToken;
-				var newRefreshToken = json.Value<string> ("refresh_token");
-				if (!string.IsNullOrWhiteSpace (newRefreshToken))
-					_refreshToken = newRefreshToken;
+				_accessToken = tokens.AccessToken;
+				if (!string.IsNullOrWhiteSpace (tokens.RefreshToken))
+					_refreshToken = tokens.RefreshToken;
 
 				_log.Debug ("Tesla cloud access token refreshed.");
 
@@ -148,27 +146,27 @@ internal sealed class TeslaCloudConnection : IDisposable
 	/// Retrieves the list of Tesla energy products (batteries and solar) for the account.
 	/// </summary>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
-	/// <returns>The product array from the <c>response</c> envelope, or <see langword="null"/> when unavailable.</returns>
-	public async Task<JArray?> GetProductsAsync (CancellationToken cancellationToken = default)
+	/// <returns>The product list from the <c>response</c> envelope, or <see langword="null"/> when unavailable.</returns>
+	public async Task<List<EnergyProduct>?> GetProductsAsync (CancellationToken cancellationToken = default)
 		{
 		JToken? response = await SendApiAsync (HttpMethod.Get, "api/1/products", null, null, cancellationToken).ConfigureAwait (false);
-		return (response as JObject)?["response"] as JArray;
+		return ToTypedResponse<List<EnergyProduct>> (response);
 		}
 
 	/// <summary>Retrieves the site configuration (<c>site_info</c>) for the specified site.</summary>
 	/// <param name="siteId">The Tesla energy site identifier.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
-	/// <returns>The full response envelope, or <see langword="null"/> when unavailable.</returns>
-	public Task<JObject?> GetSiteConfigAsync (string siteId, CancellationToken cancellationToken = default) =>
-		GetSiteEndpointAsync (siteId, "site_info", new Dictionary<string, string> { ["language"] = "en" }, cancellationToken);
+	/// <returns>The typed <c>response</c> body, or <see langword="null"/> when unavailable.</returns>
+	public Task<SiteConfigResponse?> GetSiteConfigAsync (string siteId, CancellationToken cancellationToken = default) =>
+		GetSiteEndpointAsync<SiteConfigResponse> (siteId, "site_info", new Dictionary<string, string> { ["language"] = "en" }, cancellationToken);
 
 	/// <summary>Retrieves the live site power data (<c>live_status</c>) for the specified site.</summary>
 	/// <param name="siteId">The Tesla energy site identifier.</param>
 	/// <param name="counter">Rolling request counter mirrored from the upstream SITE_DATA API.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
-	/// <returns>The full response envelope, or <see langword="null"/> when unavailable.</returns>
-	public Task<JObject?> GetSitePowerAsync (string siteId, int counter, CancellationToken cancellationToken = default) =>
-		GetSiteEndpointAsync (
+	/// <returns>The typed <c>response</c> body, or <see langword="null"/> when unavailable.</returns>
+	public Task<SitePowerResponse?> GetSitePowerAsync (string siteId, int counter, CancellationToken cancellationToken = default) =>
+		GetSiteEndpointAsync<SitePowerResponse> (
 			siteId,
 			"live_status",
 			new Dictionary<string, string>
@@ -181,16 +179,16 @@ internal sealed class TeslaCloudConnection : IDisposable
 	/// <summary>Retrieves the battery summary (<c>site_status</c>) for the specified site.</summary>
 	/// <param name="siteId">The Tesla energy site identifier.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
-	/// <returns>The full response envelope, or <see langword="null"/> when unavailable.</returns>
-	public Task<JObject?> GetSiteSummaryAsync (string siteId, CancellationToken cancellationToken = default) =>
-		GetSiteEndpointAsync (siteId, "site_status", new Dictionary<string, string> { ["language"] = "en" }, cancellationToken);
+	/// <returns>The typed <c>response</c> body, or <see langword="null"/> when unavailable.</returns>
+	public Task<SiteSummaryResponse?> GetSiteSummaryAsync (string siteId, CancellationToken cancellationToken = default) =>
+		GetSiteEndpointAsync<SiteSummaryResponse> (siteId, "site_status", new Dictionary<string, string> { ["language"] = "en" }, cancellationToken);
 
 	/// <summary>Retrieves the estimated backup time remaining for the specified site.</summary>
 	/// <param name="siteId">The Tesla energy site identifier.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
-	/// <returns>The full response envelope, or <see langword="null"/> when unavailable.</returns>
-	public Task<JObject?> GetBackupTimeRemainingAsync (string siteId, CancellationToken cancellationToken = default) =>
-		GetSiteEndpointAsync (siteId, "backup_time_remaining", new Dictionary<string, string> { ["language"] = "en" }, cancellationToken);
+	/// <returns>The typed <c>response</c> body, or <see langword="null"/> when unavailable.</returns>
+	public Task<BackupTimeRemainingResponse?> GetBackupTimeRemainingAsync (string siteId, CancellationToken cancellationToken = default) =>
+		GetSiteEndpointAsync<BackupTimeRemainingResponse> (siteId, "backup_time_remaining", new Dictionary<string, string> { ["language"] = "en" }, cancellationToken);
 
 	/// <summary>Retrieves energy history (<c>history</c>) for the specified site.</summary>
 	/// <param name="siteId">The Tesla energy site identifier.</param>
@@ -298,6 +296,34 @@ internal sealed class TeslaCloudConnection : IDisposable
 		{
 		var uri = $"api/1/energy_sites/{siteId}/{segment}";
 		return await SendApiAsync (HttpMethod.Get, uri, null, query, cancellationToken).ConfigureAwait (false) as JObject;
+		}
+
+	private async Task<T?> GetSiteEndpointAsync<T> (string siteId, string segment, IReadOnlyDictionary<string, string> query, CancellationToken cancellationToken)
+		where T : class
+		{
+		var uri = $"api/1/energy_sites/{siteId}/{segment}";
+		JToken? response = await SendApiAsync (HttpMethod.Get, uri, null, query, cancellationToken).ConfigureAwait (false);
+		return ToTypedResponse<T> (response);
+		}
+
+	// Unwraps the Fleet-API-style "response" envelope and maps it onto T, logging and swallowing a
+	// malformed/unexpected shape rather than throwing (matching the tolerant style of the rest of this class).
+	private static T? ToTypedResponse<T> (JToken? root)
+		where T : class
+		{
+		JToken? body = (root as JObject)?["response"];
+		if (body is null || body.Type == JTokenType.Null)
+			return null;
+
+		try
+			{
+			return body.ToObject<T> ();
+			}
+		catch (JsonException exc)
+			{
+			_log.Error ($"Unable to map Tesla cloud API response to {typeof (T).Name}: {exc.Message}");
+			return null;
+			}
 		}
 
 	private async Task<JToken?> SendApiAsync (

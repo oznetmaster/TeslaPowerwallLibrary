@@ -7,7 +7,6 @@ using System.IO;
 using log4net;
 
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace TeslaPowerwallLibrary.Cloud;
 
@@ -58,15 +57,14 @@ internal sealed class TeslaCloudTokenCache
 		{
 		lock (_gate)
 			{
-			JObject root = ReadRoot ();
-			if (root[_email] is not JObject entry)
+			Dictionary<string, CloudTokenCacheFileEntry> root = ReadRoot ();
+			if (!root.TryGetValue (_email, out CloudTokenCacheFileEntry? entry) || entry is null)
 				return CloudTokenCacheEntry.Empty;
 
-			var wasProtected = entry.Value<bool?> ("protected") ?? false;
 			return new CloudTokenCacheEntry (
-				CloudTokenProtector.Unprotect (entry.Value<string> ("access_token"), wasProtected),
-				CloudTokenProtector.Unprotect (entry.Value<string> ("refresh_token"), wasProtected),
-				entry.Value<string> ("site_id"));
+				CloudTokenProtector.Unprotect (entry.AccessToken, entry.Protected),
+				CloudTokenProtector.Unprotect (entry.RefreshToken, entry.Protected),
+				entry.SiteId);
 			}
 		}
 
@@ -77,14 +75,17 @@ internal sealed class TeslaCloudTokenCache
 		{
 		lock (_gate)
 			{
-			JObject root = ReadRoot ();
-			JObject entry = root[_email] as JObject ?? new JObject ();
+			Dictionary<string, CloudTokenCacheFileEntry> root = ReadRoot ();
+			root.TryGetValue (_email, out CloudTokenCacheFileEntry? existing);
 
-			entry["access_token"] = CloudTokenProtector.Protect (accessToken);
-			entry["refresh_token"] = CloudTokenProtector.Protect (refreshToken);
-			entry["protected"] = CloudTokenProtector.IsActive;
+			root[_email] = new CloudTokenCacheFileEntry
+				{
+				AccessToken = CloudTokenProtector.Protect (accessToken),
+				RefreshToken = CloudTokenProtector.Protect (refreshToken),
+				Protected = CloudTokenProtector.IsActive,
+				SiteId = existing?.SiteId
+				};
 
-			root[_email] = entry;
 			WriteRoot (root);
 			}
 		}
@@ -95,28 +96,30 @@ internal sealed class TeslaCloudTokenCache
 		{
 		lock (_gate)
 			{
-			JObject root = ReadRoot ();
-			JObject entry = root[_email] as JObject ?? new JObject ();
+			Dictionary<string, CloudTokenCacheFileEntry> root = ReadRoot ();
+			root.TryGetValue (_email, out CloudTokenCacheFileEntry? existing);
 
-			if (string.IsNullOrWhiteSpace (siteId))
-				entry.Remove ("site_id");
-			else
-				entry["site_id"] = siteId;
+			root[_email] = (existing ?? new CloudTokenCacheFileEntry ()) with
+				{
+				SiteId = string.IsNullOrWhiteSpace (siteId) ? null : siteId
+				};
 
-			root[_email] = entry;
 			WriteRoot (root);
 			}
 		}
 
-	private JObject ReadRoot ()
+	private Dictionary<string, CloudTokenCacheFileEntry> ReadRoot ()
 		{
 		try
 			{
 			if (!File.Exists (_filePath))
-				return new JObject ();
+				return [];
 
 			var json = File.ReadAllText (_filePath);
-			return string.IsNullOrWhiteSpace (json) ? new JObject () : JObject.Parse (json);
+			if (string.IsNullOrWhiteSpace (json))
+				return [];
+
+			return JsonConvert.DeserializeObject<Dictionary<string, CloudTokenCacheFileEntry>> (json) ?? [];
 			}
 		catch (Exception exc) when (exc is IOException or UnauthorizedAccessException or JsonException)
 			{
@@ -128,11 +131,11 @@ internal sealed class TeslaCloudTokenCache
 				}
 
 			_log.Warn ($"Unable to read Tesla cloud token cache '{_filePath}': {exc.Message}");
-			return new JObject ();
+			return [];
 			}
 		}
 
-	private void WriteRoot (JObject root)
+	private void WriteRoot (Dictionary<string, CloudTokenCacheFileEntry> root)
 		{
 		try
 			{
@@ -140,7 +143,7 @@ internal sealed class TeslaCloudTokenCache
 			if (!string.IsNullOrEmpty (directory))
 				Directory.CreateDirectory (directory!);
 
-			File.WriteAllText (_filePath, root.ToString (Formatting.Indented));
+			File.WriteAllText (_filePath, JsonConvert.SerializeObject (root, Formatting.Indented));
 			}
 		catch (Exception exc) when (exc is IOException or UnauthorizedAccessException)
 			{
@@ -202,4 +205,24 @@ internal sealed class CloudTokenCacheEntry
 
 	/// <summary>Gets a value indicating whether any token is present in this entry.</summary>
 	public bool HasToken => !string.IsNullOrWhiteSpace (AccessToken) || !string.IsNullOrWhiteSpace (RefreshToken);
+	}
+
+/// <summary>The on-disk shape of a single cached email's entry within the Tesla cloud token cache file.</summary>
+internal sealed record CloudTokenCacheFileEntry
+	{
+	/// <summary>The access token, protected at rest when <see cref="Protected"/> is <see langword="true"/>.</summary>
+	[JsonProperty ("access_token")]
+	public string? AccessToken { get; init; }
+
+	/// <summary>The refresh token, protected at rest when <see cref="Protected"/> is <see langword="true"/>.</summary>
+	[JsonProperty ("refresh_token")]
+	public string? RefreshToken { get; init; }
+
+	/// <summary>Indicates whether <see cref="AccessToken"/> and <see cref="RefreshToken"/> were DPAPI-protected when written.</summary>
+	[JsonProperty ("protected")]
+	public bool Protected { get; init; }
+
+	/// <summary>The remembered Tesla energy site identifier, when one has been selected.</summary>
+	[JsonProperty ("site_id")]
+	public string? SiteId { get; init; }
 	}
