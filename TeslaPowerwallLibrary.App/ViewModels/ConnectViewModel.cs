@@ -48,13 +48,30 @@ public sealed partial class ConnectViewModel : ViewModelBase
 			new RegionOption ("China", "cn")
 		];
 
-	/// <summary>Gets or sets a value indicating whether cloud mode is selected (otherwise local mode).</summary>
+	/// <summary>Gets or sets a value indicating whether cloud mode is selected.</summary>
 	[ObservableProperty]
 	[NotifyPropertyChangedFor (nameof (IsLocalMode))]
 	private bool _isCloudMode = true;
 
-	/// <summary>Gets a value indicating whether local mode is selected.</summary>
-	public bool IsLocalMode => !IsCloudMode;
+	/// <summary>Gets or sets a value indicating whether Tesla FleetAPI mode is selected.</summary>
+	[ObservableProperty]
+	[NotifyPropertyChangedFor (nameof (IsLocalMode))]
+	private bool _isFleetApiMode;
+
+	/// <summary>Gets a value indicating whether local mode is selected (neither cloud nor FleetAPI).</summary>
+	public bool IsLocalMode => !IsCloudMode && !IsFleetApiMode;
+
+	partial void OnIsCloudModeChanged (bool value)
+		{
+		if (value)
+			IsFleetApiMode = false;
+		}
+
+	partial void OnIsFleetApiModeChanged (bool value)
+		{
+		if (value)
+			IsCloudMode = false;
+		}
 
 	/// <summary>Gets or sets the Tesla account email used for cloud mode.</summary>
 	[ObservableProperty]
@@ -67,6 +84,45 @@ public sealed partial class ConnectViewModel : ViewModelBase
 	/// <summary>Gets or sets the Tesla Owners API refresh token used for cloud mode.</summary>
 	[ObservableProperty]
 	private string _refreshToken = string.Empty;
+
+	/// <summary>Gets or sets the Tesla FleetAPI application Client ID used for FleetAPI mode.</summary>
+	[ObservableProperty]
+	private string _fleetApiClientId = string.Empty;
+
+	/// <summary>Gets or sets the Tesla FleetAPI OAuth refresh token used for FleetAPI mode.</summary>
+	[ObservableProperty]
+	private string _fleetApiRefreshToken = string.Empty;
+
+	/// <summary>Gets or sets the Tesla FleetAPI region (<c>na</c>, <c>eu</c>, or <c>cn</c>) used for FleetAPI mode.</summary>
+	[ObservableProperty]
+	private string _fleetApiRegion = "na";
+
+	/// <summary>Gets or sets the Tesla FleetAPI application Client Secret, used only for the guided setup wizard.</summary>
+	[ObservableProperty]
+	private string _fleetApiClientSecret = string.Empty;
+
+	/// <summary>Gets or sets the domain registered with Tesla FleetAPI, used only for the guided setup wizard.</summary>
+	[ObservableProperty]
+	private string _fleetApiDomain = string.Empty;
+
+	/// <summary>Gets or sets the redirect URI registered with Tesla FleetAPI, used only for the guided setup wizard.</summary>
+	[ObservableProperty]
+	private string _fleetApiRedirectUri = string.Empty;
+
+	/// <summary>Gets or sets a value indicating whether the FleetAPI setup wizard's authorize step is shown.</summary>
+	[ObservableProperty]
+	private bool _showFleetApiAuthorize;
+
+	/// <summary>Gets or sets the FleetAPI authorize URL to visit, populated after partner registration succeeds.</summary>
+	[ObservableProperty]
+	private string _fleetApiAuthorizeUrl = string.Empty;
+
+	/// <summary>Gets or sets the authorization code (or redirected URL) pasted back by the user.</summary>
+	[ObservableProperty]
+	private string _fleetApiAuthorizationCode = string.Empty;
+
+	// Captured from the register step for use by the exchange step.
+	private string? _fleetApiSetupAudience;
 
 	/// <summary>
 	/// Gets or sets the remembered Tesla energy site identifier. Used to pre-connect to the last site and to
@@ -142,11 +198,16 @@ public sealed partial class ConnectViewModel : ViewModelBase
 		}
 
 	// True when there is enough to attempt a connection without prompting: cloud tokens the library cached
-	// for this account, or a saved host and password for local mode.
-	private bool HasSavedCredentials () =>
-		IsCloudMode
+	// for this account, a saved FleetAPI Client ID and refresh token, or a saved host and password for local mode.
+	private bool HasSavedCredentials ()
+		{
+		if (IsFleetApiMode)
+			return !string.IsNullOrWhiteSpace (FleetApiClientId) && !string.IsNullOrWhiteSpace (FleetApiRefreshToken);
+
+		return IsCloudMode
 			? !string.IsNullOrWhiteSpace (Email) && Powerwall.HasStoredCloudTokens (Email.Trim ())
 			: !string.IsNullOrWhiteSpace (Host) && !string.IsNullOrWhiteSpace (Password);
+		}
 
 	/// <summary>
 	/// Signs in through Tesla's real browser login (handled by the out-of-process WebView2 setup app,
@@ -191,6 +252,145 @@ public sealed partial class ConnectViewModel : ViewModelBase
 			IsBusy = false;
 			}
 		}
+
+	/// <summary>
+	/// Runs the first step of the Tesla FleetAPI setup wizard: verifies the hosted PEM key, generates a
+	/// partner token, and registers the partner account, then presents the authorize URL to visit. Adapted
+	/// from the upstream <c>pypowerwall</c> <c>fleetapi.setup()</c> wizard; the caller supplies its own
+	/// registered Client ID/Secret, domain, and redirect URI obtained from https://developer.tesla.com/.
+	/// </summary>
+	/// <returns>A task that completes when the registration step finishes.</returns>
+	[RelayCommand]
+	private async Task FleetApiRegisterAsync ()
+		{
+		var clientId = FleetApiClientId.Trim ();
+		var clientSecret = FleetApiClientSecret;
+		var domain = FleetApiDomain.Trim ();
+		var redirectUri = FleetApiRedirectUri.Trim ();
+
+		if (string.IsNullOrWhiteSpace (clientId) || string.IsNullOrWhiteSpace (clientSecret) || string.IsNullOrWhiteSpace (domain))
+			{
+			StatusMessage = "Client ID, Client Secret, and Domain are required.";
+			return;
+			}
+
+		if (string.IsNullOrWhiteSpace (redirectUri))
+			{
+			redirectUri = $"https://{domain}/access";
+			FleetApiRedirectUri = redirectUri;
+			}
+
+		IsBusy = true;
+		ShowFleetApiAuthorize = false;
+		try
+			{
+			var audience = FleetApiRegionAudience (NormalizeFleetApiRegion (FleetApiRegion));
+
+			StatusMessage = "Verifying PEM key file...";
+			if (!await TeslaLoginService.VerifyFleetApiPemKeyAsync (domain).ConfigureAwait (true))
+				{
+				StatusMessage = $"Could not verify PEM key file at https://{domain}/.well-known/appspecific/com.tesla.3p.public-key.pem. Make sure the public key has been uploaded to your website.";
+				return;
+				}
+
+			StatusMessage = "Generating partner authentication token...";
+			var (partnerToken, tokenMessage) = await TeslaLoginService.GetFleetApiPartnerTokenAsync (clientId, clientSecret, audience).ConfigureAwait (true);
+			if (partnerToken is null)
+				{
+				StatusMessage = $"Error: {tokenMessage}";
+				return;
+				}
+
+			StatusMessage = "Registering partner account...";
+			var (registered, registerMessage) = await TeslaLoginService.RegisterFleetApiPartnerAccountAsync (partnerToken, audience, domain).ConfigureAwait (true);
+			if (!registered)
+				{
+				StatusMessage = $"Error: {registerMessage}";
+				return;
+				}
+
+			_fleetApiSetupAudience = audience;
+			var (authorizeUrl, _) = TeslaLoginService.BuildFleetApiAuthorizeUrl (clientId, redirectUri);
+			FleetApiAuthorizeUrl = authorizeUrl;
+			ShowFleetApiAuthorize = true;
+			StatusMessage = "Partner account registered. Visit the authorize URL, sign in, then paste the returned code below.";
+			}
+		finally
+			{
+			IsBusy = false;
+			}
+		}
+
+	/// <summary>
+	/// Runs the final step of the Tesla FleetAPI setup wizard: exchanges the authorization code captured from
+	/// the redirect for FleetAPI tokens, then connects using them.
+	/// </summary>
+	/// <returns>A task that completes when the exchange and connect attempt finishes.</returns>
+	[RelayCommand]
+	private async Task FleetApiExchangeAsync ()
+		{
+		var clientId = FleetApiClientId.Trim ();
+		var clientSecret = FleetApiClientSecret;
+		var redirectUri = FleetApiRedirectUri.Trim ();
+		var code = FleetApiAuthorizationCode.Trim ();
+
+		if (_fleetApiSetupAudience is null)
+			{
+			StatusMessage = "Complete partner registration before exchanging a code.";
+			return;
+			}
+
+		if (string.IsNullOrWhiteSpace (code))
+			{
+			StatusMessage = "Enter the authorization code returned after signing in.";
+			return;
+			}
+
+		if (code.StartsWith ("http", StringComparison.OrdinalIgnoreCase))
+			{
+			var codeIndex = code.IndexOf ("code=", StringComparison.OrdinalIgnoreCase);
+			if (codeIndex >= 0)
+				{
+				code = code[(codeIndex + "code=".Length)..];
+				var ampersandIndex = code.IndexOf ('&');
+				if (ampersandIndex >= 0)
+					code = code[..ampersandIndex];
+				}
+			}
+
+		IsBusy = true;
+		try
+			{
+			StatusMessage = "Exchanging authorization code for tokens...";
+			var (tokens, message) = await TeslaLoginService.ExchangeFleetApiCodeAsync (
+				clientId, clientSecret, code, redirectUri, _fleetApiSetupAudience).ConfigureAwait (true);
+
+			if (tokens is null)
+				{
+				StatusMessage = $"Error: {message}";
+				return;
+				}
+
+			FleetApiRefreshToken = tokens.RefreshToken;
+			ShowFleetApiAuthorize = false;
+			FleetApiAuthorizationCode = string.Empty;
+
+			await TryConnectAsync ().ConfigureAwait (true);
+			}
+		finally
+			{
+			IsBusy = false;
+			}
+		}
+
+	// Resolves the FleetAPI audience (regional base URL) matching the main library's FleetApiRegions mapping.
+	private static string FleetApiRegionAudience (string region) =>
+		region switch
+			{
+			"eu" => "https://fleet-api.prd.eu.vn.cloud.tesla.com",
+			"cn" => "https://fleet-api.prd.cn.vn.cloud.tesla.cn",
+			_ => "https://fleet-api.prd.na.vn.cloud.tesla.com"
+			};
 
 	/// <summary>
 	/// Confirms the chosen site from the picker, switches the active site if needed, and enters the app.
@@ -286,7 +486,7 @@ public sealed partial class ConnectViewModel : ViewModelBase
 	/// <returns>A task that completes once the sites are resolved and the next phase is chosen.</returns>
 	private async Task AfterConnectAsync (bool preferSavedSite)
 		{
-		if (!IsCloudMode)
+		if (!IsCloudMode && !IsFleetApiMode)
 			{
 			EnterApp ();
 			return;
@@ -354,7 +554,7 @@ public sealed partial class ConnectViewModel : ViewModelBase
 
 		// Local mode's label (the gateway host) is set by PowerwallConnectionService.ConnectAsync; cloud
 		// mode's label is the resolved site name, once known.
-		if (IsCloudMode && SelectedSite is not null)
+		if ((IsCloudMode || IsFleetApiMode) && SelectedSite is not null)
 			_connection.SetSiteLabel (SelectedSite.SiteName ?? SelectedSite.SiteId);
 
 		if (RememberCredentials)
@@ -365,6 +565,19 @@ public sealed partial class ConnectViewModel : ViewModelBase
 
 	private PowerwallOptions BuildOptions ()
 		{
+		if (IsFleetApiMode)
+			{
+			return new PowerwallOptions
+				{
+				CloudMode = true,
+				FleetApi = true,
+				FleetApiClientId = string.IsNullOrWhiteSpace (FleetApiClientId) ? null : FleetApiClientId.Trim (),
+				FleetApiRefreshToken = string.IsNullOrWhiteSpace (FleetApiRefreshToken) ? null : FleetApiRefreshToken.Trim (),
+				FleetApiRegion = NormalizeFleetApiRegion (FleetApiRegion),
+				SiteId = string.IsNullOrWhiteSpace (SiteId) ? null : SiteId.Trim ()
+				};
+			}
+
 		if (IsCloudMode)
 			{
 			return new PowerwallOptions
@@ -384,15 +597,28 @@ public sealed partial class ConnectViewModel : ViewModelBase
 			};
 		}
 
+	/// <summary>Normalizes a Tesla FleetAPI region to one of <c>na</c>, <c>eu</c>, or <c>cn</c>, defaulting to <c>na</c>.</summary>
+	private static string NormalizeFleetApiRegion (string? region) =>
+		region?.Trim ().ToLowerInvariant () switch
+			{
+			"eu" => "eu",
+			"cn" => "cn",
+			_ => "na"
+			};
+
 	private void LoadFromSettings ()
 		{
 		var settings = AppSettingsStore.Load ();
 
-		IsCloudMode = !string.Equals (settings.Mode, "Local", StringComparison.OrdinalIgnoreCase);
+		IsFleetApiMode = string.Equals (settings.Mode, "FleetApi", StringComparison.OrdinalIgnoreCase);
+		IsCloudMode = !IsFleetApiMode && !string.Equals (settings.Mode, "Local", StringComparison.OrdinalIgnoreCase);
 		Email = settings.Email ?? string.Empty;
 		Host = settings.Host ?? string.Empty;
 		Region = string.IsNullOrWhiteSpace (settings.Region) ? "us" : settings.Region!.Trim ().ToLowerInvariant ();
 		Password = CredentialProtector.Unprotect (settings.ProtectedPassword) ?? string.Empty;
+		FleetApiClientId = settings.FleetApiClientId ?? string.Empty;
+		FleetApiRefreshToken = CredentialProtector.Unprotect (settings.ProtectedFleetApiRefreshToken) ?? string.Empty;
+		FleetApiRegion = string.IsNullOrWhiteSpace (settings.FleetApiRegion) ? "na" : settings.FleetApiRegion!.Trim ().ToLowerInvariant ();
 		}
 
 	/// <summary>
@@ -404,6 +630,12 @@ public sealed partial class ConnectViewModel : ViewModelBase
 		{
 		AccessToken = string.Empty;
 		RefreshToken = string.Empty;
+		FleetApiRefreshToken = string.Empty;
+		FleetApiClientSecret = string.Empty;
+		FleetApiAuthorizeUrl = string.Empty;
+		FleetApiAuthorizationCode = string.Empty;
+		ShowFleetApiAuthorize = false;
+		_fleetApiSetupAudience = null;
 		SiteId = string.Empty;
 		SelectedSite = null;
 		Sites.Clear ();
@@ -413,15 +645,20 @@ public sealed partial class ConnectViewModel : ViewModelBase
 
 	private void SaveToSettings ()
 		{
-		// Cloud tokens and the selected site are persisted by the library (keyed by email); the app only
-		// stores non-secret connection defaults plus the local gateway password.
+		// Cloud and FleetAPI tokens plus the selected site are persisted by the library itself (keyed by
+		// email); the app additionally remembers the FleetAPI Client ID and (encrypted) initial refresh token
+		// here so it can populate the sign-in fields before the library's own cache has been created,
+		// mirroring the local gateway password below.
 		var settings = new AppSettings
 			{
-			Mode = IsCloudMode ? "Cloud" : "Local",
+			Mode = IsFleetApiMode ? "FleetApi" : IsCloudMode ? "Cloud" : "Local",
 			Email = IsCloudMode ? Email.Trim () : null,
-			Host = IsCloudMode ? null : Host.Trim (),
+			Host = IsLocalMode ? Host.Trim () : null,
 			Region = IsCloudMode ? Region : null,
-			ProtectedPassword = IsCloudMode ? null : CredentialProtector.Protect (Password)
+			ProtectedPassword = IsLocalMode ? CredentialProtector.Protect (Password) : null,
+			FleetApiClientId = IsFleetApiMode ? FleetApiClientId.Trim () : null,
+			ProtectedFleetApiRefreshToken = IsFleetApiMode ? CredentialProtector.Protect (FleetApiRefreshToken) : null,
+			FleetApiRegion = IsFleetApiMode ? FleetApiRegion : null
 			};
 
 		AppSettingsStore.Save (settings);

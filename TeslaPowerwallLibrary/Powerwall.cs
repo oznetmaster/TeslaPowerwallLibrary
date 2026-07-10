@@ -7,6 +7,7 @@ using log4net;
 using Newtonsoft.Json.Linq;
 
 using TeslaPowerwallLibrary.Cloud;
+using TeslaPowerwallLibrary.FleetApi;
 using TeslaPowerwallLibrary.Local;
 using TeslaPowerwallLibrary.Models;
 
@@ -130,6 +131,61 @@ public sealed class Powerwall : IDisposable
 		cache.SaveSite (null);
 		}
 
+	/// <summary>
+	/// Determines whether the library has FleetAPI tokens persisted for the specified account, so callers can
+	/// decide whether a fresh refresh token is required. Tokens are cached internally after the first
+	/// successful FleetAPI connect and reused automatically thereafter.
+	/// </summary>
+	/// <param name="email">The customer email the cached tokens are keyed by.</param>
+	/// <param name="authPath">
+	/// The token cache directory or file. When empty, the per-user default location is used, matching the
+	/// default used when connecting.
+	/// </param>
+	/// <returns><see langword="true"/> when a usable cached token exists; otherwise <see langword="false"/>.</returns>
+	public static bool HasStoredFleetApiTokens (string email, string authPath = "") =>
+		new TeslaFleetApiTokenCache (authPath, email).Load ().HasToken;
+
+	/// <summary>
+	/// Gets the full path of the library-managed FleetAPI token cache file for the specified account, for
+	/// diagnostics or display.
+	/// </summary>
+	/// <param name="email">The customer email the cache entry is keyed by.</param>
+	/// <param name="authPath">The token cache directory or file; when empty, the per-user default is used.</param>
+	/// <returns>The resolved cache file path.</returns>
+	public static string GetFleetApiTokenCachePath (string email, string authPath = "") =>
+		new TeslaFleetApiTokenCache (authPath, email).FilePath;
+
+	/// <summary>
+	/// Reads the FleetAPI tokens the library persisted for the specified account, so callers can display them
+	/// even when not connected. This is the offline counterpart to <see cref="FleetApiAccessToken"/> and
+	/// <see cref="FleetApiRefreshToken"/>, which reflect the live tokens of an active connection.
+	/// </summary>
+	/// <param name="email">The customer email the cached tokens are keyed by.</param>
+	/// <param name="accessToken">When this method returns, the cached access token, or <see langword="null"/>.</param>
+	/// <param name="refreshToken">When this method returns, the cached refresh token, or <see langword="null"/>.</param>
+	/// <param name="authPath">The token cache directory or file; when empty, the per-user default is used.</param>
+	/// <returns><see langword="true"/> when at least one token was found; otherwise <see langword="false"/>.</returns>
+	public static bool TryGetStoredFleetApiTokens (string email, out string? accessToken, out string? refreshToken, string authPath = "")
+		{
+		FleetApiTokenCacheEntry entry = new TeslaFleetApiTokenCache (authPath, email).Load ();
+		accessToken = entry.AccessToken;
+		refreshToken = entry.RefreshToken;
+		return entry.HasToken;
+		}
+
+	/// <summary>
+	/// Removes any FleetAPI tokens and remembered site the library persisted for the specified account. Use
+	/// this to sign a user out so the next FleetAPI connect requires a fresh refresh token.
+	/// </summary>
+	/// <param name="email">The customer email whose cached entry should be cleared.</param>
+	/// <param name="authPath">The token cache directory or file; when empty, the per-user default is used.</param>
+	public static void ClearStoredFleetApiTokens (string email, string authPath = "")
+		{
+		var cache = new TeslaFleetApiTokenCache (authPath, email);
+		cache.SaveTokens (null, null, null);
+		cache.SaveSite (null);
+		}
+
 	/// <summary>Gets a value indicating whether a backend client has been connected.</summary>
 	public bool IsClientConnected => _client is not null;
 
@@ -167,6 +223,42 @@ public sealed class Powerwall : IDisposable
 	/// in cloud mode.
 	/// </summary>
 	public string? CloudSiteId => (_client as PowerwallCloudClient)?.SiteId;
+
+	/// <summary>
+	/// Raised in FleetAPI mode after the underlying Tesla connection refreshes its OAuth tokens. The library
+	/// persists the current tokens to its own cache automatically (unless
+	/// <see cref="PowerwallOptions.NoFleetApiTokenPersistence"/> is <see langword="true"/>), so this event is
+	/// primarily useful for diagnostics or when the caller has opted out of library-owned persistence. Firing
+	/// depends on whether <see cref="PowerwallOptions.FleetApiAccessToken"/> was supplied when the connection
+	/// was established: when one was, every refresh is reported in full, including the current
+	/// <see cref="FleetApiTokensRefreshedEventArgs.AccessToken"/>; when none was (a pure refresh-token
+	/// bootstrap), a refresh is only reported when Tesla also rotated the refresh token, and
+	/// <see cref="FleetApiTokensRefreshedEventArgs.AccessToken"/> is <see langword="null"/> in that case since
+	/// the caller never tracked an access token to begin with. Raised on the thread that triggered the
+	/// refresh, which may be a background polling thread; handlers must be thread-safe and non-blocking.
+	/// Subscribed before the initial <see cref="ConnectAsync"/> authenticates, so a refresh occurring during
+	/// that first connect is not missed.
+	/// </summary>
+	public event EventHandler<FleetApiTokensRefreshedEventArgs>? FleetApiTokensRefreshed;
+
+	/// <summary>
+	/// Gets the current Tesla FleetAPI access token (updated after any refresh), or <see langword="null"/>
+	/// when not connected in FleetAPI mode.
+	/// </summary>
+	public string? FleetApiAccessToken => (_client as PowerwallFleetApiClient)?.CurrentAccessToken;
+
+	/// <summary>
+	/// Gets the current Tesla FleetAPI refresh token (updated after any rotation), or <see langword="null"/>
+	/// when not connected in FleetAPI mode.
+	/// </summary>
+	public string? FleetApiRefreshToken => (_client as PowerwallFleetApiClient)?.CurrentRefreshToken;
+
+	/// <summary>
+	/// Gets the Tesla energy site identifier the active FleetAPI connection resolved to (either the caller's
+	/// requested site or the library-resolved default one), or <see langword="null"/> when not connected in
+	/// FleetAPI mode.
+	/// </summary>
+	public string? FleetApiSiteId => (_client as PowerwallFleetApiClient)?.SiteId;
 
 	/// <summary>
 	/// Establishes a connection to the Tesla Energy Gateway using the configured mode.
@@ -242,8 +334,43 @@ public sealed class Powerwall : IDisposable
 				return true;
 
 			case PowerwallMode.FleetApi:
-				throw new PowerwallInvalidConfigurationException (
-					$"Connection mode '{Mode}' is not yet implemented in this version of the library.");
+				var fleetApiClient = new PowerwallFleetApiClient (
+					_options.Email,
+					_options.FleetApiClientId ?? string.Empty,
+					_options.CacheExpireSeconds,
+					_options.Timeout,
+					_options.FleetApiAccessToken,
+					_options.FleetApiRefreshToken,
+					_options.SiteId,
+					_options.FleetApiRegion,
+					_options.FleetApiAuthPath,
+					_options.NoFleetApiTokenPersistence);
+
+				// Subscribed before authenticating for the same reason as the cloud case above: a
+				// refresh-token rotation can occur during the initial bootstrap refresh.
+				fleetApiClient.TokensRefreshed += OnFleetApiTokensRefreshed;
+				try
+					{
+					await fleetApiClient.AuthenticateAsync (cancellationToken).ConfigureAwait (false);
+					}
+				catch (PowerwallFleetApiNoTeslaAuthFileException)
+					{
+					// Missing or unusable tokens are a configuration problem the caller must fix, so
+					// surface it rather than reporting a transient connection failure.
+					fleetApiClient.TokensRefreshed -= OnFleetApiTokensRefreshed;
+					fleetApiClient.Dispose ();
+					throw;
+					}
+				catch (Exception exc) when (exc is PowerwallException)
+					{
+					_log.Warn ($"Failed to connect using FleetAPI mode: {exc.Message}");
+					fleetApiClient.TokensRefreshed -= OnFleetApiTokensRefreshed;
+					fleetApiClient.Dispose ();
+					return false;
+					}
+
+				_client = fleetApiClient;
+				return true;
 
 			default:
 				_log.Error ("Unable to determine mode to connect.");
@@ -532,66 +659,66 @@ public sealed class Powerwall : IDisposable
 		RequireClient ().GetTimeRemainingAsync (cancellationToken);
 
 	/// <summary>
-	/// Returns the list of Tesla energy sites available to the authenticated account (cloud mode only).
+	/// Returns the list of Tesla energy sites available to the authenticated account (cloud or FleetAPI mode only).
 	/// </summary>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The available sites, or an empty list when none are found.</returns>
-	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	/// <exception cref="PowerwallNotSupportedException">Thrown when the active connection does not support energy-site operations.</exception>
 	public Task<IReadOnlyList<CloudSite>> GetSitesAsync (CancellationToken cancellationToken = default) =>
-		RequireCloudClient ().GetSitesAsync (cancellationToken);
+		RequireEnergySiteClient ().GetSitesAsync (cancellationToken);
 
 	/// <summary>
-	/// Switches the active Tesla energy site without reconnecting (cloud mode only).
+	/// Switches the active Tesla energy site without reconnecting (cloud or FleetAPI mode only).
 	/// </summary>
 	/// <param name="siteId">The Tesla energy site identifier to switch to.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns><see langword="true"/> when the site was found and selected; otherwise <see langword="false"/>.</returns>
-	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	/// <exception cref="PowerwallNotSupportedException">Thrown when the active connection does not support energy-site operations.</exception>
 	public Task<bool> ChangeSiteAsync (string siteId, CancellationToken cancellationToken = default) =>
-		RequireCloudClient ().ChangeSiteAsync (siteId, cancellationToken);
+		RequireEnergySiteClient ().ChangeSiteAsync (siteId, cancellationToken);
 
 	/// <summary>
-	/// Enables or disables charging the battery from the grid (cloud mode only).
+	/// Enables or disables charging the battery from the grid (cloud or FleetAPI mode only).
 	/// </summary>
 	/// <param name="enabled"><see langword="true"/> to allow grid charging; <see langword="false"/> to disallow it.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The raw response body, or <see langword="null"/> when the call fails.</returns>
-	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	/// <exception cref="PowerwallNotSupportedException">Thrown when the active connection does not support energy-site operations.</exception>
 	public Task<string?> SetGridChargingAsync (bool enabled, CancellationToken cancellationToken = default) =>
-		RequireCloudClient ().SetGridChargingAsync (enabled, cancellationToken);
+		RequireEnergySiteClient ().SetGridChargingAsync (enabled, cancellationToken);
 
 	/// <summary>
-	/// Returns whether charging the battery from the grid is currently allowed (cloud mode only).
+	/// Returns whether charging the battery from the grid is currently allowed (cloud or FleetAPI mode only).
 	/// </summary>
 	/// <param name="force">When <see langword="true"/>, bypasses the cache.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns><see langword="true"/> when grid charging is allowed, <see langword="false"/> when disallowed, or <see langword="null"/> when unavailable.</returns>
-	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	/// <exception cref="PowerwallNotSupportedException">Thrown when the active connection does not support energy-site operations.</exception>
 	public Task<bool?> GetGridChargingAsync (bool force = false, CancellationToken cancellationToken = default) =>
-		RequireCloudClient ().GetGridChargingAsync (force, cancellationToken);
+		RequireEnergySiteClient ().GetGridChargingAsync (force, cancellationToken);
 
 	/// <summary>
-	/// Sets the grid export rule (cloud mode only).
+	/// Sets the grid export rule (cloud or FleetAPI mode only).
 	/// </summary>
 	/// <param name="mode">The export rule: <c>battery_ok</c>, <c>pv_only</c>, or <c>never</c>.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The raw response body, or <see langword="null"/> when the call fails.</returns>
 	/// <exception cref="ArgumentException">Thrown when <paramref name="mode"/> is not a valid export rule.</exception>
-	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	/// <exception cref="PowerwallNotSupportedException">Thrown when the active connection does not support energy-site operations.</exception>
 	public Task<string?> SetGridExportAsync (string mode, CancellationToken cancellationToken = default) =>
 		mode is not ("battery_ok" or "pv_only" or "never")
 			? throw new ArgumentException ($"Invalid grid export mode '{mode}'. Must be 'battery_ok', 'pv_only', or 'never'.", nameof (mode))
-			: RequireCloudClient ().SetGridExportAsync (mode, cancellationToken);
+			: RequireEnergySiteClient ().SetGridExportAsync (mode, cancellationToken);
 
 	/// <summary>
-	/// Returns the current grid export rule (cloud mode only).
+	/// Returns the current grid export rule (cloud or FleetAPI mode only).
 	/// </summary>
 	/// <param name="force">When <see langword="true"/>, bypasses the cache.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The export rule (<c>battery_ok</c>, <c>pv_only</c>, or <c>never</c>), or <see langword="null"/> when unavailable.</returns>
-	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	/// <exception cref="PowerwallNotSupportedException">Thrown when the active connection does not support energy-site operations.</exception>
 	public Task<string?> GetGridExportAsync (bool force = false, CancellationToken cancellationToken = default) =>
-		RequireCloudClient ().GetGridExportAsync (force, cancellationToken);
+		RequireEnergySiteClient ().GetGridExportAsync (force, cancellationToken);
 
 	/// <summary>
 	/// Enables or disables Storm Watch (predictive pre-charging ahead of severe weather) (cloud mode only).
@@ -615,12 +742,12 @@ public sealed class Powerwall : IDisposable
 		RequireCloudClient ().GetStormWatchAsync (force, cancellationToken);
 
 	/// <summary>
-	/// Returns raw energy history for the active site (cloud mode only).
+	/// Returns raw energy history for the active site (cloud or FleetAPI mode only).
 	/// </summary>
 	/// <remarks>
 	/// Tesla has permanently removed the underlying <c>/history</c> endpoint (it now responds with HTTP 410 Gone).
 	/// This method faithfully mirrors the upstream pypowerwall <c>get_history()</c> shim but will therefore throw
-	/// <see cref="PowerwallCloudEndpointRemovedException"/> at call time. Use <see cref="GetCalendarHistoryAsync"/>
+	/// an endpoint-removed exception at call time. Use <see cref="GetCalendarHistoryAsync"/>
 	/// (which targets the current <c>/calendar_history</c> endpoint and accepts a superset of kinds) instead.
 	/// </remarks>
 	/// <param name="kind">The history kind: <c>power</c>, <c>energy</c>, <c>backup</c>, or <c>self_consumption</c>.</param>
@@ -631,8 +758,9 @@ public sealed class Powerwall : IDisposable
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The raw history JSON, or <see langword="null"/> when unavailable.</returns>
 	/// <exception cref="ArgumentException">Thrown when <paramref name="kind"/> or <paramref name="period"/> is not valid.</exception>
-	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
-	/// <exception cref="PowerwallCloudEndpointRemovedException">Thrown because Tesla has removed the <c>/history</c> endpoint; use <see cref="GetCalendarHistoryAsync"/>.</exception>
+	/// <exception cref="PowerwallNotSupportedException">Thrown when the active connection does not support energy-site operations.</exception>
+	/// <exception cref="PowerwallCloudEndpointRemovedException">Thrown because Tesla has removed the <c>/history</c> endpoint (cloud mode); use <see cref="GetCalendarHistoryAsync"/>.</exception>
+	/// <exception cref="FleetApi.PowerwallFleetApiEndpointRemovedException">Thrown because Tesla has removed the <c>/history</c> endpoint (FleetAPI mode); use <see cref="GetCalendarHistoryAsync"/>.</exception>
 	public Task<string?> GetHistoryAsync (
 		string kind,
 		string? period = null,
@@ -643,11 +771,11 @@ public sealed class Powerwall : IDisposable
 		{
 		period ??= DEFAULT_HISTORY_PERIOD;
 		ValidateHistoryArguments (kind, period, _historyKinds);
-		return RequireCloudClient ().GetHistoryAsync (kind, period, timeZone, startDate, endDate, cancellationToken);
+		return RequireEnergySiteClient ().GetHistoryAsync (kind, period, timeZone, startDate, endDate, cancellationToken);
 		}
 
 	/// <summary>
-	/// Returns raw calendar-aligned energy history for the active site (cloud mode only).
+	/// Returns raw calendar-aligned energy history for the active site (cloud or FleetAPI mode only).
 	/// </summary>
 	/// <param name="kind">The history kind: <c>power</c>, <c>soe</c>, <c>energy</c>, <c>backup</c>, <c>self_consumption</c>, <c>time_of_use_energy</c>, or <c>savings</c>.</param>
 	/// <param name="period">The aggregation period: <c>day</c>, <c>week</c>, <c>month</c>, <c>year</c>, or <c>lifetime</c>. Defaults to <c>day</c> when not specified.</param>
@@ -657,7 +785,7 @@ public sealed class Powerwall : IDisposable
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The raw calendar history JSON, or <see langword="null"/> when unavailable.</returns>
 	/// <exception cref="ArgumentException">Thrown when <paramref name="kind"/> or <paramref name="period"/> is not valid.</exception>
-	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	/// <exception cref="PowerwallNotSupportedException">Thrown when the active connection does not support energy-site operations.</exception>
 	public Task<string?> GetCalendarHistoryAsync (
 		string kind,
 		string? period = null,
@@ -668,12 +796,12 @@ public sealed class Powerwall : IDisposable
 		{
 		period ??= DEFAULT_HISTORY_PERIOD;
 		ValidateHistoryArguments (kind, period, _calendarHistoryKinds);
-		return RequireCloudClient ().GetCalendarHistoryAsync (kind, period, timeZone, startDate, endDate, cancellationToken);
+		return RequireEnergySiteClient ().GetCalendarHistoryAsync (kind, period, timeZone, startDate, endDate, cancellationToken);
 		}
 
 	/// <summary>
 	/// Returns strongly typed calendar-aligned energy history (the <c>energy</c> kind) for the active site
-	/// (cloud mode only). This is a typed convenience wrapper over <see cref="GetCalendarHistoryAsync"/>;
+	/// (cloud or FleetAPI mode only). This is a typed convenience wrapper over <see cref="GetCalendarHistoryAsync"/>;
 	/// use that method directly if raw JSON is preferred.
 	/// </summary>
 	/// <param name="period">The aggregation period. Defaults to <see cref="HistoryPeriod.Day"/> when not specified.</param>
@@ -682,7 +810,7 @@ public sealed class Powerwall : IDisposable
 	/// <param name="endDate">Optional inclusive RFC 3339 end timestamp.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The parsed energy-history points, in kilowatt-hours; empty when unavailable.</returns>
-	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	/// <exception cref="PowerwallNotSupportedException">Thrown when the active connection does not support energy-site operations.</exception>
 	public async Task<IReadOnlyList<EnergyHistoryPoint>> GetEnergyCalendarHistoryAsync (
 		HistoryPeriod period = HistoryPeriod.Day,
 		string? timeZone = null,
@@ -696,7 +824,7 @@ public sealed class Powerwall : IDisposable
 
 	/// <summary>
 	/// Returns strongly typed calendar-aligned power history (the <c>power</c> kind) for the active site
-	/// (cloud mode only). This is a typed convenience wrapper over <see cref="GetCalendarHistoryAsync"/>;
+	/// (cloud or FleetAPI mode only). This is a typed convenience wrapper over <see cref="GetCalendarHistoryAsync"/>;
 	/// use that method directly if raw JSON is preferred.
 	/// </summary>
 	/// <param name="period">The aggregation period. Defaults to <see cref="HistoryPeriod.Day"/> when not specified.</param>
@@ -705,7 +833,7 @@ public sealed class Powerwall : IDisposable
 	/// <param name="endDate">Optional inclusive RFC 3339 end timestamp.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The parsed power-history points, in watts; empty when unavailable.</returns>
-	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	/// <exception cref="PowerwallNotSupportedException">Thrown when the active connection does not support energy-site operations.</exception>
 	public async Task<IReadOnlyList<PowerHistoryPoint>> GetPowerCalendarHistoryAsync (
 		HistoryPeriod period = HistoryPeriod.Day,
 		string? timeZone = null,
@@ -719,7 +847,7 @@ public sealed class Powerwall : IDisposable
 
 	/// <summary>
 	/// Returns strongly typed calendar-aligned state-of-energy history (the <c>soe</c> kind) for the active
-	/// site (cloud mode only). This is a typed convenience wrapper over <see cref="GetCalendarHistoryAsync"/>;
+	/// site (cloud or FleetAPI mode only). This is a typed convenience wrapper over <see cref="GetCalendarHistoryAsync"/>;
 	/// use that method directly if raw JSON is preferred.
 	/// </summary>
 	/// <param name="period">The aggregation period. Defaults to <see cref="HistoryPeriod.Day"/> when not specified.</param>
@@ -728,7 +856,7 @@ public sealed class Powerwall : IDisposable
 	/// <param name="endDate">Optional inclusive RFC 3339 end timestamp.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The parsed state-of-energy points; empty when unavailable.</returns>
-	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	/// <exception cref="PowerwallNotSupportedException">Thrown when the active connection does not support energy-site operations.</exception>
 	public async Task<IReadOnlyList<StateOfEnergyHistoryPoint>> GetStateOfEnergyCalendarHistoryAsync (
 		HistoryPeriod period = HistoryPeriod.Day,
 		string? timeZone = null,
@@ -742,7 +870,7 @@ public sealed class Powerwall : IDisposable
 
 	/// <summary>
 	/// Returns strongly typed calendar-aligned self-consumption history (the <c>self_consumption</c> kind)
-	/// for the active site (cloud mode only). This is a typed convenience wrapper over
+	/// for the active site (cloud or FleetAPI mode only). This is a typed convenience wrapper over
 	/// <see cref="GetCalendarHistoryAsync"/>; use that method directly if raw JSON is preferred.
 	/// </summary>
 	/// <param name="period">The aggregation period. Defaults to <see cref="HistoryPeriod.Day"/> when not specified.</param>
@@ -751,7 +879,7 @@ public sealed class Powerwall : IDisposable
 	/// <param name="endDate">Optional inclusive RFC 3339 end timestamp.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The parsed self-consumption points; empty when unavailable.</returns>
-	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	/// <exception cref="PowerwallNotSupportedException">Thrown when the active connection does not support energy-site operations.</exception>
 	public async Task<IReadOnlyList<SelfConsumptionHistoryPoint>> GetSelfConsumptionCalendarHistoryAsync (
 		HistoryPeriod period = HistoryPeriod.Day,
 		string? timeZone = null,
@@ -765,7 +893,7 @@ public sealed class Powerwall : IDisposable
 
 	/// <summary>
 	/// Returns a strongly typed calendar-aligned backup (outage) event envelope (the <c>backup</c> kind) for
-	/// the active site (cloud mode only). This is a typed convenience wrapper over
+	/// the active site (cloud or FleetAPI mode only). This is a typed convenience wrapper over
 	/// <see cref="GetCalendarHistoryAsync"/>; use that method directly if raw JSON is preferred. Individual
 	/// event entries are exposed as loosely typed maps (mirroring <see cref="VitalsAsync"/>) because no
 	/// backup event has yet been observed to confirm a per-event field schema.
@@ -776,7 +904,7 @@ public sealed class Powerwall : IDisposable
 	/// <param name="endDate">Optional inclusive RFC 3339 end timestamp.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The parsed backup-history envelope; an empty envelope when unavailable.</returns>
-	/// <exception cref="PowerwallCloudNotImplementedException">Thrown when the active connection is not in cloud mode.</exception>
+	/// <exception cref="PowerwallNotSupportedException">Thrown when the active connection does not support energy-site operations.</exception>
 	public async Task<BackupHistory> GetBackupCalendarHistoryAsync (
 		HistoryPeriod period = HistoryPeriod.Day,
 		string? timeZone = null,
@@ -787,6 +915,25 @@ public sealed class Powerwall : IDisposable
 		var json = await GetCalendarHistoryAsync ("backup", period.ToApiString (), timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
 		return CalendarHistoryParser.ParseBackup (json);
 		}
+
+	/// <summary>
+	/// Returns a summary of the authenticated Tesla account from <c>/api/1/users/me</c> (FleetAPI mode only).
+	/// </summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The raw account summary JSON, or <see langword="null"/> when unavailable.</returns>
+	/// <exception cref="PowerwallNotSupportedException">Thrown when the active connection is not in FleetAPI mode.</exception>
+	public Task<string?> GetProfileAsync (CancellationToken cancellationToken = default) =>
+		RequireFleetApiClient ().GetProfileAsync (cancellationToken);
+
+	/// <summary>
+	/// Returns the authenticated account's region and corresponding FleetAPI base URL from
+	/// <c>/api/1/users/region</c> (FleetAPI mode only).
+	/// </summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The raw region info JSON, or <see langword="null"/> when unavailable.</returns>
+	/// <exception cref="PowerwallNotSupportedException">Thrown when the active connection is not in FleetAPI mode.</exception>
+	public Task<string?> GetRegionAsync (CancellationToken cancellationToken = default) =>
+		RequireFleetApiClient ().GetRegionAsync (cancellationToken);
 
 	/// <summary>
 	/// Returns device vitals as a nested map of device name to that device's telemetry values.
@@ -901,6 +1048,16 @@ public sealed class Powerwall : IDisposable
 		?? throw new PowerwallCloudNotImplementedException (
 			$"This operation is only available in cloud mode. The active connection mode is '{Mode}'.");
 
+	private PowerwallFleetApiClient RequireFleetApiClient () =>
+		RequireClient () as PowerwallFleetApiClient
+		?? throw new PowerwallNotSupportedException (
+			$"This operation is only available in FleetAPI mode. The active connection mode is '{Mode}'.");
+
+	private IEnergySiteClient RequireEnergySiteClient () =>
+		RequireClient () as IEnergySiteClient
+		?? throw new PowerwallNotSupportedException (
+			$"This operation requires an energy-site-capable backend (cloud or FleetAPI mode). The active connection mode is '{Mode}'.");
+
 	private static PowerwallMode ResolveMode (PowerwallOptions options) =>
 		string.IsNullOrWhiteSpace (options.Host)
 			? options.FleetApi ? PowerwallMode.FleetApi : PowerwallMode.Cloud
@@ -943,12 +1100,18 @@ public sealed class Powerwall : IDisposable
 		if (_client is PowerwallCloudClient cloudClient)
 			cloudClient.TokensRefreshed -= OnCloudTokensRefreshed;
 
+		if (_client is PowerwallFleetApiClient fleetApiClient)
+			fleetApiClient.TokensRefreshed -= OnFleetApiTokensRefreshed;
+
 		if (_client is IDisposable disposable)
 			disposable.Dispose ();
 		}
 
 	private void OnCloudTokensRefreshed (object? sender, CloudTokensRefreshedEventArgs e) =>
 		CloudTokensRefreshed?.Invoke (this, e);
+
+	private void OnFleetApiTokensRefreshed (object? sender, FleetApiTokensRefreshedEventArgs e) =>
+		FleetApiTokensRefreshed?.Invoke (this, e);
 	}
 
 /// <summary>

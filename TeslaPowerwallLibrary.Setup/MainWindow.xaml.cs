@@ -3,6 +3,7 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
@@ -150,4 +151,195 @@ public partial class MainWindow : Window
 
 	private void SetStatus (string message) =>
 		StatusText.Text = message;
+
+	// --- FleetAPI setup ---
+
+	private string? _fleetApiClientId;
+	private string? _fleetApiClientSecret;
+	private string? _fleetApiRedirectUri;
+	private string? _fleetApiAudience;
+
+	private string FleetApiSelectedRegion =>
+		(FleetApiRegionSelector.SelectedItem as ComboBoxItem)?.Tag as string ?? "na";
+
+	private static string FleetApiRegionAudience (string region) =>
+		region switch
+			{
+			"eu" => "https://fleet-api.prd.eu.vn.cloud.tesla.com",
+			"cn" => "https://fleet-api.prd.cn.vn.cloud.tesla.cn",
+			_ => "https://fleet-api.prd.na.vn.cloud.tesla.com"
+			};
+
+	private async void OnFleetApiRegisterClick (object sender, RoutedEventArgs e)
+		{
+		var clientId = FleetApiClientIdBox.Text.Trim ();
+		var clientSecret = FleetApiClientSecretBox.Password;
+		var domain = FleetApiDomainBox.Text.Trim ();
+		var redirectUri = FleetApiRedirectUriBox.Text.Trim ();
+
+		if (string.IsNullOrWhiteSpace (clientId) || string.IsNullOrWhiteSpace (clientSecret) || string.IsNullOrWhiteSpace (domain))
+			{
+			SetFleetApiStatus ("Client ID, Client Secret, and Domain are required.");
+			return;
+			}
+
+		if (string.IsNullOrWhiteSpace (redirectUri))
+			{
+			redirectUri = $"https://{domain}/access";
+			FleetApiRedirectUriBox.Text = redirectUri;
+			}
+
+		FleetApiRegisterButton.IsEnabled = false;
+		FleetApiAuthorizePanel.Visibility = Visibility.Collapsed;
+		FleetApiResultsPanel.Visibility = Visibility.Collapsed;
+
+		try
+			{
+			var region = FleetApiSelectedRegion;
+			var audience = FleetApiRegionAudience (region);
+
+			SetFleetApiStatus ("Verifying PEM key file...");
+			if (!await TeslaFleetApiLogin.VerifyPemKeyAsync (domain).ConfigureAwait (true))
+				{
+				SetFleetApiStatus ($"Could not verify PEM key file at https://{domain}/.well-known/appspecific/com.tesla.3p.public-key.pem. Make sure the public key has been created and uploaded to your website.");
+				return;
+				}
+
+			SetFleetApiStatus ("Generating partner authentication token...");
+			var partnerTokenResult = await TeslaFleetApiLogin.GetPartnerTokenAsync (clientId, clientSecret, audience).ConfigureAwait (true);
+			if (partnerTokenResult.Status != TeslaFleetApiLoginStatus.Success)
+				{
+				SetFleetApiStatus ($"Error: {partnerTokenResult.Message}");
+				return;
+				}
+
+			SetFleetApiStatus ("Registering partner account...");
+			var registerResult = await TeslaFleetApiLogin.RegisterPartnerAccountAsync (partnerTokenResult.PartnerToken!, audience, domain).ConfigureAwait (true);
+			if (registerResult.Status != TeslaFleetApiLoginStatus.Success)
+				{
+				SetFleetApiStatus ($"Error: {registerResult.Message}");
+				return;
+				}
+
+			_fleetApiClientId = clientId;
+			_fleetApiClientSecret = clientSecret;
+			_fleetApiRedirectUri = redirectUri;
+			_fleetApiAudience = audience;
+
+			var (authorizeUrl, _) = TeslaFleetApiLogin.BuildAuthorizeUrl (clientId, redirectUri);
+			FleetApiAuthorizeUrlText.Text = authorizeUrl;
+			FleetApiAuthorizePanel.Visibility = Visibility.Visible;
+			SetFleetApiStatus ("Partner account registered. Visit the authorize URL, sign in, then paste the returned code below.");
+			}
+		catch (Exception exc)
+			{
+			SetFleetApiStatus ($"Error: {exc.Message}");
+			}
+		finally
+			{
+			FleetApiRegisterButton.IsEnabled = true;
+			}
+		}
+
+	private void OnFleetApiOpenBrowserClick (object sender, RoutedEventArgs e)
+		{
+		var url = FleetApiAuthorizeUrlText.Text;
+		if (string.IsNullOrWhiteSpace (url))
+			return;
+
+		try
+			{
+			Process.Start (new ProcessStartInfo (url) { UseShellExecute = true });
+			}
+		catch (Exception exc)
+			{
+			SetFleetApiStatus ($"Unable to open browser: {exc.Message}");
+			}
+		}
+
+	private void OnFleetApiCopyUrlClick (object sender, RoutedEventArgs e) =>
+		CopyFleetApiToClipboard (FleetApiAuthorizeUrlText.Text, "Authorize URL copied to clipboard.");
+
+	private async void OnFleetApiExchangeClick (object sender, RoutedEventArgs e)
+		{
+		if (_fleetApiClientId is null || _fleetApiClientSecret is null || _fleetApiRedirectUri is null || _fleetApiAudience is null)
+			{
+			SetFleetApiStatus ("Complete step 1 before exchanging a code.");
+			return;
+			}
+
+		var code = FleetApiCodeBox.Text.Trim ();
+		if (string.IsNullOrWhiteSpace (code))
+			{
+			SetFleetApiStatus ("Enter the authorization code returned after signing in.");
+			return;
+			}
+
+		if (code.StartsWith ("http", StringComparison.OrdinalIgnoreCase))
+			{
+			var codeIndex = code.IndexOf ("code=", StringComparison.OrdinalIgnoreCase);
+			if (codeIndex >= 0)
+				{
+				code = code.Substring (codeIndex + "code=".Length);
+				var ampersandIndex = code.IndexOf ('&');
+				if (ampersandIndex >= 0)
+					code = code.Substring (0, ampersandIndex);
+				}
+			}
+
+		FleetApiExchangeButton.IsEnabled = false;
+		try
+			{
+			SetFleetApiStatus ("Exchanging authorization code for tokens...");
+			var result = await TeslaFleetApiLogin.ExchangeCodeAsync (
+				_fleetApiClientId, _fleetApiClientSecret, code, _fleetApiRedirectUri, _fleetApiAudience).ConfigureAwait (true);
+
+			if (result.Status != TeslaFleetApiLoginStatus.Success)
+				{
+				SetFleetApiStatus ($"Error: {result.Message}");
+				return;
+				}
+
+			FleetApiRefreshTokenText.Text = result.Tokens!.RefreshToken;
+			FleetApiAccessTokenText.Text = result.Tokens.AccessToken;
+			FleetApiResultsPanel.Visibility = Visibility.Visible;
+			SetFleetApiStatus ("Done. Copy the tokens into your Powerwall configuration.");
+			}
+		catch (Exception exc)
+			{
+			SetFleetApiStatus ($"Error: {exc.Message}");
+			}
+		finally
+			{
+			FleetApiExchangeButton.IsEnabled = true;
+			}
+		}
+
+	private void OnFleetApiCopyRefreshClick (object sender, RoutedEventArgs e) =>
+		CopyFleetApiToClipboard (FleetApiRefreshTokenText.Text, "Refresh token copied to clipboard.");
+
+	private void OnFleetApiCopyAccessClick (object sender, RoutedEventArgs e) =>
+		CopyFleetApiToClipboard (FleetApiAccessTokenText.Text, "Access token copied to clipboard.");
+
+	private void CopyFleetApiToClipboard (string value, string confirmation)
+		{
+		if (string.IsNullOrEmpty (value))
+			{
+			SetFleetApiStatus ("Nothing to copy.");
+			return;
+			}
+
+		try
+			{
+			Clipboard.SetText (value);
+			SetFleetApiStatus (confirmation);
+			}
+		catch (Exception exc)
+			{
+			SetFleetApiStatus ($"Unable to copy to clipboard: {exc.Message}");
+			}
+		}
+
+	private void SetFleetApiStatus (string message) =>
+		FleetApiStatusText.Text = message;
 	}

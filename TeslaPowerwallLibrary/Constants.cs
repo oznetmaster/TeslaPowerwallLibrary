@@ -31,6 +31,13 @@ public static class Constants
 	/// <summary>Default local application data subfolder used for library-managed cloud token persistence.</summary>
 	public const string DEFAULT_CLOUD_AUTH_FOLDER = "TeslaPowerwallLibrary";
 
+	/// <summary>
+	/// Default file name used by the library to persist FleetAPI tokens and the selected site, keyed by
+	/// customer email. Mirrors the upstream <c>pypowerwall</c> <c>.pypowerwall.fleetapi</c> config file so
+	/// callers never have to manage FleetAPI token storage themselves.
+	/// </summary>
+	public const string DEFAULT_FLEETAPI_AUTH_FILE = ".powerwall.fleetapi.auth.json";
+
 	/// <summary>Default number of seconds before cached API responses expire.</summary>
 	public const int DEFAULT_CACHE_EXPIRE_SECONDS = 5;
 

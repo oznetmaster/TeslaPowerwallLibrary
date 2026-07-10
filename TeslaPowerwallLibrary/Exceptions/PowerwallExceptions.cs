@@ -81,3 +81,31 @@ public class InvalidBatteryReserveLevelException : PowerwallException
 		{
 		}
 	}
+
+/// <summary>
+/// Thrown when an operation that requires an energy-site-capable backend (site selection, grid
+/// charging/export configuration, or energy history) is invoked while connected in a mode that does not
+/// support it (for example <see cref="PowerwallMode.Local"/>).
+/// </summary>
+public class PowerwallNotSupportedException : PowerwallException
+	{
+	/// <summary>Initializes a new instance of the <see cref="PowerwallNotSupportedException"/> class.</summary>
+	public PowerwallNotSupportedException ()
+		{
+		}
+
+	/// <summary>Initializes a new instance of the <see cref="PowerwallNotSupportedException"/> class with a specified error message.</summary>
+	/// <param name="message">The message that describes the error.</param>
+	public PowerwallNotSupportedException (string message)
+		: base (message)
+		{
+		}
+
+	/// <summary>Initializes a new instance of the <see cref="PowerwallNotSupportedException"/> class with a specified error message and inner exception.</summary>
+	/// <param name="message">The message that describes the error.</param>
+	/// <param name="innerException">The exception that is the cause of the current exception.</param>
+	public PowerwallNotSupportedException (string message, Exception innerException)
+		: base (message, innerException)
+		{
+		}
+	}

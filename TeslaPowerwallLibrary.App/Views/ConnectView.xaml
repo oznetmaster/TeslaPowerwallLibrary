@@ -20,6 +20,8 @@
 					<StackPanel Orientation="Horizontal" Margin="0,0,0,16">
 						<RadioButton Content="Cloud" Foreground="{StaticResource TextBrush}"
 									 IsChecked="{Binding IsCloudMode}" GroupName="Mode" Margin="0,0,20,0" />
+						<RadioButton Content="FleetAPI" Foreground="{StaticResource TextBrush}"
+									 IsChecked="{Binding IsFleetApiMode}" GroupName="Mode" Margin="0,0,20,0" />
 						<RadioButton Content="Local" Foreground="{StaticResource TextBrush}"
 									 IsChecked="{Binding IsLocalMode, Mode=OneWay}"
 									 Checked="OnLocalChecked" GroupName="Mode" />
@@ -52,6 +54,59 @@
 							</StackPanel>
 						</Expander>
 					</StackPanel>
+
+					<!-- FleetAPI fields -->
+					<StackPanel Visibility="{Binding IsFleetApiMode, Converter={StaticResource BoolToVisibility}}">
+						<TextBlock Text="Region" Style="{StaticResource MutedText}" Margin="0,0,0,4" />
+						<ComboBox SelectedValue="{Binding FleetApiRegion}" SelectedValuePath="Content" Margin="0,0,0,12">
+							<ComboBoxItem Content="na" />
+							<ComboBoxItem Content="eu" />
+							<ComboBoxItem Content="cn" />
+						</ComboBox>
+
+						<StackPanel Visibility="{Binding ShowFleetApiAuthorize, Converter={StaticResource InverseBoolToVisibility}}">
+							<TextBlock Text="Tesla FleetAPI Client Secret" Style="{StaticResource MutedText}" Margin="0,0,0,4" />
+							<PasswordBox x:Name="FleetApiClientSecretBox" PasswordChanged="OnFleetApiClientSecretChanged" Margin="0,0,0,10" />
+
+							<TextBlock Text="Domain (e.g. example.com)" Style="{StaticResource MutedText}" Margin="0,0,0,4" />
+							<TextBox Text="{Binding FleetApiDomain, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+
+							<TextBlock Text="Redirect URI" Style="{StaticResource MutedText}" Margin="0,0,0,4" />
+							<TextBox Text="{Binding FleetApiRedirectUri, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+
+							<Button Content="🔐 Run FleetAPI Setup Wizard" Command="{Binding FleetApiRegisterCommand}"
+									IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+							<TextBlock Style="{StaticResource MutedText}" Margin="0,8,0,0" TextWrapping="Wrap"
+										Text="First time only: verifies your hosted PEM key, registers your partner account, and walks you through authorizing access to get a refresh token." />
+						</StackPanel>
+
+						<StackPanel Visibility="{Binding ShowFleetApiAuthorize, Converter={StaticResource BoolToVisibility}}">
+							<TextBlock Text="Visit this URL and authorize access:" Style="{StaticResource MutedText}" Margin="0,0,0,4" />
+							<TextBox Text="{Binding FleetApiAuthorizeUrl, Mode=OneWay}" IsReadOnly="True"
+									 TextWrapping="Wrap" FontFamily="Consolas" Margin="0,0,0,10" />
+
+							<TextBlock Text="After authorizing, paste the code (or the full redirected URL) here:"
+										Style="{StaticResource MutedText}" Margin="0,0,0,4" />
+							<TextBox Text="{Binding FleetApiAuthorizationCode, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+
+							<Button Content="Exchange Code for Tokens" Command="{Binding FleetApiExchangeCommand}"
+									IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+						</StackPanel>
+
+						<Expander Header="Enter Client ID and refresh token manually" Foreground="{StaticResource MutedTextBrush}" Margin="0,16,0,0">
+							<StackPanel Margin="0,10,0,0">
+								<TextBlock Text="Tesla FleetAPI Client ID" Style="{StaticResource MutedText}" Margin="0,0,0,4" />
+								<TextBox Text="{Binding FleetApiClientId, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+
+								<TextBlock Text="Tesla FleetAPI refresh token" Style="{StaticResource MutedText}" Margin="0,0,0,4" />
+								<TextBox Text="{Binding FleetApiRefreshToken, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+
+								<Button Content="Connect with tokens" Command="{Binding ConnectCommand}"
+										IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+							</StackPanel>
+						</Expander>
+					</StackPanel>
+
 
 					<!-- Local fields -->
 					<StackPanel Visibility="{Binding IsLocalMode, Converter={StaticResource BoolToVisibility}}">

@@ -47,7 +47,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
 	public ObservableCollection<CloudSite> Sites { get; }
 
 	/// <summary>Gets a value indicating whether cloud-only controls are available.</summary>
-	public bool IsCloudMode => _connection.Mode == PowerwallMode.Cloud;
+	public bool IsCloudMode => _connection.Mode is PowerwallMode.Cloud or PowerwallMode.FleetApi;
+
+	/// <summary>Gets a value indicating whether Storm Watch is available (Tesla Owners cloud mode only; not exposed by FleetAPI).</summary>
+	public bool IsStormWatchAvailable => _connection.Mode == PowerwallMode.Cloud;
 
 	/// <summary>Gets the customer email of the active connection, for display next to "Switch account".</summary>
 	public string? Email => _connection.Email;
@@ -167,7 +170,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
 	[RelayCommand]
 	private async Task ApplyStormWatchAsync ()
 		{
-		if (!IsCloudMode)
+		if (!IsStormWatchAvailable)
 			return;
 
 		await RunWriteAsync (async (powerwall, token) =>
@@ -210,7 +213,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
 		{
 		GridChargingEnabled = await powerwall.GetGridChargingAsync (cancellationToken: token).ConfigureAwait (true) ?? false;
 		SelectedExportRule = await powerwall.GetGridExportAsync (cancellationToken: token).ConfigureAwait (true);
-		StormWatchEnabled = await powerwall.GetStormWatchAsync (cancellationToken: token).ConfigureAwait (true) ?? false;
+
+		// Storm Watch is intentionally not exposed in FleetAPI mode.
+		if (IsStormWatchAvailable)
+			StormWatchEnabled = await powerwall.GetStormWatchAsync (cancellationToken: token).ConfigureAwait (true) ?? false;
 
 		var sites = await powerwall.GetSitesAsync (token).ConfigureAwait (true);
 		Sites.Clear ();
@@ -219,7 +225,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
 		// Preselect the site the library resolved on connect (its remembered or default site), without
 		// triggering a redundant switch since _isLoading is set.
-		var rememberedSiteId = powerwall.CloudSiteId;
+		var rememberedSiteId = powerwall.CloudSiteId ?? powerwall.FleetApiSiteId;
 		SelectedSite = Sites.FirstOrDefault (s => s.SiteId == rememberedSiteId) ?? Sites.FirstOrDefault ();
 
 		// Keep the shared connection label in sync in case this screen resolves the site before Connect did.

@@ -42,6 +42,29 @@ internal sealed class ConsoleSettings
 	/// <summary>Tesla region (<c>us</c> or <c>cn</c>) to default for the cloud browser login.</summary>
 	[JsonProperty ("region")]
 	public string? Region { get; set; }
+
+	/// <summary>Tesla FleetAPI application Client ID to default on the next run.</summary>
+	[JsonProperty ("fleetApiClientId")]
+	public string? FleetApiClientId { get; set; }
+
+	/// <summary>
+	/// Encrypted (DPAPI, base64) Tesla FleetAPI refresh token; never stored in plaintext. FleetAPI mode has no
+	/// library-owned token cache, so the console persists this itself (mirroring <see cref="ProtectedPassword"/>)
+	/// so the caller does not have to supply it on every run.
+	/// </summary>
+	[JsonProperty ("protectedFleetApiRefreshToken")]
+	public string? ProtectedFleetApiRefreshToken { get; set; }
+
+	/// <summary>Tesla FleetAPI region (<c>na</c>, <c>eu</c>, or <c>cn</c>) to default on the next run.</summary>
+	[JsonProperty ("fleetApiRegion")]
+	public string? FleetApiRegion { get; set; }
+
+	/// <summary>
+	/// Whether the last session used Tesla FleetAPI mode, so it is remembered as the default connection mode
+	/// on the next run even without a host configured (which would otherwise default to Tesla Owners cloud mode).
+	/// </summary>
+	[JsonProperty ("preferFleetApi")]
+	public bool? PreferFleetApi { get; set; }
 	}
 
 /// <summary>

@@ -5,6 +5,7 @@
 using System.IO;
 
 using TeslaPowerwallLibrary.Cloud;
+using TeslaPowerwallLibrary.FleetApi;
 
 namespace TeslaPowerwallLibrary.Tests;
 
@@ -397,5 +398,91 @@ public sealed class PowerwallTests
 		var exception = new PowerwallCloudTokenCacheStorageException ("storage failed");
 
 		Assert.IsInstanceOfType<PowerwallException> (exception);
+		}
+
+	[TestMethod]
+	public void WhenNoFleetApiTokensAreStoredThenHasStoredFleetApiTokensReturnsFalse ()
+		{
+		var authPath = CreateTempCacheDirectory ();
+		try
+			{
+			Assert.IsFalse (Powerwall.HasStoredFleetApiTokens ("user@example.com", authPath));
+			Assert.IsFalse (Powerwall.TryGetStoredFleetApiTokens ("user@example.com", out var accessToken, out var refreshToken, authPath));
+			Assert.IsNull (accessToken);
+			Assert.IsNull (refreshToken);
+			}
+		finally
+			{
+			Directory.Delete (authPath, recursive: true);
+			}
+		}
+
+	[TestMethod]
+	public void WhenFleetApiTokensArePersistedThenTheyCanBeReadBackAndCleared ()
+		{
+		var authPath = CreateTempCacheDirectory ();
+		try
+			{
+			using (var powerwall = new Powerwall (new PowerwallOptions
+				{
+				Email = "user@example.com",
+				FleetApi = true,
+				FleetApiClientId = "client-id",
+				FleetApiAccessToken = "access-token",
+				FleetApiRefreshToken = "refresh-token",
+				FleetApiAuthPath = authPath
+				}))
+				{
+				Assert.AreEqual (PowerwallMode.FleetApi, powerwall.Mode);
+				}
+
+			// Constructing the client seeds the cache from the supplied tokens without requiring a live
+			// connection, mirroring how cloud mode's equivalent tests exercise the cache directly.
+			var cachePath = Powerwall.GetFleetApiTokenCachePath ("user@example.com", authPath);
+			Assert.IsFalse (string.IsNullOrWhiteSpace (cachePath));
+
+			Powerwall.ClearStoredFleetApiTokens ("user@example.com", authPath);
+			Assert.IsFalse (Powerwall.HasStoredFleetApiTokens ("user@example.com", authPath));
+			}
+		finally
+			{
+			Directory.Delete (authPath, recursive: true);
+			}
+		}
+
+	[TestMethod]
+	public void WhenExplicitAuthPathIsUnwritableThenClearStoredFleetApiTokensThrowsStorageException ()
+		{
+		// A path nested under a file (rather than a directory) can never be created, forcing a write
+		// failure at an explicitly configured location, which must fail fast instead of being swallowed.
+		var blockingFile = Path.Combine (Path.GetTempPath (), $"pwl-blocking-{Guid.NewGuid ():N}");
+		var authPath = Path.Combine (blockingFile, "cache.json");
+		File.WriteAllText (blockingFile, string.Empty);
+		try
+			{
+			Assert.ThrowsExactly<PowerwallFleetApiTokenCacheStorageException> (
+				() => Powerwall.ClearStoredFleetApiTokens ("user@example.com", authPath));
+			}
+		finally
+			{
+			File.Delete (blockingFile);
+			}
+		}
+
+	[TestMethod]
+	public void WhenFleetApiTokenCacheStorageExceptionIsCreatedThenItIsAPowerwallException ()
+		{
+		var exception = new PowerwallFleetApiTokenCacheStorageException ("storage failed");
+
+		Assert.IsInstanceOfType<PowerwallException> (exception);
+		}
+
+	// Creates a fresh, empty temp directory to use as an explicit FleetAPI/cloud token cache location,
+	// isolating each test from the shared per-user default cache and from other tests.
+	private static string CreateTempCacheDirectory ()
+		{
+		var path = Path.Combine (Path.GetTempPath (), $"pwl-fleetapi-cache-{Guid.NewGuid ():N}");
+		Directory.CreateDirectory (path);
+		return path;
 		}
 	}

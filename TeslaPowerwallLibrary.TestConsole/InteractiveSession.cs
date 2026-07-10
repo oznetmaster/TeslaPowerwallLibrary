@@ -153,6 +153,14 @@ internal static class InteractiveSession
 				await PowerwallActions.AlertsAsync (powerwall, cancellationToken).ConfigureAwait (false);
 				return true;
 
+			case "profile":
+				await PowerwallActions.ProfileAsync (powerwall, cancellationToken).ConfigureAwait (false);
+				return true;
+
+			case "region":
+				await PowerwallActions.RegionAsync (powerwall, cancellationToken).ConfigureAwait (false);
+				return true;
+
 			case "history":
 				await HistoryAsync (powerwall, argument, calendar: false, cancellationToken).ConfigureAwait (false);
 				return true;
@@ -209,8 +217,26 @@ internal static class InteractiveSession
 					ConsoleHelpers.WriteSuccess ($"Switched to local gateway ({credentials.Value.Host}).");
 				return;
 
+			case "fleetapi":
+				var fleetApiCredentials = CliOptions.PromptFleetApiCredentials (session.Region);
+				if (fleetApiCredentials is null)
+					return;
+
+				if (await session.SwitchFleetApiAsync (fleetApiCredentials.Value.ClientId, fleetApiCredentials.Value.RefreshToken, fleetApiCredentials.Value.Region, cancellationToken).ConfigureAwait (false))
+					ConsoleHelpers.WriteSuccess ("Switched to Tesla FleetAPI.");
+				return;
+
+			case "fleetapisetup":
+				var fleetApiSetup = await CliOptions.PromptFleetApiSetupAsync (session.Region).ConfigureAwait (false);
+				if (fleetApiSetup is null)
+					return;
+
+				if (await session.SwitchFleetApiAsync (fleetApiSetup.Value.ClientId, fleetApiSetup.Value.RefreshToken, fleetApiSetup.Value.Region, cancellationToken).ConfigureAwait (false))
+					ConsoleHelpers.WriteSuccess ("Switched to Tesla FleetAPI.");
+				return;
+
 			default:
-				ConsoleHelpers.WriteError ("Usage: login <cloud|local>");
+				ConsoleHelpers.WriteError ("Usage: login <cloud|local|fleetapi|fleetapisetup>");
 				return;
 			}
 		}
@@ -246,8 +272,19 @@ internal static class InteractiveSession
 					ConsoleHelpers.WriteSuccess ($"Switched to local gateway ({options.Host}).");
 				return;
 
+			case "fleetapi":
+				if (string.IsNullOrWhiteSpace (options.FleetApiClientId) || string.IsNullOrWhiteSpace (options.FleetApiRefreshToken))
+					{
+					ConsoleHelpers.WriteError ("No FleetAPI credentials are available for this session. Use 'login fleetapi' to sign in first.");
+					return;
+					}
+
+				if (await session.SwitchFleetApiAsync (options.FleetApiClientId, options.FleetApiRefreshToken, options.FleetApiRegion, cancellationToken).ConfigureAwait (false))
+					ConsoleHelpers.WriteSuccess ("Switched to Tesla FleetAPI.");
+				return;
+
 			default:
-				ConsoleHelpers.WriteError ("Usage: switchaccount <cloud|local>");
+				ConsoleHelpers.WriteError ("Usage: switchaccount <cloud|local|fleetapi>");
 				return;
 			}
 		}
@@ -424,15 +461,17 @@ internal static class InteractiveSession
 		Console.WriteLine ("  summary           Combined dashboard of the above");
 		Console.WriteLine ("  setreserve <n>    Set backup reserve level (0-100)");
 		Console.WriteLine ("  setmode <mode>    Set mode (self_consumption|backup|autonomous)");
-		Console.WriteLine ("  sites             List Tesla™ energy sites (cloud mode)");
-		Console.WriteLine ("  changesite <id|name>   Switch the active site by id or name (cloud mode)");
-		Console.WriteLine ("  gridconfig        Show grid charging and export settings (cloud mode)");
-		Console.WriteLine ("  setgridcharging <on|off>              Enable/disable grid charging (cloud mode)");
-		Console.WriteLine ("  setgridexport <battery_ok|pv_only|never>  Set grid export rule (cloud mode)");
+		Console.WriteLine ("  sites             List Tesla™ energy sites (cloud or FleetAPI mode)");
+		Console.WriteLine ("  changesite <id|name>   Switch the active site by id or name (cloud or FleetAPI mode)");
+		Console.WriteLine ("  gridconfig        Show grid charging and export settings (cloud or FleetAPI mode)");
+		Console.WriteLine ("  setgridcharging <on|off>              Enable/disable grid charging (cloud or FleetAPI mode)");
+		Console.WriteLine ("  setgridexport <battery_ok|pv_only|never>  Set grid export rule (cloud or FleetAPI mode)");
 		Console.WriteLine ("  stormwatch        Show whether Storm Watch is enabled (cloud mode)");
 		Console.WriteLine ("  setstormwatch <on|off>                Enable/disable Storm Watch (cloud mode)");
 		Console.WriteLine ("  vitals            Device vitals (cloud mode, or local firmware that exposes vitals)");
 		Console.WriteLine ("  alerts            Active device alerts");
+		Console.WriteLine ("  profile           Authenticated Tesla account summary (FleetAPI mode)");
+		Console.WriteLine ("  region            Authenticated account's region and FleetAPI base URL (FleetAPI mode)");
 		Console.WriteLine ("  history <kind> [period]           Raw energy history (DEPRECATED - Tesla removed this endpoint; use calendarhistory)");
 		Console.WriteLine ($"                      kind:   {ConsoleHelpers.FormatChoices (Powerwall.HistoryKinds)}");
 		Console.WriteLine ($"                      period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)}");
@@ -443,8 +482,8 @@ internal static class InteractiveSession
 		Console.WriteLine ($"                      kind:   {ConsoleHelpers.FormatChoices (PowerwallActions.TypedHistoryKinds)}");
 		Console.WriteLine ($"                      period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)}");
 		Console.WriteLine ("  capturecalendarhistory <dir> [period]  DEV TOOL: save raw calendar history JSON for every kind to <dir>");
-		Console.WriteLine ("  login <cloud|local>       Sign in to a new account and reconnect");
-		Console.WriteLine ("  switchaccount <cloud|local>  Reconnect using this session's known cloud/local credentials");
+		Console.WriteLine ("  login <cloud|local|fleetapi>       Sign in to a new account and reconnect");
+		Console.WriteLine ("  switchaccount <cloud|local|fleetapi>  Reconnect using this session's known credentials");
 		Console.WriteLine ("  poll <api>        GET a raw API endpoint and print the response");
 		Console.WriteLine ("  help              Show this list");
 		Console.WriteLine ("  exit              Quit the interactive session");

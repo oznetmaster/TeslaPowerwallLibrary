@@ -107,15 +107,43 @@ public sealed class PowerwallConnectionService : IDisposable
 			return false;
 			}
 
+		if (_powerwall is not null)
+			_powerwall.FleetApiTokensRefreshed -= OnFleetApiTokensRefreshed;
+
 		await StopPollingAsync ().ConfigureAwait (false);
 		_powerwall?.Dispose ();
 		_powerwall = candidate;
+		_powerwall.FleetApiTokensRefreshed += OnFleetApiTokensRefreshed;
 
-		// Local mode has no site name to resolve, so the gateway host doubles as the site label. Cloud mode's
-		// label (the Tesla site name) is set by the caller once GetSitesAsync resolves it, and again on any
-		// later site switch from the Settings screen.
+		// Local mode has no site name to resolve, so the gateway host doubles as the site label. Cloud/FleetAPI
+		// mode's label (the Tesla site name) is set by the caller once GetSitesAsync resolves it, and again on
+		// any later site switch from the Settings screen.
 		SetSiteLabel (candidate.Mode == PowerwallMode.Local ? options.Host : null);
 		return true;
+		}
+
+	// The library now persists FleetAPI tokens internally (mirroring cloud mode), but the app also keeps its
+	// own encrypted copy of the refresh token in AppSettings so the sign-in fields can be pre-populated
+	// before a connection has ever been established, mirroring the test console's equivalent behavior.
+	// Best-effort: never throws into the caller, which may be the background polling thread that triggered
+	// the refresh.
+	private void OnFleetApiTokensRefreshed (object? sender, FleetApiTokensRefreshedEventArgs e)
+		{
+		try
+			{
+			var settings = AppSettingsStore.Load ();
+			if (!string.Equals (settings.Mode, "FleetApi", StringComparison.OrdinalIgnoreCase))
+				return;
+
+			if (!string.IsNullOrWhiteSpace (e.RefreshToken))
+				settings.ProtectedFleetApiRefreshToken = CredentialProtector.Protect (e.RefreshToken);
+
+			AppSettingsStore.Save (settings);
+			}
+		catch (Exception)
+			{
+			// Persisting rotated tokens is best-effort; a failure here must not crash a background poll.
+			}
 		}
 
 	/// <summary>Starts the background polling loop if it is not already running.</summary>
@@ -209,11 +237,6 @@ public sealed class PowerwallConnectionService : IDisposable
 			}
 		}
 
-	// Persists rotated Tesla tokens after the library refreshes them, so a later launch reuses the current
-	// refresh token instead of a stale one. Only writes when cloud tokens were previously remembered, keeping
-	// behavior correct when the user declined to save credentials. Best-effort: never throws into the caller,
-	// which may be the background polling thread that triggered the refresh.
-
 	/// <summary>
 	/// Stops polling and tears down the active connection so the app returns to a disconnected state. Unlike
 	/// <see cref="StopPollingAsync"/>, this clears the underlying <see cref="Powerwall"/>, allowing the user
@@ -223,6 +246,9 @@ public sealed class PowerwallConnectionService : IDisposable
 	public async Task DisconnectAsync ()
 		{
 		await StopPollingAsync ().ConfigureAwait (false);
+		if (_powerwall is not null)
+			_powerwall.FleetApiTokensRefreshed -= OnFleetApiTokensRefreshed;
+
 		_powerwall?.Dispose ();
 		_powerwall = null;
 		SetSiteLabel (null);

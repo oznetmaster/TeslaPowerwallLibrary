@@ -113,4 +113,62 @@ public sealed record PowerwallOptions
 
 	/// <summary>When <see langword="true"/>, use Tesla FleetAPI for data.</summary>
 	public bool FleetApi { get; init; }
+
+	/// <summary>
+	/// Tesla FleetAPI application Client ID registered at <c>https://developer.tesla.com/</c>. Required for
+	/// FleetAPI mode; used only to identify the application on the OAuth refresh-token grant.
+	/// </summary>
+	public string? FleetApiClientId { get; init; }
+
+	/// <summary>
+	/// Tesla FleetAPI application Client Secret registered at <c>https://developer.tesla.com/</c>. Reserved
+	/// for future use (for example partner-token flows); it is not required for and not sent on the
+	/// refresh-token grant used to keep <see cref="FleetApiAccessToken"/> current.
+	/// </summary>
+	public string? FleetApiClientSecret { get; init; }
+
+	/// <summary>
+	/// Tesla FleetAPI OAuth access token. Optional: when omitted (or when the supplied value is stale or
+	/// rejected), the library silently derives a new one from <see cref="FleetApiRefreshToken"/>.
+	/// </summary>
+	public string? FleetApiAccessToken { get; init; }
+
+	/// <summary>
+	/// Tesla FleetAPI OAuth refresh token used to renew an expired or absent <see cref="FleetApiAccessToken"/>.
+	/// This is the one credential a first-time FleetAPI connection must supply - obtain it by completing the
+	/// Tesla FleetAPI OAuth flow separately. After the initial connect the library persists tokens internally
+	/// (keyed by <see cref="Email"/>) and reuses them automatically on later runs, so callers do not need to
+	/// store tokens themselves, unless <see cref="NoFleetApiTokenPersistence"/> is <see langword="true"/>.
+	/// </summary>
+	public string? FleetApiRefreshToken { get; init; }
+
+	/// <summary>
+	/// Tesla FleetAPI region used to select the regional Fleet API base URL: <c>na</c> (North America /
+	/// Asia-Pacific, default), <c>eu</c> (Europe / Middle East / Africa), or <c>cn</c> (China). Unrecognized
+	/// values fall back to <c>na</c>.
+	/// </summary>
+	public string FleetApiRegion { get; init; } = "na";
+
+	/// <summary>
+	/// Directory or file used by the library to persist FleetAPI tokens and the selected site, keyed by
+	/// <see cref="Email"/>. When empty, a per-user default under the local application data folder is used and
+	/// storage failures are logged but otherwise ignored. When non-empty, the location is authoritative: no
+	/// fallback is attempted, and a failure to read or write it raises
+	/// <see cref="FleetApi.PowerwallFleetApiTokenCacheStorageException"/>. When a directory is supplied, the
+	/// default cache file name is appended. Ignored entirely when <see cref="NoFleetApiTokenPersistence"/> is
+	/// <see langword="true"/>.
+	/// </summary>
+	public string FleetApiAuthPath { get; init; } = string.Empty;
+
+	/// <summary>
+	/// When <see langword="true"/>, disables the library's FleetAPI token cache entirely: <see cref="FleetApiAuthPath"/>
+	/// is ignored and no file is ever read or written. Callers must supply <see cref="FleetApiRefreshToken"/> on
+	/// every run (<see cref="FleetApiAccessToken"/> remains optional and is silently re-derived when absent or
+	/// stale) and should subscribe to <see cref="Powerwall.FleetApiTokensRefreshed"/> to persist the new value
+	/// using their own storage; when <see cref="FleetApiAccessToken"/> was omitted, that event only fires when
+	/// the refresh token itself changes. Use this on hosts where the library's default per-user file cache is
+	/// not appropriate (for example Mono-hosted embedded environments without a writable per-user profile
+	/// folder).
+	/// </summary>
+	public bool NoFleetApiTokenPersistence { get; init; }
 	}

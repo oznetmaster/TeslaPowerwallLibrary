@@ -36,6 +36,15 @@ public partial class ConnectView : UserControl
 	private void OnLocalChecked (object sender, System.Windows.RoutedEventArgs e)
 		{
 		if (DataContext is ConnectViewModel vm)
+			{
 			vm.IsCloudMode = false;
+			vm.IsFleetApiMode = false;
+			}
+		}
+
+	private void OnFleetApiClientSecretChanged (object sender, System.Windows.RoutedEventArgs e)
+		{
+		if (DataContext is ConnectViewModel vm)
+			vm.FleetApiClientSecret = FleetApiClientSecretBox.Password;
 		}
 	}

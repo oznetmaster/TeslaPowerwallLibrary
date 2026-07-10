@@ -69,6 +69,29 @@ internal sealed class InteractiveConnection : IDisposable
 		return ReconnectAsync (BuildLocalOptions (Options, host, password), cancellationToken);
 		}
 
+	/// <summary>
+	/// Switches the active connection to Tesla FleetAPI using the supplied credentials, changing only the
+	/// FleetAPI credential group and leaving any cloud/local credentials intact. The caller-supplied refresh
+	/// token (and Client ID needed to renew it) are required here since this is an explicit switch command;
+	/// the library persists them internally afterward so a later plain reconnect can omit them. On failure
+	/// the current connection is preserved.
+	/// </summary>
+	/// <param name="clientId">Tesla FleetAPI application Client ID.</param>
+	/// <param name="refreshToken">Tesla FleetAPI OAuth refresh token.</param>
+	/// <param name="region">Tesla FleetAPI region (<c>na</c>, <c>eu</c>, or <c>cn</c>).</param>
+	/// <param name="cancellationToken">Token used to cancel the reconnect.</param>
+	/// <returns><see langword="true"/> when the switch and reconnect succeed; otherwise <see langword="false"/>.</returns>
+	public Task<bool> SwitchFleetApiAsync (string clientId, string refreshToken, string region, CancellationToken cancellationToken)
+		{
+		if (string.IsNullOrWhiteSpace (clientId))
+			throw new ArgumentException ("A Tesla FleetAPI Client ID is required.", nameof (clientId));
+
+		if (string.IsNullOrWhiteSpace (refreshToken))
+			throw new ArgumentException ("A Tesla FleetAPI refresh token is required.", nameof (refreshToken));
+
+		return ReconnectAsync (BuildFleetApiOptions (Options, clientId, refreshToken, region), cancellationToken);
+		}
+
 	// Builds a new connection from the candidate options, connecting before swapping so a failed switch
 	// preserves the current connection. Disposes the previous connection only after a successful reconnect.
 	private async Task<bool> ReconnectAsync (PowerwallOptions candidate, CancellationToken cancellationToken)
@@ -151,6 +174,21 @@ internal sealed class InteractiveConnection : IDisposable
 			CloudMode = false,
 			Host = host,
 			Password = password
+			};
+
+	// Produces options that activate FleetAPI mode with the supplied credentials, changing only the FleetAPI
+	// credential group. Site selection is reset so the new account resolves its own default site. Cloud and
+	// local credentials are preserved via the record copy so a later switch back remains possible.
+	internal static PowerwallOptions BuildFleetApiOptions (PowerwallOptions current, string clientId, string refreshToken, string region) =>
+		current with
+			{
+			CloudMode = true,
+			FleetApi = true,
+			FleetApiClientId = clientId,
+			FleetApiRefreshToken = refreshToken,
+			FleetApiAccessToken = null,
+			FleetApiRegion = CliOptions.NormalizeFleetApiRegion (region),
+			SiteId = null
 			};
 
 	/// <summary>Disposes the current connection.</summary>

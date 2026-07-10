@@ -9,77 +9,86 @@ using log4net;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace TeslaPowerwallLibrary.Cloud;
+using TeslaPowerwallLibrary.Cloud;
+
+namespace TeslaPowerwallLibrary.FleetApi;
 
 /// <summary>
-/// Tesla™ Owners (cloud) mode client. Communicates with the Tesla Owners API to retrieve Powerwall™ data
-/// and maps the cloud responses onto the same local-gateway API shapes used by the rest of the library.
-/// Faithfully adapts the behavior of the Python <c>PyPowerwallCloud</c> class using an async,
-/// strongly-typed, cancellable API surface.
+/// Tesla™ FleetAPI mode client. Communicates with the Tesla FleetAPI to retrieve Powerwall™ data and maps
+/// the FleetAPI responses onto the same local-gateway API shapes used by the rest of the library.
+/// Faithfully adapts the behavior of the Python <c>PyPowerwallFleetAPI</c> class using an async,
+/// strongly-typed, cancellable API surface. Reuses the internal Tesla Owners (cloud) response models
+/// because the <c>site_info</c>/<c>live_status</c>/<c>site_status</c> payload shapes are identical between
+/// the Tesla Owners API and Tesla FleetAPI.
 /// </summary>
 /// <remarks>
-/// A <see cref="PowerwallOptions.RefreshToken"/> must be supplied programmatically (or already cached from a
-/// prior connect); <see cref="PowerwallOptions.AccessToken"/> is optional and, when absent or rejected, is
-/// silently (re)derived from the refresh token. This client refreshes an expired access token but does not
-/// perform interactive browser login; obtain the initial refresh token with an external setup tool.
+/// A <see cref="PowerwallOptions.FleetApiRefreshToken"/> must be supplied programmatically (or already cached
+/// from a prior connect); <see cref="PowerwallOptions.FleetApiAccessToken"/> is optional and, when absent or
+/// rejected, is silently (re)derived from the refresh token. There is no interactive login for this mode -
+/// obtain the initial refresh token via an external Tesla Developer setup flow. Storm Watch is intentionally
+/// not exposed for FleetAPI mode.
 /// </remarks>
-public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClient, IDisposable
+public sealed class PowerwallFleetApiClient : PowerwallClientBase, IEnergySiteClient, IDisposable
 	{
 	private const int COUNTER_MAX = 64;
 	private const int SITE_CONFIG_TTL_SECONDS = 59;
 	private const double RESERVE_SCALE_BUFFER = 5.0 / 0.95;
 
-	private static readonly ILog _log = LogManager.GetLogger (typeof (PowerwallCloudClient));
+	private static readonly ILog _log = LogManager.GetLogger (typeof (PowerwallFleetApiClient));
 
 	private readonly Stopwatch _clock = Stopwatch.StartNew ();
-	private readonly Dictionary<string, object> _cloudCache = [];
-	private readonly Dictionary<string, double> _cloudCacheTimes = [];
+	private readonly Dictionary<string, object> _fleetCache = [];
+	private readonly Dictionary<string, double> _fleetCacheTimes = [];
+	private readonly string _clientId;
 	private readonly string? _accessToken;
 	private readonly string? _refreshToken;
-	private readonly TeslaCloudTokenCache? _tokenCache;
+	private readonly string _baseUrl;
+	private readonly TeslaFleetApiTokenCache? _tokenCache;
 
-	private TeslaCloudConnection? _connection;
+	private FleetApiConnection? _connection;
 	private string? _resolvedSiteId;
 	private int _counter;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="PowerwallCloudClient"/> class.
+	/// Initializes a new instance of the <see cref="PowerwallFleetApiClient"/> class.
 	/// </summary>
-	/// <param name="email">
-	/// Customer email. Tesla Owners API authentication is entirely token-based, so this value is not sent to
-	/// Tesla; it is used only as the token cache key and for diagnostic display. Ignored (beyond display) when
-	/// <paramref name="noCloudTokenPersistence"/> is <see langword="true"/>.
-	/// </param>
+	/// <param name="email">Customer email; not sent to Tesla, used only for diagnostic display.</param>
+	/// <param name="clientId">Tesla FleetAPI application Client ID.</param>
 	/// <param name="cacheExpireSeconds">Number of seconds before cached responses expire.</param>
 	/// <param name="timeout">Per-request HTTP timeout.</param>
-	/// <param name="accessToken">Tesla Owners API OAuth access token.</param>
-	/// <param name="refreshToken">Tesla Owners API OAuth refresh token used to renew the access token.</param>
+	/// <param name="accessToken">Tesla FleetAPI OAuth access token.</param>
+	/// <param name="refreshToken">Tesla FleetAPI OAuth refresh token used to renew the access token.</param>
 	/// <param name="siteId">Optional site identifier to select when an account has multiple sites.</param>
-	/// <param name="authPath">Path to cloud authentication and site cache files.</param>
-	/// <param name="noCloudTokenPersistence">
+	/// <param name="region">Tesla FleetAPI region code (<c>na</c>, <c>eu</c>, or <c>cn</c>).</param>
+	/// <param name="authPath">Path to the FleetAPI token cache file.</param>
+	/// <param name="noFleetApiTokenPersistence">
 	/// When <see langword="true"/>, disables the token cache entirely: <paramref name="authPath"/> is ignored,
 	/// <paramref name="accessToken"/>/<paramref name="refreshToken"/> must be supplied on every call, and
 	/// rotated tokens are only ever surfaced through <see cref="TokensRefreshed"/>.
 	/// </param>
-	public PowerwallCloudClient (
+	public PowerwallFleetApiClient (
 		string email,
+		string clientId,
 		int cacheExpireSeconds,
 		TimeSpan timeout,
 		string? accessToken = null,
 		string? refreshToken = null,
 		string? siteId = null,
+		string? region = null,
 		string authPath = "",
-		bool noCloudTokenPersistence = false)
+		bool noFleetApiTokenPersistence = false)
 		: base (email)
 		{
+		_clientId = clientId ?? string.Empty;
 		CacheExpireSeconds = cacheExpireSeconds;
 		Timeout = timeout;
 		SiteId = siteId;
-		AuthPath = authPath ?? string.Empty;
-		NoCloudTokenPersistence = noCloudTokenPersistence;
+		_baseUrl = FleetApiRegions.ResolveBaseUrl (region);
 		_accessToken = accessToken;
 		_refreshToken = refreshToken;
-		_tokenCache = noCloudTokenPersistence ? null : new TeslaCloudTokenCache (AuthPath, email);
+		AuthPath = authPath ?? string.Empty;
+		NoFleetApiTokenPersistence = noFleetApiTokenPersistence;
+		_tokenCache = noFleetApiTokenPersistence ? null : new TeslaFleetApiTokenCache (AuthPath, email);
 		}
 
 	/// <summary>Gets the configured site identifier, when one was supplied.</summary>
@@ -91,26 +100,26 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	/// <summary>Gets the per-request HTTP timeout.</summary>
 	public TimeSpan Timeout { get; }
 
-	/// <summary>Gets the path to cloud authentication and site cache files.</summary>
+	/// <summary>Gets the path to the FleetAPI token cache file.</summary>
 	public string AuthPath { get; }
 
 	/// <summary>Gets a value indicating whether the library-owned token cache is disabled for this instance.</summary>
-	public bool NoCloudTokenPersistence { get; }
+	public bool NoFleetApiTokenPersistence { get; }
 
 	/// <summary>
 	/// Raised after the underlying Tesla connection refreshes its OAuth tokens. Firing depends on whether an
 	/// access token was supplied when this client was constructed (either explicitly via the
 	/// <c>accessToken</c> constructor parameter, or resolved from the library's own token cache): when one
 	/// was, every refresh is reported in full; when none was (a pure refresh-token bootstrap), a refresh is
-	/// only reported when Tesla also rotated the refresh token, and <see cref="CloudTokensRefreshedEventArgs.AccessToken"/>
+	/// only reported when Tesla also rotated the refresh token, and <see cref="FleetApiTokensRefreshedEventArgs.AccessToken"/>
 	/// is <see langword="null"/> in that case. Raised on the calling thread.
 	/// </summary>
-	public event EventHandler<CloudTokensRefreshedEventArgs>? TokensRefreshed;
+	public event EventHandler<FleetApiTokensRefreshedEventArgs>? TokensRefreshed;
 
-	/// <summary>Gets the current Tesla Owners API access token, updated after any refresh.</summary>
+	/// <summary>Gets the current Tesla FleetAPI access token, updated after any refresh.</summary>
 	public string? CurrentAccessToken => _connection?.AccessToken ?? _accessToken;
 
-	/// <summary>Gets the current Tesla Owners API refresh token, updated after any rotation.</summary>
+	/// <summary>Gets the current Tesla FleetAPI refresh token, updated after any rotation.</summary>
 	public string? CurrentRefreshToken => _connection?.RefreshToken ?? _refreshToken;
 
 	private double NowSeconds => _clock.Elapsed.TotalSeconds;
@@ -118,28 +127,29 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	/// <inheritdoc/>
 	public override async Task AuthenticateAsync (CancellationToken cancellationToken = default)
 		{
-		_log.Debug ("Tesla cloud mode enabled");
+		_log.Debug ("Tesla FleetAPI mode enabled");
 
 		// Load any library-persisted tokens/site for this email. Explicitly supplied values (a first-time
-		// login or a caller override) take precedence over the cache; otherwise reuse what we persisted on a
+		// setup or a caller override) take precedence over the cache; otherwise reuse what we persisted on a
 		// previous run, so callers never have to manage token storage themselves. When the cache is disabled
 		// the caller must supply at least a refresh token on every call (the access token is optional and is
 		// silently re-derived below when absent) and is solely responsible for persisting a rotated refresh
 		// token via TokensRefreshed.
-		CloudTokenCacheEntry cached = _tokenCache?.Load () ?? CloudTokenCacheEntry.Empty;
+		FleetApiTokenCacheEntry cached = _tokenCache?.Load () ?? FleetApiTokenCacheEntry.Empty;
+		var clientId = string.IsNullOrWhiteSpace (_clientId) ? cached.ClientId ?? string.Empty : _clientId;
 		var accessToken = string.IsNullOrWhiteSpace (_accessToken) ? cached.AccessToken : _accessToken;
 		var refreshToken = string.IsNullOrWhiteSpace (_refreshToken) ? cached.RefreshToken : _refreshToken;
 		SiteId ??= cached.SiteId;
 
-		_connection = new TeslaCloudConnection (accessToken, refreshToken, Timeout);
+		_connection = new FleetApiConnection (clientId, accessToken, refreshToken, _baseUrl, Timeout);
 		_connection.TokensRefreshed += OnConnectionTokensRefreshed;
 		if (!_connection.HasToken)
 			{
 			_connection.Dispose ();
 			_connection = null;
-			throw new PowerwallCloudNoTeslaAuthFileException (
-				"No Tesla cloud authentication tokens were provided. Run setup to create a Tesla auth file and supply "
-				+ "the access and refresh tokens via PowerwallOptions before connecting in cloud mode.");
+			throw new PowerwallFleetApiNoTeslaAuthFileException (
+				"No Tesla FleetAPI authentication tokens were provided. Supply a FleetApiClientId and "
+				+ "FleetApiRefreshToken via PowerwallOptions before connecting in FleetAPI mode.");
 			}
 
 		// When only a refresh token is available, obtain an initial access token up front.
@@ -147,8 +157,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 			{
 			_connection.Dispose ();
 			_connection = null;
-			throw new PowerwallCloudNoTeslaAuthFileException (
-				"Unable to obtain a Tesla cloud access token from the supplied refresh token. Run setup to renew the Tesla auth file.");
+			throw new PowerwallFleetApiNoTeslaAuthFileException (
+				"Unable to obtain a Tesla FleetAPI access token from the supplied refresh token.");
 			}
 
 		List<EnergyProduct>? sites = await FetchEnergySitesAsync (cancellationToken).ConfigureAwait (false);
@@ -156,15 +166,15 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 			{
 			_connection.Dispose ();
 			_connection = null;
-			throw new PowerwallCloudNoTeslaAuthFileException (
-				"Unable to retrieve Tesla cloud product list. The access token may be expired or rejected - run setup to renew the Tesla auth file.");
+			throw new PowerwallFleetApiNoTeslaAuthFileException (
+				"Unable to retrieve the Tesla FleetAPI product list. The access token may be expired or rejected.");
 			}
 
 		if (sites.Count == 0)
 			{
 			_connection.Dispose ();
 			_connection = null;
-			throw new PowerwallCloudTeslaNotConnectedException ($"No Tesla energy sites were found for {Email}.");
+			throw new PowerwallFleetApiTeslaNotConnectedException ($"No Tesla energy sites were found for {Email}.");
 			}
 
 		_resolvedSiteId = SelectSite (sites);
@@ -173,9 +183,9 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		// Persist the tokens now in use (an initial refresh above may have produced new ones) and the resolved
 		// site, so a later run reconnects without any caller involvement. Skipped entirely in no-cache mode;
 		// the caller already receives the current tokens via TokensRefreshed on any subsequent rotation.
-		_tokenCache?.SaveTokens (_connection.AccessToken, _connection.RefreshToken);
+		_tokenCache?.SaveTokens (_clientId, _connection.AccessToken, _connection.RefreshToken);
 		_tokenCache?.SaveSite (_resolvedSiteId);
-		_log.Debug ($"Connected to Tesla cloud - using site {_resolvedSiteId} for {Email}");
+		_log.Debug ($"Connected to Tesla FleetAPI - using site {_resolvedSiteId} for {Email}");
 		}
 
 	/// <inheritdoc/>
@@ -189,7 +199,6 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 
 	/// <summary>
 	/// Returns the list of Tesla energy sites (Powerwall and solar) available to the authenticated account.
-	/// Faithfully adapts the upstream pypowerwall <c>getsites()</c> method.
 	/// </summary>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The available sites, or an empty list when none are found.</returns>
@@ -212,8 +221,6 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 
 	/// <summary>
 	/// Switches the active site to the one matching <paramref name="siteId"/> without reconnecting.
-	/// Faithfully adapts the upstream pypowerwall <c>change_site()</c> method, additionally clearing the
-	/// cloud cache so subsequent reads reflect the newly selected site.
 	/// </summary>
 	/// <param name="siteId">The Tesla energy site identifier to switch to.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
@@ -241,10 +248,9 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 
 			_resolvedSiteId = siteId;
 			SiteId = siteId;
-			ClearCloudCache ();
+			ClearFleetCache ();
 			_tokenCache?.SaveSite (siteId);
-			var siteName = site.SiteName ?? "Unknown";
-			_log.Debug ($"Changed site to {siteId} ({siteName}) for {Email}");
+			_log.Debug ($"Changed site to {siteId} for {Email}");
 			return true;
 			}
 
@@ -254,7 +260,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 
 	/// <summary>
 	/// Enables or disables charging the battery from the grid. Faithfully adapts the upstream
-	/// pypowerwall <c>set_grid_charging()</c> method.
+	/// pypowerwall FleetAPI <c>set_grid_charging()</c> method.
 	/// </summary>
 	/// <param name="enabled"><see langword="true"/> to allow grid charging; <see langword="false"/> to disallow it.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
@@ -266,12 +272,12 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		// Upstream inverts the flag: enabling grid charging clears "disallow_charge_from_grid_with_solar_installed".
 		var settings = new JObject { ["disallow_charge_from_grid_with_solar_installed"] = !enabled };
 		JObject? response = await _connection!.SetGridImportExportAsync (_resolvedSiteId!, settings, cancellationToken).ConfigureAwait (false);
-		InvalidateCloudCache ("SITE_CONFIG");
+		InvalidateFleetCache ("SITE_CONFIG");
 		return Serialize (response);
 		}
 
 	/// <summary>
-	/// Sets the grid export rule. Faithfully adapts the upstream pypowerwall <c>set_grid_export()</c> method.
+	/// Sets the grid export rule. Faithfully adapts the upstream pypowerwall FleetAPI <c>set_grid_export()</c> method.
 	/// </summary>
 	/// <param name="mode">The export rule: <c>battery_ok</c>, <c>pv_only</c>, or <c>never</c>.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
@@ -282,13 +288,13 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 
 		var settings = new JObject { ["customer_preferred_export_rule"] = mode };
 		JObject? response = await _connection!.SetGridImportExportAsync (_resolvedSiteId!, settings, cancellationToken).ConfigureAwait (false);
-		InvalidateCloudCache ("SITE_CONFIG");
+		InvalidateFleetCache ("SITE_CONFIG");
 		return Serialize (response);
 		}
 
 	/// <summary>
 	/// Returns whether charging the battery from the grid is currently allowed. Faithfully adapts the
-	/// upstream pypowerwall <c>get_grid_charging()</c> method.
+	/// upstream pypowerwall FleetAPI <c>get_grid_charging()</c> method.
 	/// </summary>
 	/// <param name="force">When <see langword="true"/>, bypasses the cache.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
@@ -307,7 +313,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		}
 
 	/// <summary>
-	/// Returns the current grid export rule. Faithfully adapts the upstream pypowerwall
+	/// Returns the current grid export rule. Faithfully adapts the upstream pypowerwall FleetAPI
 	/// <c>get_grid_export()</c> method.
 	/// </summary>
 	/// <param name="force">When <see langword="true"/>, bypasses the cache.</param>
@@ -330,45 +336,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		}
 
 	/// <summary>
-	/// Enables or disables Storm Watch (predictive pre-charging ahead of severe weather) for the active site.
-	/// This is the same setting exposed by the Tesla™ app; Tesla's upstream <c>teslapy</c>/<c>teslajsonpy</c>
-	/// endpoint registries list the underlying <c>STORM_MODE_SETTINGS</c> endpoint, but pypowerwall does not
-	/// implement a convenience wrapper for it.
-	/// </summary>
-	/// <param name="enabled"><see langword="true"/> to enable Storm Watch; <see langword="false"/> to disable it.</param>
-	/// <param name="cancellationToken">Token used to cancel the operation.</param>
-	/// <returns>The raw response body, or <see langword="null"/> when the call fails.</returns>
-	public async Task<string?> SetStormWatchAsync (bool enabled, CancellationToken cancellationToken = default)
-		{
-		EnsureConnected ();
-
-		JObject? response = await _connection!.SetStormModeAsync (_resolvedSiteId!, enabled, cancellationToken).ConfigureAwait (false);
-		InvalidateCloudCache ("SITE_CONFIG");
-		return Serialize (response);
-		}
-
-	/// <summary>
-	/// Returns whether Storm Watch is currently enabled for the active site. This is the same setting exposed
-	/// by the Tesla™ app.
-	/// </summary>
-	/// <param name="force">When <see langword="true"/>, bypasses the cache.</param>
-	/// <param name="cancellationToken">Token used to cancel the operation.</param>
-	/// <returns><see langword="true"/> when Storm Watch is enabled, <see langword="false"/> when disabled, or <see langword="null"/> when unavailable.</returns>
-	public async Task<bool?> GetStormWatchAsync (bool force = false, CancellationToken cancellationToken = default)
-		{
-		EnsureConnected ();
-
-		SiteConfigResponse? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
-		SiteUserSettings? userSettings = config?.UserSettings;
-		if (userSettings is null)
-			return null;
-
-		return userSettings.StormModeEnabled ?? false;
-		}
-
-	/// <summary>
-	/// Returns raw energy history for the active site (cloud mode only). Faithfully adapts the upstream
-	/// pypowerwall/FleetAPI <c>get_history()</c> method.
+	/// Returns raw energy history for the active site. Faithfully adapts the upstream pypowerwall FleetAPI
+	/// <c>get_history()</c> method.
 	/// </summary>
 	/// <param name="kind">The history kind (for example <c>power</c>, <c>energy</c>, <c>backup</c>, or <c>self_consumption</c>).</param>
 	/// <param name="period">The aggregation period (for example <c>day</c>, <c>week</c>, <c>month</c>, <c>year</c>, or <c>lifetime</c>).</param>
@@ -391,19 +360,19 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 			JObject? response = await _connection!.GetHistoryAsync (_resolvedSiteId!, kind, period, timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
 			return Serialize (response?["response"] ?? response);
 			}
-		catch (PowerwallCloudEndpointRemovedException exc)
+		catch (PowerwallFleetApiEndpointRemovedException exc)
 			{
 			// Tesla retired the '/history' endpoint (HTTP 410). '/calendar_history' is the current
 			// replacement and supports a superset of kinds, so point callers there explicitly.
-			throw new PowerwallCloudEndpointRemovedException (
+			throw new PowerwallFleetApiEndpointRemovedException (
 				"Tesla has permanently removed the '/history' energy endpoint (HTTP 410 Gone). "
 				+ "Use GetCalendarHistoryAsync (the 'calendarhistory' command) instead.", exc);
 			}
 		}
 
 	/// <summary>
-	/// Returns raw calendar-aligned energy history for the active site (cloud mode only). Faithfully adapts
-	/// the upstream pypowerwall/FleetAPI <c>get_calendar_history()</c> method.
+	/// Returns raw calendar-aligned energy history for the active site. Faithfully adapts the upstream
+	/// pypowerwall FleetAPI <c>get_calendar_history()</c> method.
 	/// </summary>
 	/// <param name="kind">The history kind (for example <c>power</c>, <c>soe</c>, <c>energy</c>, <c>backup</c>, <c>self_consumption</c>, <c>time_of_use_energy</c>, or <c>savings</c>).</param>
 	/// <param name="period">The aggregation period (for example <c>day</c>, <c>week</c>, <c>month</c>, <c>year</c>, or <c>lifetime</c>).</param>
@@ -425,6 +394,31 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		return Serialize (response?["response"] ?? response);
 		}
 
+	/// <summary>
+	/// Returns a summary of the authenticated Tesla account from <c>/api/1/users/me</c>.
+	/// </summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The raw account summary JSON, or <see langword="null"/> when unavailable.</returns>
+	public async Task<string?> GetProfileAsync (CancellationToken cancellationToken = default)
+		{
+		EnsureConnected ();
+		JObject? response = await _connection!.GetProfileAsync (cancellationToken).ConfigureAwait (false);
+		return Serialize (response);
+		}
+
+	/// <summary>
+	/// Returns the authenticated account's region and corresponding FleetAPI base URL from
+	/// <c>/api/1/users/region</c>.
+	/// </summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The raw region info JSON, or <see langword="null"/> when unavailable.</returns>
+	public async Task<string?> GetRegionAsync (CancellationToken cancellationToken = default)
+		{
+		EnsureConnected ();
+		JObject? response = await _connection!.GetRegionAsync (cancellationToken).ConfigureAwait (false);
+		return Serialize (response);
+		}
+
 	/// <inheritdoc/>
 	public override Task<string?> PollAsync (string api, bool force = false, bool recursive = false, CancellationToken cancellationToken = default)
 		{
@@ -438,8 +432,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	/// <inheritdoc/>
 	public override Task<byte[]?> PollRawAsync (string api, bool force = false, bool recursive = false, CancellationToken cancellationToken = default)
 		{
-		// Cloud mode has no protobuf vitals path; mirror upstream by returning no binary payload.
-		_log.Debug ($"Raw poll is not supported in cloud mode for {api}");
+		// FleetAPI mode has no protobuf vitals path; mirror upstream by returning no binary payload.
+		_log.Debug ($"Raw poll is not supported in FleetAPI mode for {api}");
 		return Task.FromResult<byte[]?> (null);
 		}
 
@@ -493,7 +487,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 
 	private async Task<string?> MapPollAsync (string api, bool force, CancellationToken cancellationToken)
 		{
-		_log.Debug ($" -- cloud: Request for {api}");
+		_log.Debug ($" -- fleetapi: Request for {api}");
 
 		JToken? data = api switch
 			{
@@ -543,7 +537,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 
 	private async Task<string?> MapPostAsync (string api, object? payload, string? din, CancellationToken cancellationToken)
 		{
-		_log.Debug ($" -- cloud: Request for {api}");
+		_log.Debug ($" -- fleetapi: Request for {api}");
 
 		if (api != "/api/operation")
 			return Serialize (new JObject { ["ERROR"] = $"Unknown API: {api}" });
@@ -813,37 +807,44 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 
 		if (!hasReserve && string.IsNullOrEmpty (realMode))
 			{
-			throw new PowerwallCloudInvalidPayloadException (
+			throw new PowerwallFleetApiInvalidPayloadException (
 				"/api/operation payload missing required parameters. Either 'backup_reserve_percent' or 'real_mode', or both, must be present.");
 			}
 
-		if (string.IsNullOrWhiteSpace (din))
-			_log.Warn ("No valid DIN provided, will adjust the configured site battery.");
+		if (!string.IsNullOrWhiteSpace (din))
+			_log.Debug ("FleetAPI mode operates on entire site, not din. Ignoring din parameter.");
 
 		var reservePercent = (int) Math.Round (payloadObject.Value<double?> ("backup_reserve_percent") ?? 0);
 
 		try
 			{
-			JObject? levelResult = await _connection!.SetBackupReserveAsync (_resolvedSiteId!, reservePercent, cancellationToken).ConfigureAwait (false);
+			JObject? levelResult = hasReserve
+				? await _connection!.SetBackupReserveAsync (_resolvedSiteId!, reservePercent, cancellationToken).ConfigureAwait (false)
+				: null;
 			JObject? modeResult = realMode is null
 				? null
-				: await _connection.SetOperationModeAsync (_resolvedSiteId!, realMode, cancellationToken).ConfigureAwait (false);
+				: await _connection!.SetOperationModeAsync (_resolvedSiteId!, realMode, cancellationToken).ConfigureAwait (false);
 
-			return new JObject
+			var result = new JObject ();
+			if (hasReserve)
 				{
-				["set_backup_reserve_percent"] = new JObject
+				result["set_backup_reserve_percent"] = new JObject
 					{
 					["backup_reserve_percent"] = reservePercent,
-					["din"] = din,
 					["result"] = ExtractCommandResult (levelResult)
-					},
-				["set_operation"] = new JObject
+					};
+				}
+
+			if (realMode is not null)
+				{
+				result["set_operation"] = new JObject
 					{
 					["real_mode"] = realMode,
-					["din"] = din,
 					["result"] = ExtractCommandResult (modeResult)
-					}
-				};
+					};
+				}
+
+			return result;
 			}
 		catch (Exception exc) when (exc is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
 			{
@@ -861,7 +862,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 
 	private async Task<SitePowerResponse?> GetSitePowerAsync (bool force, CancellationToken cancellationToken)
 		{
-		var cachedBefore = IsCloudCacheValid ("SITE_DATA", CacheExpireSeconds);
+		var cachedBefore = IsFleetCacheValid ("SITE_DATA", CacheExpireSeconds);
 		var counter = _counter + 1;
 		SitePowerResponse? response = await GetCachedSiteDataAsync (
 			"SITE_DATA",
@@ -887,31 +888,31 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	private async Task<T?> GetCachedSiteDataAsync<T> (
 		string name,
 		int ttlSeconds,
-		Func<TeslaCloudConnection, CancellationToken, Task<T?>> fetch,
+		Func<FleetApiConnection, CancellationToken, Task<T?>> fetch,
 		bool force,
 		CancellationToken cancellationToken)
 		where T : class
 		{
-		if (!force && IsCloudCacheValid (name, ttlSeconds) && _cloudCache.TryGetValue (name, out var cached))
+		if (!force && IsFleetCacheValid (name, ttlSeconds) && _fleetCache.TryGetValue (name, out var cached))
 			{
-			_log.Debug ($" -- cloud: Returning cached {name} data");
+			_log.Debug ($" -- fleetapi: Returning cached {name} data");
 			return cached as T;
 			}
 
 		T? response = await fetch (_connection!, cancellationToken).ConfigureAwait (false);
 		if (response is not null)
 			{
-			_cloudCache[name] = response;
-			_cloudCacheTimes[name] = NowSeconds;
-			_log.Debug ($" -- cloud: Retrieved {name} data");
+			_fleetCache[name] = response;
+			_fleetCacheTimes[name] = NowSeconds;
+			_log.Debug ($" -- fleetapi: Retrieved {name} data");
 			}
 
 		return response;
 		}
 
-	private bool IsCloudCacheValid (string name, int ttlSeconds) =>
-		_cloudCache.ContainsKey (name)
-		&& _cloudCacheTimes.TryGetValue (name, out var cachedAt)
+	private bool IsFleetCacheValid (string name, int ttlSeconds) =>
+		_fleetCache.ContainsKey (name)
+		&& _fleetCacheTimes.TryGetValue (name, out var cachedAt)
 		&& cachedAt > NowSeconds - ttlSeconds;
 
 	private async Task<List<EnergyProduct>?> FetchEnergySitesAsync (CancellationToken cancellationToken)
@@ -922,16 +923,16 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 			.ToList ();
 		}
 
-	private void InvalidateCloudCache (string name)
+	private void InvalidateFleetCache (string name)
 		{
-		_cloudCache.Remove (name);
-		_cloudCacheTimes.Remove (name);
+		_fleetCache.Remove (name);
+		_fleetCacheTimes.Remove (name);
 		}
 
-	private void ClearCloudCache ()
+	private void ClearFleetCache ()
 		{
-		_cloudCache.Clear ();
-		_cloudCacheTimes.Clear ();
+		_fleetCache.Clear ();
+		_fleetCacheTimes.Clear ();
 		}
 
 	private string SelectSite (List<EnergyProduct> sites)
@@ -955,7 +956,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	private void EnsureConnected ()
 		{
 		if (_connection is null || _resolvedSiteId is null)
-			throw new PowerwallCloudTeslaNotConnectedException ("Not connected to the Tesla cloud. Call AuthenticateAsync before invoking data methods.");
+			throw new PowerwallFleetApiTeslaNotConnectedException ("Not connected to Tesla FleetAPI. Call AuthenticateAsync before invoking data methods.");
 		}
 
 	private static JObject MockObject (string name, Func<JObject> factory)
@@ -977,7 +978,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		}
 
 	private static void LogMockUsage (string name) =>
-		_log.Debug ($"This API [{name}] is using mock data in cloud mode.");
+		_log.Debug ($"This API [{name}] is using mock data in FleetAPI mode.");
 
 	private static JToken ExtractCommandResult (JObject? response)
 		{
@@ -1000,26 +1001,24 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	private void OnConnectionTokensRefreshed (object? sender, ConnectionTokensRefreshedEventArgs e)
 		{
 		// Tesla refreshed the tokens; always persist internally so the next run reconnects without a fresh
-		// login (unless the caller has opted out of library-owned persistence). This happens regardless of
-		// whether the public event below fires.
-		_tokenCache?.SaveTokens (e.AccessToken, e.RefreshToken);
+		// setup flow (unless the caller has opted out of library-owned persistence). This happens regardless
+		// of whether the public event below fires.
+		_tokenCache?.SaveTokens (_clientId, e.AccessToken, e.RefreshToken);
 
 		// Surface on the public event according to whether an access token was supplied when the raising
 		// connection was constructed (either explicitly by the caller, or resolved from the library's own
 		// cache):
-		//  - Access token was provided: every refresh is significant to the caller (it owns/tracks the access
-		//    token too), so report it in full on every call.
-		//  - No access token was provided (pure refresh-token bootstrap): the caller never had an access
-		//    token to begin with and only cares about the durable credential, so only report when the
-		//    refresh token itself changed, and omit the access token from the notification.
-		var accessTokenProvided = (sender as TeslaCloudConnection)?.AccessTokenProvidedAtConstruction ?? false;
+		//  - Access token was provided: every refresh is significant to the caller, so report it in full.
+		//  - No access token was provided (pure refresh-token bootstrap): only report when the refresh token
+		//    itself changed, and omit the access token from the notification.
+		var accessTokenProvided = (sender as FleetApiConnection)?.AccessTokenProvidedAtConstruction ?? false;
 		if (accessTokenProvided)
-			TokensRefreshed?.Invoke (this, new CloudTokensRefreshedEventArgs (e.AccessToken, e.RefreshToken));
+			TokensRefreshed?.Invoke (this, new FleetApiTokensRefreshedEventArgs (e.AccessToken, e.RefreshToken));
 		else if (e.RefreshTokenChanged)
-			TokensRefreshed?.Invoke (this, new CloudTokensRefreshedEventArgs (null, e.RefreshToken));
+			TokensRefreshed?.Invoke (this, new FleetApiTokensRefreshedEventArgs (null, e.RefreshToken));
 		}
 
-	/// <summary>Releases the underlying Tesla cloud connection.</summary>
+	/// <summary>Releases the underlying Tesla FleetAPI connection.</summary>
 	public void Dispose ()
 		{
 		if (_connection is not null)

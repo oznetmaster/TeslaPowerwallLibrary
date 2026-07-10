@@ -19,6 +19,12 @@ rootCommand.Options.Add (CliOptions.AccessToken);
 rootCommand.Options.Add (CliOptions.RefreshToken);
 rootCommand.Options.Add (CliOptions.SiteId);
 rootCommand.Options.Add (CliOptions.Region);
+rootCommand.Options.Add (CliOptions.FleetApi);
+rootCommand.Options.Add (CliOptions.FleetApiClientId);
+rootCommand.Options.Add (CliOptions.FleetApiClientSecret);
+rootCommand.Options.Add (CliOptions.FleetApiAccessToken);
+rootCommand.Options.Add (CliOptions.FleetApiRefreshToken);
+rootCommand.Options.Add (CliOptions.FleetApiRegion);
 rootCommand.Options.Add (CliOptions.Timezone);
 rootCommand.Options.Add (CliOptions.Timeout);
 rootCommand.Options.Add (CliOptions.CacheExpire);
@@ -35,11 +41,13 @@ rootCommand.Subcommands.Add (CreateReadCommand ("operation", "Show the operation
 rootCommand.Subcommands.Add (CreateReadCommand ("timeremaining", "Show the estimated backup time remaining.", PowerwallActions.TimeRemainingAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("system", "Show the full system status with battery blocks.", PowerwallActions.SystemStatusAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("summary", "Show a combined dashboard of all readings.", PowerwallActions.SummaryAsync));
-rootCommand.Subcommands.Add (CreateReadCommand ("sites", "List the Tesla™ energy sites for the account (cloud mode).", PowerwallActions.SitesAsync));
-rootCommand.Subcommands.Add (CreateReadCommand ("gridconfig", "Show the grid charging and export settings (cloud mode).", PowerwallActions.GridConfigAsync));
+rootCommand.Subcommands.Add (CreateReadCommand ("sites", "List the Tesla™ energy sites for the account (cloud or FleetAPI mode).", PowerwallActions.SitesAsync));
+rootCommand.Subcommands.Add (CreateReadCommand ("gridconfig", "Show the grid charging and export settings (cloud or FleetAPI mode).", PowerwallActions.GridConfigAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("stormwatch", "Show whether Storm Watch is enabled (cloud mode).", PowerwallActions.StormWatchAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("vitals", "Show device vitals (cloud mode, or local firmware that exposes vitals).", PowerwallActions.VitalsAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("alerts", "Show the active device alerts.", PowerwallActions.AlertsAsync));
+rootCommand.Subcommands.Add (CreateReadCommand ("profile", "Show the authenticated Tesla account summary (FleetAPI mode).", PowerwallActions.ProfileAsync));
+rootCommand.Subcommands.Add (CreateReadCommand ("region", "Show the authenticated account's region and FleetAPI base URL (FleetAPI mode).", PowerwallActions.RegionAsync));
 rootCommand.Subcommands.Add (CreateInteractiveCommand ());
 rootCommand.Subcommands.Add (CreateSetReserveCommand ());
 rootCommand.Subcommands.Add (CreateSetModeCommand ());
@@ -376,17 +384,28 @@ static Command CreateConfigCommand ()
 		ConsoleHelpers.WriteField ("Cloud tokens", hasTokens ? $"(stored by library for {email})" : null);
 		ConsoleHelpers.WriteField ("Token cache", Powerwall.GetCloudTokenCachePath (email));
 		ConsoleHelpers.WriteField ("Region", settings.Region);
+
+		// FleetAPI tokens and the selected site are also owned by the library (keyed by email), not the
+		// console settings file; the console only persists the non-secret Client ID/region here so the
+		// initial refresh token prompt is not required on every run. Report what the library has cached.
+		var hasFleetApiTokens = Powerwall.TryGetStoredFleetApiTokens (email, out string? _, out string? _);
+		ConsoleHelpers.WriteField ("FleetAPI Client ID", settings.FleetApiClientId);
+		ConsoleHelpers.WriteField ("FleetAPI tokens", hasFleetApiTokens ? $"(stored by library for {email})" : null);
+		ConsoleHelpers.WriteField ("FleetAPI token cache", Powerwall.GetFleetApiTokenCachePath (email));
+		ConsoleHelpers.WriteField ("FleetAPI region", settings.FleetApiRegion);
+		ConsoleHelpers.WriteField ("Prefer FleetAPI", settings.PreferFleetApi is true ? "yes" : null);
 		return 0;
 		});
 
-	var clearCommand = new Command ("clear", "Delete the persisted connection settings, including the stored password and cached cloud tokens.");
+	var clearCommand = new Command ("clear", "Delete the persisted connection settings, including the stored password, and cached cloud and FleetAPI tokens.");
 	clearCommand.SetAction (_ =>
 		{
 		var settings = SettingsStore.Load ();
 		var email = string.IsNullOrWhiteSpace (settings.Email) ? Constants.DEFAULT_EMAIL : settings.Email!;
 		Powerwall.ClearStoredCloudTokens (email);
+		Powerwall.ClearStoredFleetApiTokens (email);
 		SettingsStore.Clear ();
-		ConsoleHelpers.WriteSuccess ("Saved settings and cached cloud tokens cleared.");
+		ConsoleHelpers.WriteSuccess ("Saved settings and cached cloud and FleetAPI tokens cleared.");
 		return 0;
 		});
 

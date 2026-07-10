@@ -231,6 +231,22 @@ internal static class PowerwallActions
 		ConsoleHelpers.WriteField ("Grid export", export ?? "n/a");
 		}
 
+	/// <summary>Prints the authenticated Tesla account summary (FleetAPI mode only).</summary>
+	public static async Task ProfileAsync (Powerwall powerwall, CancellationToken cancellationToken)
+		{
+		var body = await powerwall.GetProfileAsync (cancellationToken).ConfigureAwait (false);
+		ConsoleHelpers.WriteHeading ("Account Profile");
+		WriteJsonOrStatus (body);
+		}
+
+	/// <summary>Prints the authenticated account's region and FleetAPI base URL (FleetAPI mode only).</summary>
+	public static async Task RegionAsync (Powerwall powerwall, CancellationToken cancellationToken)
+		{
+		var body = await powerwall.GetRegionAsync (cancellationToken).ConfigureAwait (false);
+		ConsoleHelpers.WriteHeading ("Account Region");
+		WriteJsonOrStatus (body);
+		}
+
 	/// <summary>Enables or disables grid charging and prints the result (cloud mode only).</summary>
 	public static async Task SetGridChargingAsync (Powerwall powerwall, bool enabled, CancellationToken cancellationToken)
 		{

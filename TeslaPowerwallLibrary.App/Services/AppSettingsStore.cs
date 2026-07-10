@@ -35,6 +35,23 @@ public sealed class AppSettings
 	/// <summary>Gets or sets the Tesla region (<c>us</c> or <c>cn</c>) used by the browser sign-in flow.</summary>
 	[JsonProperty ("region")]
 	public string? Region { get; set; }
+
+	/// <summary>Gets or sets the Tesla FleetAPI application Client ID.</summary>
+	[JsonProperty ("fleetApiClientId")]
+	public string? FleetApiClientId { get; set; }
+
+	/// <summary>
+	/// Gets or sets the encrypted (DPAPI, base64) Tesla FleetAPI refresh token; never stored in plaintext.
+	/// The library now also persists FleetAPI tokens internally, but the app keeps its own copy here
+	/// (mirroring <see cref="ProtectedPassword"/>) so the initial sign-in value is remembered even before a
+	/// successful connect populates the library's own cache.
+	/// </summary>
+	[JsonProperty ("protectedFleetApiRefreshToken")]
+	public string? ProtectedFleetApiRefreshToken { get; set; }
+
+	/// <summary>Gets or sets the Tesla FleetAPI region (<c>na</c>, <c>eu</c>, or <c>cn</c>).</summary>
+	[JsonProperty ("fleetApiRegion")]
+	public string? FleetApiRegion { get; set; }
 	}
 
 /// <summary>

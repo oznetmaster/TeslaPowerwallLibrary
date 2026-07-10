@@ -138,8 +138,8 @@ public sealed partial class EnergyViewModel : ViewModelBase
 	/// <summary>Gets the chart Y axes.</summary>
 	public Axis[] YAxes { get; }
 
-	/// <summary>Gets a value indicating whether energy history is available (cloud mode only).</summary>
-	public bool IsAvailable => _connection.Mode == PowerwallMode.Cloud;
+	/// <summary>Gets a value indicating whether energy history is available (cloud or FleetAPI mode only).</summary>
+	public bool IsAvailable => _connection.Mode is PowerwallMode.Cloud or PowerwallMode.FleetApi;
 
 	partial void OnSelectedPeriodChanged (string value)
 		{
