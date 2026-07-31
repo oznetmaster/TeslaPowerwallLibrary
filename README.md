@@ -23,7 +23,7 @@ Tesla and Powerwall are trademarks of Tesla, Inc. This project is an independent
 - Response caching with configurable expiry to reduce load on the gateway
 - Multi-target support for .NET Framework 4.7.2 and .NET 10
 
-This .NET library is adapted from the Python [pypowerwall](https://pypi.org/project/pypowerwall/) project by Jason A. Cox. See the [license](TeslaPowerwallLibrary/LICENSE) for attribution details.
+This .NET library is an independent implementation; behavioral and compatibility reference work in this project draws on the upstream [pypowerwall](https://pypi.org/project/pypowerwall/) project by Jason A. Cox and its public documentation.
 
 ### Connection modes
 
@@ -218,8 +218,8 @@ Public documentation for this repository is available on GitHub Pages:
 
 ## Acknowledgements
 
-This library is adapted from the Python [pypowerwall](https://pypi.org/project/pypowerwall/) project by Jason A. Cox.
+Behavioral and compatibility reference work in this project draws on the upstream [pypowerwall](https://pypi.org/project/pypowerwall/) project by Jason A. Cox and its public documentation. The Tesla OAuth 2.0 PKCE login flow also references [tesla_auth](https://github.com/adriankumpf/tesla_auth) (Rust) by Adrian Kumpf.
 
 ## License
 
-MIT © 2026 Neil Colvin, © 2022 Jason Cox — see [LICENSE](TeslaPowerwallLibrary/LICENSE).
+MIT © 2026 Neil Colvin — see [LICENSE](TeslaPowerwallLibrary/LICENSE).

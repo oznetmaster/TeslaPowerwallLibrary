@@ -20,7 +20,7 @@ Local mode's plain HTTPS/JSON REST API is the original Gateway 2 / Powerwall+ lo
 
 ## Origins
 
-This project is adapted from the Python project [pypowerwall](https://pypi.org/project/pypowerwall/) by Jason A. Cox.
+Behavioral and compatibility reference work in this project draws on the upstream [pypowerwall](https://pypi.org/project/pypowerwall/) project by Jason A. Cox and its public documentation.
 
 ## Documentation sections
 

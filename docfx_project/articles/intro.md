@@ -70,5 +70,5 @@ string? rawEnergyHistory = await powerwall.GetCalendarHistoryAsync("energy", per
 - Local mode requires the gateway host/IP address and the customer password configured on the gateway.
 - Local mode targets the Gateway 2 / Powerwall+ local REST API. Powerwall 3 gateways use a different local protocol (TEDAPI) that is not yet implemented in this library and reject the plain REST endpoints with a `403` error; Powerwall 3 owners should use Cloud mode for now.
 - Cloud mode requires a Tesla account email and OAuth tokens obtained via the Tesla login flow.
-- The .NET implementation is adapted from the Python `pypowerwall` project.
+- The .NET implementation is an independent implementation; behavioral and compatibility reference work draws on the upstream `pypowerwall` project.
 
