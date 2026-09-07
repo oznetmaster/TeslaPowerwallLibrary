@@ -19,11 +19,11 @@
 		<Company>Neil Colvin</Company>
 		<Product>TeslaPowerwallLibrary</Product>
 		<Copyright>Copyright © 2026 Neil Colvin</Copyright>
-		<AssemblyVersion>1.2.3.0</AssemblyVersion>
-		<FileVersion>1.2.3.0</FileVersion>
+		<AssemblyVersion>1.2.4.0</AssemblyVersion>
+		<FileVersion>1.2.4.0</FileVersion>
 		<PackageId>TeslaPowerwallLibrary</PackageId>
-		<Version>1.2.3.0</Version>
-		<PackageReleaseNotes>Removed source-header and license lines that implied shared copyright with the upstream Python pypowerwall project (this is an independent .NET implementation, not ported/copied source); added reference-only acknowledgements for pypowerwall and tesla_auth in the README. No functional or API changes.</PackageReleaseNotes>
+		<Version>1.2.4.0</Version>
+		<PackageReleaseNotes>Fixed a bug in PowerwallCloudClient.SetOperationAsync (cloud mode) where a mode-only operation write would unconditionally send backup_reserve_percent=0, silently zeroing out the battery's backup reserve. The reserve is now only written when the caller's payload actually includes backup_reserve_percent, matching the existing FleetAPI client behavior.</PackageReleaseNotes>
 		<Authors>Neil Colvin</Authors>
 		<PackageTags>tesla;powerwall;smart-home;iot;rest;api;nuget</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>

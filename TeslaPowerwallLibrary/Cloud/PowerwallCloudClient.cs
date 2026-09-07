@@ -823,26 +823,35 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 
 		try
 			{
-			JObject? levelResult = await _connection!.SetBackupReserveAsync (_resolvedSiteId!, reservePercent, cancellationToken).ConfigureAwait (false);
+			JObject? levelResult = hasReserve
+				? await _connection!.SetBackupReserveAsync (_resolvedSiteId!, reservePercent, cancellationToken).ConfigureAwait (false)
+				: null;
 			JObject? modeResult = realMode is null
 				? null
-				: await _connection.SetOperationModeAsync (_resolvedSiteId!, realMode, cancellationToken).ConfigureAwait (false);
+				: await _connection!.SetOperationModeAsync (_resolvedSiteId!, realMode, cancellationToken).ConfigureAwait (false);
 
-			return new JObject
+			var result = new JObject ();
+			if (hasReserve)
 				{
-				["set_backup_reserve_percent"] = new JObject
+				result["set_backup_reserve_percent"] = new JObject
 					{
 					["backup_reserve_percent"] = reservePercent,
 					["din"] = din,
 					["result"] = ExtractCommandResult (levelResult)
-					},
-				["set_operation"] = new JObject
+					};
+				}
+
+			if (realMode is not null)
+				{
+				result["set_operation"] = new JObject
 					{
 					["real_mode"] = realMode,
 					["din"] = din,
 					["result"] = ExtractCommandResult (modeResult)
-					}
-				};
+					};
+				}
+
+			return result;
 			}
 		catch (Exception exc) when (exc is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
 			{
