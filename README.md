@@ -216,6 +216,8 @@ Public documentation for this repository is available on GitHub Pages:
 
 - https://oznetmaster.github.io/TeslaPowerwallLibrary/
 
+See [CHANGELOG.md](CHANGELOG.md) for release history.
+
 ## Acknowledgements
 
 Behavioral and compatibility reference work in this project draws on the upstream [pypowerwall](https://pypi.org/project/pypowerwall/) project by Jason A. Cox and its public documentation. The Tesla OAuth 2.0 PKCE login flow also references [tesla_auth](https://github.com/adriankumpf/tesla_auth) (Rust) by Adrian Kumpf.
