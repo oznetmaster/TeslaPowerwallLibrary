@@ -11,326 +11,307 @@ namespace TeslaPowerwallLibrary.Tests;
 /// <summary>
 /// Unit tests for the <see cref="Powerwall"/> facade construction, mode resolution, and guard behavior.
 /// </summary>
-[TestClass]
+[TestFixture]
 public sealed class PowerwallTests
 	{
-	[TestMethod]
+	[Test]
 	public void WhenHostIsProvidedThenModeIsLocal ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Host = "10.0.1.99", Password = "secret" });
 
-		Assert.AreEqual (PowerwallMode.Local, powerwall.Mode);
+		Assert.That (powerwall.Mode, Is.EqualTo (PowerwallMode.Local));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenHostIsProvidedWithPortThenModeIsLocal ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Host = "10.0.1.99:8443", Password = "secret" });
 
-		Assert.AreEqual (PowerwallMode.Local, powerwall.Mode);
+		Assert.That (powerwall.Mode, Is.EqualTo (PowerwallMode.Local));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenHostIsEmptyThenModeIsCloud ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		Assert.AreEqual (PowerwallMode.Cloud, powerwall.Mode);
+		Assert.That (powerwall.Mode, Is.EqualTo (PowerwallMode.Cloud));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenHostIsEmptyAndFleetApiIsTrueThenModeIsFleetApi ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com", FleetApi = true });
 
-		Assert.AreEqual (PowerwallMode.FleetApi, powerwall.Mode);
+		Assert.That (powerwall.Mode, Is.EqualTo (PowerwallMode.FleetApi));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenNotConnectedThenEmailFallsBackToOptions ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		Assert.AreEqual ("user@example.com", powerwall.Email);
+		Assert.That (powerwall.Email, Is.EqualTo ("user@example.com"));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenOptionsAreNullThenConstructorThrowsArgumentNullException ()
 		{
-		Assert.ThrowsExactly<ArgumentNullException> (static () => _ = new Powerwall (null!));
+		Assert.Throws<ArgumentNullException> (static () => _ = new Powerwall (null!));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenHostIsInvalidThenConstructorThrowsInvalidConfiguration ()
 		{
-		Assert.ThrowsExactly<PowerwallInvalidConfigurationException> (
-			static () => _ = new Powerwall (new PowerwallOptions { Host = "not a valid host" }));
+		Assert.Throws<PowerwallInvalidConfigurationException> (static () => _ = new Powerwall (new PowerwallOptions { Host = "not a valid host" }));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenCloudModeEmailIsInvalidThenConstructorThrowsInvalidConfiguration ()
 		{
-		Assert.ThrowsExactly<PowerwallInvalidConfigurationException> (
-			static () => _ = new Powerwall (new PowerwallOptions { CloudMode = true, Email = "not-an-email" }));
+		Assert.Throws<PowerwallInvalidConfigurationException> (static () => _ = new Powerwall (new PowerwallOptions { CloudMode = true, Email = "not-an-email" }));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenNewlyConstructedThenIsClientConnectedIsFalse ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Host = "10.0.1.99", Password = "secret" });
 
-		Assert.IsFalse (powerwall.IsClientConnected);
+		Assert.That (powerwall.IsClientConnected, Is.False);
 		}
 
-	[TestMethod]
+	[Test]
 	public async Task WhenNotConnectedThenDataMethodThrowsInvalidOperation ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Host = "10.0.1.99", Password = "secret" });
 
-		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
-			async () => await powerwall.StatusAsync ());
+		await Assert.ThatAsync (async () => await powerwall.StatusAsync (), Throws.TypeOf<InvalidOperationException> ());
 		}
 
-	[TestMethod]
-	[DataRow (-1.0)]
-	[DataRow (101.0)]
+	[Test]
+	[TestCase (-1.0)]
+	[TestCase (101.0)]
 	public async Task WhenReserveLevelIsOutOfRangeThenSetOperationThrows (double level)
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Host = "10.0.1.99", Password = "secret" });
 
-		await Assert.ThrowsExactlyAsync<InvalidBatteryReserveLevelException> (
-			async () => await powerwall.SetOperationAsync (level));
+		await Assert.ThatAsync (async () => await powerwall.SetOperationAsync (level), Throws.TypeOf<InvalidBatteryReserveLevelException> ());
 		}
 
-	[TestMethod]
+	[Test]
 	public async Task WhenCloudModeHasNoTokensThenConnectThrowsNoAuthFile ()
 		{
-		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
-
-		await Assert.ThrowsExactlyAsync<PowerwallCloudNoTeslaAuthFileException> (
-			async () => await powerwall.ConnectAsync ());
+		var authPath = CreateTempCacheDirectory ();
+		try
+			{
+			using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com", AuthPath = authPath });
+			await Assert.ThatAsync (async () => await powerwall.ConnectAsync (), Throws.TypeOf<PowerwallCloudNoTeslaAuthFileException> ());
+			}
+		finally
+			{
+			Directory.Delete (authPath, recursive: true);
+			}
 		}
 
-	[TestMethod]
+	[Test]
 	public async Task WhenNotConnectedThenGetSitesThrowsInvalidOperation ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
-			async () => await powerwall.GetSitesAsync ());
+		await Assert.ThatAsync (async () => await powerwall.GetSitesAsync (), Throws.TypeOf<InvalidOperationException> ());
 		}
 
-	[TestMethod]
+	[Test]
 	public async Task WhenNotConnectedThenChangeSiteThrowsInvalidOperation ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
-			async () => await powerwall.ChangeSiteAsync ("1234567890"));
+		await Assert.ThatAsync (async () => await powerwall.ChangeSiteAsync ("1234567890"), Throws.TypeOf<InvalidOperationException> ());
 		}
 
-	[TestMethod]
+	[Test]
 	public async Task WhenNotConnectedThenGetGridChargingThrowsInvalidOperation ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
-			async () => await powerwall.GetGridChargingAsync ());
+		await Assert.ThatAsync (async () => await powerwall.GetGridChargingAsync (), Throws.TypeOf<InvalidOperationException> ());
 		}
 
-	[TestMethod]
+	[Test]
 	public async Task WhenNotConnectedThenGetGridExportThrowsInvalidOperation ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
-			async () => await powerwall.GetGridExportAsync ());
+		await Assert.ThatAsync (async () => await powerwall.GetGridExportAsync (), Throws.TypeOf<InvalidOperationException> ());
 		}
 
-	[TestMethod]
+	[Test]
 	public async Task WhenNotConnectedThenSetGridChargingThrowsInvalidOperation ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
-			async () => await powerwall.SetGridChargingAsync (true));
+		await Assert.ThatAsync (async () => await powerwall.SetGridChargingAsync (true), Throws.TypeOf<InvalidOperationException> ());
 		}
 
-	[TestMethod]
-	[DataRow ("battery_ok")]
-	[DataRow ("pv_only")]
-	[DataRow ("never")]
+	[Test]
+	[TestCase ("battery_ok")]
+	[TestCase ("pv_only")]
+	[TestCase ("never")]
 	public async Task WhenGridExportModeIsValidThenSetGridExportReachesConnectionGuard (string mode)
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
-			async () => await powerwall.SetGridExportAsync (mode));
+		await Assert.ThatAsync (async () => await powerwall.SetGridExportAsync (mode), Throws.TypeOf<InvalidOperationException> ());
 		}
 
-	[TestMethod]
-	[DataRow ("bogus")]
-	[DataRow ("")]
-	[DataRow ("BATTERY_OK")]
+	[Test]
+	[TestCase ("bogus")]
+	[TestCase ("")]
+	[TestCase ("BATTERY_OK")]
 	public async Task WhenGridExportModeIsInvalidThenSetGridExportThrowsArgumentException (string mode)
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<ArgumentException> (
-			async () => await powerwall.SetGridExportAsync (mode));
+		await Assert.ThatAsync (async () => await powerwall.SetGridExportAsync (mode), Throws.TypeOf<ArgumentException> ());
 		}
 
-	[TestMethod]
+	[Test]
 	public async Task WhenNotConnectedThenGetStormWatchThrowsInvalidOperation ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
-			async () => await powerwall.GetStormWatchAsync ());
+		await Assert.ThatAsync (async () => await powerwall.GetStormWatchAsync (), Throws.TypeOf<InvalidOperationException> ());
 		}
 
-	[TestMethod]
+	[Test]
 	public async Task WhenNotConnectedThenSetStormWatchThrowsInvalidOperation ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
-			async () => await powerwall.SetStormWatchAsync (true));
+		await Assert.ThatAsync (async () => await powerwall.SetStormWatchAsync (true), Throws.TypeOf<InvalidOperationException> ());
 		}
 
-	[TestMethod]
+	[Test]
 	public async Task WhenNotConnectedThenVitalsThrowsInvalidOperation ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
-			async () => await powerwall.VitalsAsync ());
+		await Assert.ThatAsync (async () => await powerwall.VitalsAsync (), Throws.TypeOf<InvalidOperationException> ());
 		}
 
-	[TestMethod]
+	[Test]
 	public async Task WhenNotConnectedThenAlertsThrowsInvalidOperation ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
-			async () => await powerwall.AlertsAsync ());
+		await Assert.ThatAsync (async () => await powerwall.AlertsAsync (), Throws.TypeOf<InvalidOperationException> ());
 		}
 
-	[TestMethod]
-	[DataRow ("power")]
-	[DataRow ("energy")]
-	[DataRow ("backup")]
-	[DataRow ("self_consumption")]
+	[Test]
+	[TestCase ("power")]
+	[TestCase ("energy")]
+	[TestCase ("backup")]
+	[TestCase ("self_consumption")]
 	public async Task WhenHistoryKindIsValidThenGetHistoryReachesConnectionGuard (string kind)
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
-			async () => await powerwall.GetHistoryAsync (kind));
+		await Assert.ThatAsync (async () => await powerwall.GetHistoryAsync (kind), Throws.TypeOf<InvalidOperationException> ());
 		}
 
-	[TestMethod]
-	[DataRow ("bogus")]
-	[DataRow ("")]
-	[DataRow ("POWER")]
-	[DataRow ("soe")]
+	[Test]
+	[TestCase ("bogus")]
+	[TestCase ("")]
+	[TestCase ("POWER")]
+	[TestCase ("soe")]
 	public async Task WhenHistoryKindIsInvalidThenGetHistoryThrowsArgumentException (string kind)
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<ArgumentException> (
-			async () => await powerwall.GetHistoryAsync (kind));
+		await Assert.ThatAsync (async () => await powerwall.GetHistoryAsync (kind), Throws.TypeOf<ArgumentException> ());
 		}
 
-	[TestMethod]
-	[DataRow ("hour")]
-	[DataRow ("DAY")]
+	[Test]
+	[TestCase ("hour")]
+	[TestCase ("DAY")]
 	public async Task WhenHistoryPeriodIsInvalidThenGetHistoryThrowsArgumentException (string period)
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<ArgumentException> (
-			async () => await powerwall.GetHistoryAsync ("power", period));
+		await Assert.ThatAsync (async () => await powerwall.GetHistoryAsync ("power", period), Throws.TypeOf<ArgumentException> ());
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenEndpointRemovedExceptionIsCreatedThenItIsAPowerwallException ()
 		{
 		var exception = new PowerwallCloudEndpointRemovedException ("gone");
 
-		Assert.IsInstanceOfType<PowerwallException> (exception);
+		Assert.That (exception, Is.InstanceOf<PowerwallException> ());
 		}
 
-	[TestMethod]
-	[DataRow ("power")]
-	[DataRow ("soe")]
-	[DataRow ("time_of_use_energy")]
-	[DataRow ("savings")]
+	[Test]
+	[TestCase ("power")]
+	[TestCase ("soe")]
+	[TestCase ("time_of_use_energy")]
+	[TestCase ("savings")]
 	public async Task WhenCalendarHistoryKindIsValidThenGetCalendarHistoryReachesConnectionGuard (string kind)
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
-			async () => await powerwall.GetCalendarHistoryAsync (kind));
+		await Assert.ThatAsync (async () => await powerwall.GetCalendarHistoryAsync (kind), Throws.TypeOf<InvalidOperationException> ());
 		}
 
-	[TestMethod]
-	[DataRow ("bogus")]
-	[DataRow ("")]
+	[Test]
+	[TestCase ("bogus")]
+	[TestCase ("")]
 	public async Task WhenCalendarHistoryKindIsInvalidThenGetCalendarHistoryThrowsArgumentException (string kind)
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<ArgumentException> (
-			async () => await powerwall.GetCalendarHistoryAsync (kind));
+		await Assert.ThatAsync (async () => await powerwall.GetCalendarHistoryAsync (kind), Throws.TypeOf<ArgumentException> ());
 		}
 
-	[TestMethod]
+	[Test]
 	public async Task WhenNotConnectedThenGetEnergyCalendarHistoryThrowsInvalidOperation ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
-			async () => await powerwall.GetEnergyCalendarHistoryAsync ());
+		await Assert.ThatAsync (async () => await powerwall.GetEnergyCalendarHistoryAsync (), Throws.TypeOf<InvalidOperationException> ());
 		}
 
-	[TestMethod]
+	[Test]
 	public async Task WhenNotConnectedThenGetPowerCalendarHistoryThrowsInvalidOperation ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
-			async () => await powerwall.GetPowerCalendarHistoryAsync ());
+		await Assert.ThatAsync (async () => await powerwall.GetPowerCalendarHistoryAsync (), Throws.TypeOf<InvalidOperationException> ());
 		}
 
-	[TestMethod]
+	[Test]
 	public async Task WhenNotConnectedThenGetStateOfEnergyCalendarHistoryThrowsInvalidOperation ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
-			async () => await powerwall.GetStateOfEnergyCalendarHistoryAsync ());
+		await Assert.ThatAsync (async () => await powerwall.GetStateOfEnergyCalendarHistoryAsync (), Throws.TypeOf<InvalidOperationException> ());
 		}
 
-	[TestMethod]
+	[Test]
 	public async Task WhenNotConnectedThenGetSelfConsumptionCalendarHistoryThrowsInvalidOperation ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
-			async () => await powerwall.GetSelfConsumptionCalendarHistoryAsync ());
+		await Assert.ThatAsync (async () => await powerwall.GetSelfConsumptionCalendarHistoryAsync (), Throws.TypeOf<InvalidOperationException> ());
 		}
 
-	[TestMethod]
+	[Test]
 	public async Task WhenNotConnectedThenGetBackupCalendarHistoryThrowsInvalidOperation ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions { Email = "user@example.com" });
 
-		await Assert.ThrowsExactlyAsync<InvalidOperationException> (
-			async () => await powerwall.GetBackupCalendarHistoryAsync ());
+		await Assert.ThatAsync (async () => await powerwall.GetBackupCalendarHistoryAsync (), Throws.TypeOf<InvalidOperationException> ());
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenNoCloudTokenPersistenceIsTrueThenInvalidEmailDoesNotThrow ()
 		{
 		using var powerwall = new Powerwall (new PowerwallOptions
@@ -340,14 +321,13 @@ public sealed class PowerwallTests
 			NoCloudTokenPersistence = true
 			});
 
-		Assert.AreEqual (PowerwallMode.Cloud, powerwall.Mode);
+		Assert.That (powerwall.Mode, Is.EqualTo (PowerwallMode.Cloud));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenNoCloudTokenPersistenceIsFalseThenInvalidEmailStillThrows ()
 		{
-		Assert.ThrowsExactly<PowerwallInvalidConfigurationException> (
-			static () => _ = new Powerwall (new PowerwallOptions
+		Assert.Throws<PowerwallInvalidConfigurationException> (static () => _ = new Powerwall (new PowerwallOptions
 				{
 				CloudMode = true,
 				Email = "not-an-email",
@@ -355,7 +335,7 @@ public sealed class PowerwallTests
 				}));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenNoCloudTokenPersistenceIsSetThenPowerwallCloudClientExposesIt ()
 		{
 		using var client = new PowerwallCloudClient (
@@ -368,22 +348,21 @@ public sealed class PowerwallTests
 			authPath: @"C:\some\path",
 			noCloudTokenPersistence: true);
 
-		Assert.IsTrue (client.NoCloudTokenPersistence);
-		Assert.AreEqual (@"C:\some\path", client.AuthPath);
+		Assert.That (client.NoCloudTokenPersistence, Is.True);
+		Assert.That (client.AuthPath, Is.EqualTo (@"C:\some\path"));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenExplicitAuthPathIsUnwritableThenClearStoredCloudTokensThrowsStorageException ()
 		{
 		// A path nested under a file (rather than a directory) can never be created, forcing a write
 		// failure at an explicitly configured location, which must fail fast instead of being swallowed.
-		var blockingFile = Path.Combine (Path.GetTempPath (), $"pwl-blocking-{Guid.NewGuid ():N}");
+		var blockingFile = Path.Combine (TestContext.CurrentContext.WorkDirectory, $"pwl-blocking-{Guid.NewGuid ():N}");
 		var authPath = Path.Combine (blockingFile, "cache.json");
 		File.WriteAllText (blockingFile, string.Empty);
 		try
 			{
-			Assert.ThrowsExactly<PowerwallCloudTokenCacheStorageException> (
-				() => Powerwall.ClearStoredCloudTokens ("user@example.com", authPath));
+			Assert.Throws<PowerwallCloudTokenCacheStorageException> (() => Powerwall.ClearStoredCloudTokens ("user@example.com", authPath));
 			}
 		finally
 			{
@@ -391,24 +370,24 @@ public sealed class PowerwallTests
 			}
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenTokenCacheStorageExceptionIsCreatedThenItIsAPowerwallException ()
 		{
 		var exception = new PowerwallCloudTokenCacheStorageException ("storage failed");
 
-		Assert.IsInstanceOfType<PowerwallException> (exception);
+		Assert.That (exception, Is.InstanceOf<PowerwallException> ());
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenNoFleetApiTokensAreStoredThenHasStoredFleetApiTokensReturnsFalse ()
 		{
 		var authPath = CreateTempCacheDirectory ();
 		try
 			{
-			Assert.IsFalse (Powerwall.HasStoredFleetApiTokens ("user@example.com", authPath));
-			Assert.IsFalse (Powerwall.TryGetStoredFleetApiTokens ("user@example.com", out var accessToken, out var refreshToken, authPath));
-			Assert.IsNull (accessToken);
-			Assert.IsNull (refreshToken);
+			Assert.That (Powerwall.HasStoredFleetApiTokens ("user@example.com", authPath), Is.False);
+			Assert.That (Powerwall.TryGetStoredFleetApiTokens ("user@example.com", out var accessToken, out var refreshToken, authPath), Is.False);
+			Assert.That (accessToken, Is.Null);
+			Assert.That (refreshToken, Is.Null);
 			}
 		finally
 			{
@@ -416,7 +395,7 @@ public sealed class PowerwallTests
 			}
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenFleetApiTokensArePersistedThenTheyCanBeReadBackAndCleared ()
 		{
 		var authPath = CreateTempCacheDirectory ();
@@ -432,16 +411,16 @@ public sealed class PowerwallTests
 				FleetApiAuthPath = authPath
 				}))
 				{
-				Assert.AreEqual (PowerwallMode.FleetApi, powerwall.Mode);
+				Assert.That (powerwall.Mode, Is.EqualTo (PowerwallMode.FleetApi));
 				}
 
 			// Constructing the client seeds the cache from the supplied tokens without requiring a live
 			// connection, mirroring how cloud mode's equivalent tests exercise the cache directly.
 			var cachePath = Powerwall.GetFleetApiTokenCachePath ("user@example.com", authPath);
-			Assert.IsFalse (string.IsNullOrWhiteSpace (cachePath));
+			Assert.That (string.IsNullOrWhiteSpace (cachePath), Is.False);
 
 			Powerwall.ClearStoredFleetApiTokens ("user@example.com", authPath);
-			Assert.IsFalse (Powerwall.HasStoredFleetApiTokens ("user@example.com", authPath));
+			Assert.That (Powerwall.HasStoredFleetApiTokens ("user@example.com", authPath), Is.False);
 			}
 		finally
 			{
@@ -449,18 +428,17 @@ public sealed class PowerwallTests
 			}
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenExplicitAuthPathIsUnwritableThenClearStoredFleetApiTokensThrowsStorageException ()
 		{
 		// A path nested under a file (rather than a directory) can never be created, forcing a write
 		// failure at an explicitly configured location, which must fail fast instead of being swallowed.
-		var blockingFile = Path.Combine (Path.GetTempPath (), $"pwl-blocking-{Guid.NewGuid ():N}");
+		var blockingFile = Path.Combine (TestContext.CurrentContext.WorkDirectory, $"pwl-blocking-{Guid.NewGuid ():N}");
 		var authPath = Path.Combine (blockingFile, "cache.json");
 		File.WriteAllText (blockingFile, string.Empty);
 		try
 			{
-			Assert.ThrowsExactly<PowerwallFleetApiTokenCacheStorageException> (
-				() => Powerwall.ClearStoredFleetApiTokens ("user@example.com", authPath));
+			Assert.Throws<PowerwallFleetApiTokenCacheStorageException> (() => Powerwall.ClearStoredFleetApiTokens ("user@example.com", authPath));
 			}
 		finally
 			{
@@ -468,19 +446,19 @@ public sealed class PowerwallTests
 			}
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenFleetApiTokenCacheStorageExceptionIsCreatedThenItIsAPowerwallException ()
 		{
 		var exception = new PowerwallFleetApiTokenCacheStorageException ("storage failed");
 
-		Assert.IsInstanceOfType<PowerwallException> (exception);
+		Assert.That (exception, Is.InstanceOf<PowerwallException> ());
 		}
 
 	// Creates a fresh, empty temp directory to use as an explicit FleetAPI/cloud token cache location,
 	// isolating each test from the shared per-user default cache and from other tests.
 	private static string CreateTempCacheDirectory ()
 		{
-		var path = Path.Combine (Path.GetTempPath (), $"pwl-fleetapi-cache-{Guid.NewGuid ():N}");
+		var path = Path.Combine (TestContext.CurrentContext.WorkDirectory, $"pwl-fleetapi-cache-{Guid.NewGuid ():N}");
 		Directory.CreateDirectory (path);
 		return path;
 		}

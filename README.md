@@ -208,7 +208,7 @@ Each record exposes Tesla's raw fields plus a few computed convenience propertie
 - `TeslaPowerwallLibrary.App` — a WPF dashboard application with live energy charts, system status, and site/account management
 - `TeslaPowerwallLibrary.TestConsole` — a command-line and interactive test harness covering the library's read and control operations
 - `TeslaPowerwallLibrary.Setup` — a small standalone WPF app wrapping `TeslaPowerwallLibrary.Login` that performs Tesla cloud login or the FleetAPI setup/registration wizard (partner token, partner registration, PEM verification, authorize, and code exchange) and displays the resulting tokens
-- `TeslaPowerwallLibrary.Tests` — MSTest-based deterministic unit test coverage
+- `TeslaPowerwallLibrary.Tests` — NUnit-based deterministic unit test coverage
 
 ## Documentation
 
@@ -225,3 +225,14 @@ Behavioral and compatibility reference work in this project draws on the upstrea
 ## License
 
 MIT © 2026 Neil Colvin — see [LICENSE](TeslaPowerwallLibrary/LICENSE).
+
+
+## Unit tests
+
+`TeslaPowerwallLibrary.Tests` uses official NUnit 4.6.1 and NUnit3TestAdapter, targeting `net472` and `net10.0`. Run the tests in Visual Studio Test Explorer, or:
+
+```powershell
+dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj -c Release
+```
+
+The suite covers facade guards, mode selection, token-cache behavior, model deserialization, history parsing, host validation and public enum contracts. It does not operate a Powerwall or require live credentials. The MSTest-to-NUnit migration keeps the fixtures in this repository and does not require a new library or NuGet release.

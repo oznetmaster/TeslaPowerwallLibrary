@@ -9,10 +9,10 @@ namespace TeslaPowerwallLibrary.Tests;
 /// Unit tests that verify <see cref="CalendarHistoryParser"/> against representative payload shapes
 /// captured from live Tesla™ calendar-history responses (as returned by <c>Powerwall.GetCalendarHistoryAsync</c>).
 /// </summary>
-[TestClass]
+[TestFixture]
 public sealed class CalendarHistoryParserTests
 	{
-	[TestMethod]
+	[Test]
 	public void WhenEnergyPayloadIsParsedThenPointsAreMappedAndConvertedToKwh ()
 		{
 		const string json = """
@@ -42,27 +42,27 @@ public sealed class CalendarHistoryParserTests
 
 		var points = CalendarHistoryParser.ParseEnergy (json);
 
-		Assert.AreEqual (1, points.Count);
+		Assert.That (points.Count, Is.EqualTo (1));
 		var point = points[0];
-		Assert.AreEqual (new DateTimeOffset (2026, 7, 7, 19, 15, 0, TimeSpan.FromHours (1)), point.Timestamp);
-		Assert.AreEqual (1.0, point.SolarKwh);
-		Assert.AreEqual (99.0, point.HomeKwh);
-		Assert.AreEqual (2.0, point.FromGridKwh);
-		Assert.AreEqual (0.1, point.ToGridKwh);
-		Assert.AreEqual (0.5, point.BatteryChargeKwh);
-		Assert.AreEqual (7.0, point.BatteryDischargeKwh);
+		Assert.That (point.Timestamp, Is.EqualTo (new DateTimeOffset (2026, 7, 7, 19, 15, 0, TimeSpan.FromHours (1))));
+		Assert.That (point.SolarKwh, Is.EqualTo (1.0));
+		Assert.That (point.HomeKwh, Is.EqualTo (99.0));
+		Assert.That (point.FromGridKwh, Is.EqualTo (2.0));
+		Assert.That (point.ToGridKwh, Is.EqualTo (0.1));
+		Assert.That (point.BatteryChargeKwh, Is.EqualTo (0.5));
+		Assert.That (point.BatteryDischargeKwh, Is.EqualTo (7.0));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenEnergyPayloadIsMissingOrMalformedThenParseEnergyReturnsEmpty ()
 		{
-		Assert.AreEqual (0, CalendarHistoryParser.ParseEnergy (null).Count);
-		Assert.AreEqual (0, CalendarHistoryParser.ParseEnergy ("").Count);
-		Assert.AreEqual (0, CalendarHistoryParser.ParseEnergy ("not json").Count);
-		Assert.AreEqual (0, CalendarHistoryParser.ParseEnergy ("""{ "time_series": [] }""").Count);
+		Assert.That (CalendarHistoryParser.ParseEnergy (null).Count, Is.EqualTo (0));
+		Assert.That (CalendarHistoryParser.ParseEnergy ("").Count, Is.EqualTo (0));
+		Assert.That (CalendarHistoryParser.ParseEnergy ("not json").Count, Is.EqualTo (0));
+		Assert.That (CalendarHistoryParser.ParseEnergy ("""{ "time_series": [] }""").Count, Is.EqualTo (0));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenPowerPayloadIsParsedThenPointsAreMappedInWatts ()
 		{
 		const string json = """
@@ -84,17 +84,17 @@ public sealed class CalendarHistoryParserTests
 
 		var points = CalendarHistoryParser.ParsePower (json);
 
-		Assert.AreEqual (1, points.Count);
+		Assert.That (points.Count, Is.EqualTo (1));
 		var point = points[0];
-		Assert.AreEqual (new DateTimeOffset (2026, 7, 7, 0, 0, 0, TimeSpan.FromHours (1)), point.Timestamp);
-		Assert.AreEqual (0.0, point.SolarPower);
-		Assert.AreEqual (0.0, point.BatteryPower);
-		Assert.AreEqual (1168.5, point.GridPower);
-		Assert.AreEqual (0.0, point.GridServicesPower);
-		Assert.AreEqual (0.0, point.GeneratorPower);
+		Assert.That (point.Timestamp, Is.EqualTo (new DateTimeOffset (2026, 7, 7, 0, 0, 0, TimeSpan.FromHours (1))));
+		Assert.That (point.SolarPower, Is.EqualTo (0.0));
+		Assert.That (point.BatteryPower, Is.EqualTo (0.0));
+		Assert.That (point.GridPower, Is.EqualTo (1168.5));
+		Assert.That (point.GridServicesPower, Is.EqualTo (0.0));
+		Assert.That (point.GeneratorPower, Is.EqualTo (0.0));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenStateOfEnergyPayloadIsParsedThenPointsAreMapped ()
 		{
 		const string json = """
@@ -109,12 +109,12 @@ public sealed class CalendarHistoryParserTests
 
 		var points = CalendarHistoryParser.ParseStateOfEnergy (json);
 
-		Assert.AreEqual (1, points.Count);
-		Assert.AreEqual (new DateTimeOffset (2026, 7, 7, 0, 0, 0, TimeSpan.FromHours (1)), points[0].Timestamp);
-		Assert.AreEqual (10.0, points[0].Soe);
+		Assert.That (points.Count, Is.EqualTo (1));
+		Assert.That (points[0].Timestamp, Is.EqualTo (new DateTimeOffset (2026, 7, 7, 0, 0, 0, TimeSpan.FromHours (1))));
+		Assert.That (points[0].Soe, Is.EqualTo (10.0));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenSelfConsumptionPayloadIsParsedThenPointsAreMapped ()
 		{
 		const string json = """
@@ -129,13 +129,13 @@ public sealed class CalendarHistoryParserTests
 
 		var points = CalendarHistoryParser.ParseSelfConsumption (json);
 
-		Assert.AreEqual (1, points.Count);
-		Assert.AreEqual (new DateTimeOffset (2026, 7, 7, 0, 0, 0, TimeSpan.FromHours (1)), points[0].Timestamp);
-		Assert.AreEqual (19.0, points[0].SolarPercentage);
-		Assert.AreEqual (3.0, points[0].BatteryPercentage);
+		Assert.That (points.Count, Is.EqualTo (1));
+		Assert.That (points[0].Timestamp, Is.EqualTo (new DateTimeOffset (2026, 7, 7, 0, 0, 0, TimeSpan.FromHours (1))));
+		Assert.That (points[0].SolarPercentage, Is.EqualTo (19.0));
+		Assert.That (points[0].BatteryPercentage, Is.EqualTo (3.0));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenBackupPayloadHasNoEventsThenParseBackupReturnsEmptyEnvelope ()
 		{
 		const string json = """
@@ -150,14 +150,14 @@ public sealed class CalendarHistoryParserTests
 
 		var backup = CalendarHistoryParser.ParseBackup (json);
 
-		Assert.AreEqual (0, backup.Events.Count);
-		Assert.AreEqual (0, backup.EventsCount);
-		Assert.AreEqual (0, backup.TotalEvents);
-		Assert.AreEqual (DateTimeOffset.Parse ("2026-06-24T15:23:00Z"), backup.NextStartDate);
-		Assert.AreEqual (DateTimeOffset.Parse ("2026-07-06T18:20:18Z"), backup.NextEndDate);
+		Assert.That (backup.Events.Count, Is.EqualTo (0));
+		Assert.That (backup.EventsCount, Is.EqualTo (0));
+		Assert.That (backup.TotalEvents, Is.EqualTo (0));
+		Assert.That (backup.NextStartDate, Is.EqualTo (DateTimeOffset.Parse ("2026-06-24T15:23:00Z")));
+		Assert.That (backup.NextEndDate, Is.EqualTo (DateTimeOffset.Parse ("2026-07-06T18:20:18Z")));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenBackupPayloadHasEventsThenEventsAreExposedAsLooselyTypedMaps ()
 		{
 		const string json = """
@@ -172,23 +172,23 @@ public sealed class CalendarHistoryParserTests
 
 		var backup = CalendarHistoryParser.ParseBackup (json);
 
-		Assert.AreEqual (1, backup.Events.Count);
-		Assert.AreEqual (1, backup.EventsCount);
-		Assert.AreEqual (1, backup.TotalEvents);
-		Assert.IsNull (backup.NextStartDate);
-		Assert.IsNull (backup.NextEndDate);
-		Assert.AreEqual ("2026-06-01T00:00:00Z", backup.Events[0]["start_time"]?.ToString ());
+		Assert.That (backup.Events.Count, Is.EqualTo (1));
+		Assert.That (backup.EventsCount, Is.EqualTo (1));
+		Assert.That (backup.TotalEvents, Is.EqualTo (1));
+		Assert.That (backup.NextStartDate, Is.Null);
+		Assert.That (backup.NextEndDate, Is.Null);
+		Assert.That (backup.Events[0]["start_time"]?.ToString (), Is.EqualTo ("2026-06-01T00:00:00Z"));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenBackupPayloadIsMissingOrMalformedThenParseBackupReturnsEmptyEnvelope ()
 		{
 		var backup = CalendarHistoryParser.ParseBackup (null);
 
-		Assert.AreEqual (0, backup.Events.Count);
-		Assert.AreEqual (0, backup.EventsCount);
-		Assert.AreEqual (0, backup.TotalEvents);
-		Assert.IsNull (backup.NextStartDate);
-		Assert.IsNull (backup.NextEndDate);
+		Assert.That (backup.Events.Count, Is.EqualTo (0));
+		Assert.That (backup.EventsCount, Is.EqualTo (0));
+		Assert.That (backup.TotalEvents, Is.EqualTo (0));
+		Assert.That (backup.NextStartDate, Is.Null);
+		Assert.That (backup.NextEndDate, Is.Null);
 		}
 	}

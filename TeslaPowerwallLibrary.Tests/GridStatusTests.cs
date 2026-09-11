@@ -1,9 +1,6 @@
 // Copyright © 2026 Neil Colvin.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
-// MSTEST0032 does not apply here: these asserts intentionally pin GridStatus's compile-time constant
-// values against the upstream numeric contract, so they will fail if the enum's literals ever change.
-#pragma warning disable MSTEST0032
 
 namespace TeslaPowerwallLibrary.Tests;
 
@@ -11,26 +8,24 @@ namespace TeslaPowerwallLibrary.Tests;
 /// Unit tests pinning the public <see cref="GridStatus"/> enum integer contract, which must match the
 /// numeric output produced by the upstream pypowerwall project (1 = Up, 0 = Down, -1 = Syncing).
 /// </summary>
-[TestClass]
+[TestFixture]
 public sealed class GridStatusTests
 	{
-	[TestMethod]
+	[Test]
 	public void WhenUpThenValueIsOne ()
 		{
-		Assert.AreEqual (1, (int) GridStatus.Up);
+		Assert.That ((int) GridStatus.Up, Is.EqualTo (1));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenDownThenValueIsZero ()
 		{
-		Assert.AreEqual (0, (int) GridStatus.Down);
+		Assert.That ((int) GridStatus.Down, Is.EqualTo (0));
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenSyncingThenValueIsNegativeOne ()
 		{
-		Assert.AreEqual (-1, (int) GridStatus.Syncing);
+		Assert.That ((int) GridStatus.Syncing, Is.EqualTo (-1));
 		}
 	}
-
-#pragma warning restore MSTEST0032

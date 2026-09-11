@@ -6,63 +6,63 @@ namespace TeslaPowerwallLibrary.Tests;
 /// <summary>
 /// Unit tests for <see cref="Validation"/>.
 /// </summary>
-[TestClass]
+[TestFixture]
 public sealed class ValidationTests
 	{
-	[TestMethod]
-	[DataRow ("10.0.1.99")]
-	[DataRow ("powerwall.local")]
-	[DataRow ("gateway.example.com")]
+	[Test]
+	[TestCase ("10.0.1.99")]
+	[TestCase ("powerwall.local")]
+	[TestCase ("gateway.example.com")]
 	public void WhenHostIsValidThenIsValidHostReturnsTrue (string host)
 		{
-		Assert.IsTrue (Validation.IsValidHost (host));
+		Assert.That (Validation.IsValidHost (host), Is.True);
 		}
 
-	[TestMethod]
-	[DataRow ("not a host")]
-	[DataRow ("")]
+	[Test]
+	[TestCase ("not a host")]
+	[TestCase ("")]
 	public void WhenHostIsInvalidThenIsValidHostReturnsFalse (string host)
 		{
-		Assert.IsFalse (Validation.IsValidHost (host));
+		Assert.That (Validation.IsValidHost (host), Is.False);
 		}
 
-	[TestMethod]
+	[Test]
 	public void WhenHostIsNullThenIsValidHostReturnsFalse ()
 		{
-		Assert.IsFalse (Validation.IsValidHost (null));
+		Assert.That (Validation.IsValidHost (null), Is.False);
 		}
 
-	[TestMethod]
-	[DataRow ("10.0.1.99")]
-	[DataRow ("192.168.91.1")]
-	[DataRow ("::1")]
+	[Test]
+	[TestCase ("10.0.1.99")]
+	[TestCase ("192.168.91.1")]
+	[TestCase ("::1")]
 	public void WhenValueIsIpAddressThenIsValidIpAddressReturnsTrue (string value)
 		{
-		Assert.IsTrue (Validation.IsValidIpAddress (value));
+		Assert.That (Validation.IsValidIpAddress (value), Is.True);
 		}
 
-	[TestMethod]
-	[DataRow ("powerwall.local")]
-	[DataRow ("not-an-ip")]
+	[Test]
+	[TestCase ("powerwall.local")]
+	[TestCase ("not-an-ip")]
 	public void WhenValueIsNotIpAddressThenIsValidIpAddressReturnsFalse (string value)
 		{
-		Assert.IsFalse (Validation.IsValidIpAddress (value));
+		Assert.That (Validation.IsValidIpAddress (value), Is.False);
 		}
 
-	[TestMethod]
-	[DataRow ("user@example.com")]
-	[DataRow ("nobody@nowhere.com")]
+	[Test]
+	[TestCase ("user@example.com")]
+	[TestCase ("nobody@nowhere.com")]
 	public void WhenEmailIsValidThenIsValidEmailReturnsTrue (string email)
 		{
-		Assert.IsTrue (Validation.IsValidEmail (email));
+		Assert.That (Validation.IsValidEmail (email), Is.True);
 		}
 
-	[TestMethod]
-	[DataRow ("not-an-email")]
-	[DataRow ("missing@domain")]
-	[DataRow ("@nowhere.com")]
+	[Test]
+	[TestCase ("not-an-email")]
+	[TestCase ("missing@domain")]
+	[TestCase ("@nowhere.com")]
 	public void WhenEmailIsInvalidThenIsValidEmailReturnsFalse (string email)
 		{
-		Assert.IsFalse (Validation.IsValidEmail (email));
+		Assert.That (Validation.IsValidEmail (email), Is.False);
 		}
 	}
