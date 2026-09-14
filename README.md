@@ -236,3 +236,7 @@ dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj -c Re
 ```
 
 The suite covers facade guards, mode selection, token-cache behavior, model deserialization, history parsing, host validation and public enum contracts. It does not operate a Powerwall or require live credentials. The MSTest-to-NUnit migration keeps the fixtures in this repository and does not require a new library or NuGet release.
+
+## Continuous integration tests
+
+The [Unit tests workflow](.github/workflows/unit-tests.yml) runs on pull requests and pushes to the main development branch. Separate Windows jobs test **net472** and **.NET 10**, retaining a result file for each suite/runtime. Live tests are excluded; no account credentials or physical devices are needed. These checks do not publish packages or releases.
