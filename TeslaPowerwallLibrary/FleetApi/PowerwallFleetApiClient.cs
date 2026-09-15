@@ -42,6 +42,7 @@ public sealed class PowerwallFleetApiClient : PowerwallClientBase, IEnergySiteCl
 	private readonly string? _accessToken;
 	private readonly string? _refreshToken;
 	private readonly string _baseUrl;
+	private readonly bool _discoverRegion;
 	private readonly TeslaFleetApiTokenCache? _tokenCache;
 
 	private FleetApiConnection? _connection;
@@ -58,7 +59,7 @@ public sealed class PowerwallFleetApiClient : PowerwallClientBase, IEnergySiteCl
 	/// <param name="accessToken">Tesla FleetAPI OAuth access token.</param>
 	/// <param name="refreshToken">Tesla FleetAPI OAuth refresh token used to renew the access token.</param>
 	/// <param name="siteId">Optional site identifier to select when an account has multiple sites.</param>
-	/// <param name="region">Tesla FleetAPI region code (<c>na</c>, <c>eu</c>, or <c>cn</c>).</param>
+	/// <param name="region">Tesla FleetAPI region override (<c>na</c>, <c>eu</c>, or <c>cn</c>), or <c>auto</c>/null for account-region discovery.</param>
 	/// <param name="authPath">Path to the FleetAPI token cache file.</param>
 	/// <param name="noFleetApiTokenPersistence">
 	/// When <see langword="true"/>, disables the token cache entirely: <paramref name="authPath"/> is ignored,
@@ -83,6 +84,7 @@ public sealed class PowerwallFleetApiClient : PowerwallClientBase, IEnergySiteCl
 		Timeout = timeout;
 		SiteId = siteId;
 		_baseUrl = FleetApiRegions.ResolveBaseUrl (region);
+		_discoverRegion = FleetApiRegions.IsAutomatic (region);
 		_accessToken = accessToken;
 		_refreshToken = refreshToken;
 		AuthPath = authPath ?? string.Empty;
@@ -91,19 +93,34 @@ public sealed class PowerwallFleetApiClient : PowerwallClientBase, IEnergySiteCl
 		}
 
 	/// <summary>Gets the configured site identifier, when one was supplied.</summary>
-	public string? SiteId { get; private set; }
+	public string? SiteId
+		{
+		get; private set;
+		}
 
 	/// <summary>Gets the number of seconds before cached responses expire.</summary>
-	public int CacheExpireSeconds { get; }
+	public int CacheExpireSeconds
+		{
+		get;
+		}
 
 	/// <summary>Gets the per-request HTTP timeout.</summary>
-	public TimeSpan Timeout { get; }
+	public TimeSpan Timeout
+		{
+		get;
+		}
 
 	/// <summary>Gets the path to the FleetAPI token cache file.</summary>
-	public string AuthPath { get; }
+	public string AuthPath
+		{
+		get;
+		}
 
 	/// <summary>Gets a value indicating whether the library-owned token cache is disabled for this instance.</summary>
-	public bool NoFleetApiTokenPersistence { get; }
+	public bool NoFleetApiTokenPersistence
+		{
+		get;
+		}
 
 	/// <summary>
 	/// Raised after the underlying Tesla connection refreshes its OAuth tokens. Firing depends on whether an
@@ -158,6 +175,13 @@ public sealed class PowerwallFleetApiClient : PowerwallClientBase, IEnergySiteCl
 			_connection = null;
 			throw new PowerwallFleetApiNoTeslaAuthFileException (
 				"Unable to obtain a Tesla FleetAPI access token from the supplied refresh token.");
+			}
+
+		if (_discoverRegion && !await _connection.DiscoverRegionAsync (cancellationToken).ConfigureAwait (false))
+			{
+			_connection.Dispose ();
+			_connection = null;
+			throw new PowerwallFleetApiTeslaNotConnectedException ("Unable to discover the Tesla FleetAPI account region. Check access or supply an explicit FleetApiRegion.");
 			}
 
 		List<EnergyProduct>? sites = await FetchEnergySitesAsync (cancellationToken).ConfigureAwait (false);
@@ -490,46 +514,46 @@ public sealed class PowerwallFleetApiClient : PowerwallClientBase, IEnergySiteCl
 
 		JToken? data = api switch
 			{
-			"/api/devices/vitals" => GetApiDevicesVitals (),
-			"/api/meters/aggregates" => await GetApiMetersAggregatesAsync (force, cancellationToken).ConfigureAwait (false),
-			"/api/operation" => await GetApiOperationAsync (force, cancellationToken).ConfigureAwait (false),
-			"/api/site_info" => await GetApiSiteInfoAsync (force, cancellationToken).ConfigureAwait (false),
-			"/api/site_info/site_name" => await GetApiSiteInfoSiteNameAsync (force, cancellationToken).ConfigureAwait (false),
-			"/api/status" => await GetApiStatusAsync (force, cancellationToken).ConfigureAwait (false),
-			"/api/system_status" => await GetApiSystemStatusAsync (force, cancellationToken).ConfigureAwait (false),
-			"/api/system_status/grid_status" => await GetApiSystemStatusGridStatusAsync (force, cancellationToken).ConfigureAwait (false),
-			"/api/system_status/soe" => await GetApiSystemStatusSoeAsync (force, cancellationToken).ConfigureAwait (false),
-			"/vitals" => await GetVitalsAsync (force, cancellationToken).ConfigureAwait (false),
-			"/api/login/Basic" => MockObject ("api_login_basic", static () => new JObject { ["status"] = "ok" }),
-			"/api/logout" => MockObject ("api_logout", static () => new JObject { ["status"] = "ok" }),
-			"/api/auth/toggle/supported" => MockObject ("get_api_auth_toggle_supported", static () => new JObject { ["toggle_auth_supported"] = true }),
-			"/api/customer" => MockObject ("get_api_customer", static () => new JObject { ["registered"] = true }),
-			"/api/customer/registration" => MockParse ("get_api_customer_registration", """{"privacy_notice":null,"limited_warranty":null,"grid_services":null,"marketing":null,"registered":true,"timed_out_registration":false}"""),
-			"/api/installer" => MockParse ("get_api_installer", CloudMockData.INSTALLER),
-			"/api/meters" => MockParse ("get_api_meters", CloudMockData.METERS),
-			"/api/meters/readings" => MockValue ("get_api_unimplemented_timeout", "TIMEOUT!"),
-			"/api/meters/site" => MockParse ("get_api_meters_site", CloudMockData.METERS_SITE),
-			"/api/meters/solar" => null,
-			"/api/networks" => MockValue ("get_api_unimplemented_timeout", "TIMEOUT!"),
-			"/api/powerwalls" => MockParse ("get_api_powerwalls", CloudMockData.POWERWALLS),
-			"/api/site_info/grid_codes" => MockValue ("get_api_unimplemented_timeout", "TIMEOUT!"),
-			"/api/sitemaster" => MockObject ("get_api_sitemaster", static () => new JObject
-				{
-				["status"] = "StatusUp",
-				["running"] = true,
-				["connected_to_tesla"] = true,
-				["power_supply_mode"] = false,
-				["can_reboot"] = "Yes"
-				}),
-			"/api/solar_powerwall" => MockObject ("get_api_solar_powerwall", static () => new JObject ()),
-			"/api/solars" => MockParse ("get_api_solars", """[{"brand":"Tesla","model":"Solar Inverter 7.6","power_rating_watts":7600}]"""),
-			"/api/solars/brands" => MockParse ("get_api_solars_brands", CloudMockData.SOLARS_BRANDS),
-			"/api/synchrometer/ct_voltage_references" => MockParse ("get_api_synchrometer_ct_voltage_references", """{"ct1":"Phase1","ct2":"Phase2","ct3":"Phase1"}"""),
-			"/api/system/update/status" => MockParse ("get_api_system_update_status", """{"state":"/update_succeeded","info":{"status":["nonactionable"]},"current_time":1702756114429,"last_status_time":1702753309227,"version":"23.28.2 27626f98","offline_updating":false,"offline_update_error":"","estimated_bytes_per_second":null}"""),
-			"/api/system_status/grid_faults" => MockParse ("get_api_system_status_grid_faults", "[]"),
-			"/api/troubleshooting/problems" => MockParse ("get_api_troubleshooting_problems", """{"problems":[]}"""),
-			_ => new JObject { ["ERROR"] = $"Unknown API: {api}" }
-			};
+				"/api/devices/vitals" => GetApiDevicesVitals (),
+				"/api/meters/aggregates" => await GetApiMetersAggregatesAsync (force, cancellationToken).ConfigureAwait (false),
+				"/api/operation" => await GetApiOperationAsync (force, cancellationToken).ConfigureAwait (false),
+				"/api/site_info" => await GetApiSiteInfoAsync (force, cancellationToken).ConfigureAwait (false),
+				"/api/site_info/site_name" => await GetApiSiteInfoSiteNameAsync (force, cancellationToken).ConfigureAwait (false),
+				"/api/status" => await GetApiStatusAsync (force, cancellationToken).ConfigureAwait (false),
+				"/api/system_status" => await GetApiSystemStatusAsync (force, cancellationToken).ConfigureAwait (false),
+				"/api/system_status/grid_status" => await GetApiSystemStatusGridStatusAsync (force, cancellationToken).ConfigureAwait (false),
+				"/api/system_status/soe" => await GetApiSystemStatusSoeAsync (force, cancellationToken).ConfigureAwait (false),
+				"/vitals" => await GetVitalsAsync (force, cancellationToken).ConfigureAwait (false),
+				"/api/login/Basic" => MockObject ("api_login_basic", static () => new JObject { ["status"] = "ok" }),
+				"/api/logout" => MockObject ("api_logout", static () => new JObject { ["status"] = "ok" }),
+				"/api/auth/toggle/supported" => MockObject ("get_api_auth_toggle_supported", static () => new JObject { ["toggle_auth_supported"] = true }),
+				"/api/customer" => MockObject ("get_api_customer", static () => new JObject { ["registered"] = true }),
+				"/api/customer/registration" => MockParse ("get_api_customer_registration", """{"privacy_notice":null,"limited_warranty":null,"grid_services":null,"marketing":null,"registered":true,"timed_out_registration":false}"""),
+				"/api/installer" => MockParse ("get_api_installer", CloudMockData.INSTALLER),
+				"/api/meters" => MockParse ("get_api_meters", CloudMockData.METERS),
+				"/api/meters/readings" => MockValue ("get_api_unimplemented_timeout", "TIMEOUT!"),
+				"/api/meters/site" => MockParse ("get_api_meters_site", CloudMockData.METERS_SITE),
+				"/api/meters/solar" => null,
+				"/api/networks" => MockValue ("get_api_unimplemented_timeout", "TIMEOUT!"),
+				"/api/powerwalls" => MockParse ("get_api_powerwalls", CloudMockData.POWERWALLS),
+				"/api/site_info/grid_codes" => MockValue ("get_api_unimplemented_timeout", "TIMEOUT!"),
+				"/api/sitemaster" => MockObject ("get_api_sitemaster", static () => new JObject
+					{
+					["status"] = "StatusUp",
+					["running"] = true,
+					["connected_to_tesla"] = true,
+					["power_supply_mode"] = false,
+					["can_reboot"] = "Yes"
+					}),
+				"/api/solar_powerwall" => MockObject ("get_api_solar_powerwall", static () => new JObject ()),
+				"/api/solars" => MockParse ("get_api_solars", """[{"brand":"Tesla","model":"Solar Inverter 7.6","power_rating_watts":7600}]"""),
+				"/api/solars/brands" => MockParse ("get_api_solars_brands", CloudMockData.SOLARS_BRANDS),
+				"/api/synchrometer/ct_voltage_references" => MockParse ("get_api_synchrometer_ct_voltage_references", """{"ct1":"Phase1","ct2":"Phase2","ct3":"Phase1"}"""),
+				"/api/system/update/status" => MockParse ("get_api_system_update_status", """{"state":"/update_succeeded","info":{"status":["nonactionable"]},"current_time":1702756114429,"last_status_time":1702753309227,"version":"23.28.2 27626f98","offline_updating":false,"offline_update_error":"","estimated_bytes_per_second":null}"""),
+				"/api/system_status/grid_faults" => MockParse ("get_api_system_status_grid_faults", "[]"),
+				"/api/troubleshooting/problems" => MockParse ("get_api_troubleshooting_problems", """{"problems":[]}"""),
+				_ => new JObject { ["ERROR"] = $"Unknown API: {api}" }
+				};
 
 		return Serialize (data);
 		}
@@ -673,11 +697,11 @@ public sealed class PowerwallFleetApiClient : PowerwallClientBase, IEnergySiteCl
 
 		var alert = power.IslandStatus switch
 			{
-			"on_grid" => "SystemConnectedToGrid",
-			"off_grid_intentional" => "ScheduledIslandContactorOpen",
-			"off_grid" => "UnscheduledIslandContactorOpen",
-			_ => power.GridStatus is "Active" or "Unknown" ? "SystemConnectedToGrid" : ""
-			};
+				"on_grid" => "SystemConnectedToGrid",
+				"off_grid_intentional" => "ScheduledIslandContactorOpen",
+				"off_grid" => "UnscheduledIslandContactorOpen",
+				_ => power.GridStatus is "Active" or "Unknown" ? "SystemConnectedToGrid" : ""
+				};
 
 		var deviceKey = $"STSTSM--{partNumber}--{serialNumber}";
 		return new JObject
@@ -715,23 +739,23 @@ public sealed class PowerwallFleetApiClient : PowerwallClientBase, IEnergySiteCl
 			solarInverters = 0;
 
 		var data = JObject.Parse (CloudMockData.METERS_AGGREGATES_TEMPLATE);
-		MergeInto ((JObject) data["site"]!, new JObject
+		MergeInto ((JObject)data["site"]!, new JObject
 			{
 			["last_communication_time"] = timestamp,
 			["instant_power"] = power.GridPower
 			});
-		MergeInto ((JObject) data["battery"]!, new JObject
+		MergeInto ((JObject)data["battery"]!, new JObject
 			{
 			["last_communication_time"] = timestamp,
 			["instant_power"] = power.BatteryPower,
 			["num_meters_aggregated"] = batteryCount
 			});
-		MergeInto ((JObject) data["load"]!, new JObject
+		MergeInto ((JObject)data["load"]!, new JObject
 			{
 			["last_communication_time"] = timestamp,
 			["instant_power"] = power.LoadPower
 			});
-		MergeInto ((JObject) data["solar"]!, new JObject
+		MergeInto ((JObject)data["solar"]!, new JObject
 			{
 			["last_communication_time"] = timestamp,
 			["instant_power"] = power.SolarPower,
@@ -813,7 +837,7 @@ public sealed class PowerwallFleetApiClient : PowerwallClientBase, IEnergySiteCl
 		if (!string.IsNullOrWhiteSpace (din))
 			_log.Debug ("FleetAPI mode operates on entire site, not din. Ignoring din parameter.");
 
-		var reservePercent = (int) Math.Round (payloadObject.Value<double?> ("backup_reserve_percent") ?? 0);
+		var reservePercent = (int)Math.Round (payloadObject.Value<double?> ("backup_reserve_percent") ?? 0);
 
 		try
 			{

@@ -28,6 +28,18 @@ their own application.
 
 ## Usage
 
+### Repeated Fleet authorization in the Setup application
+
+For an already registered Fleet application, choose **Sign in to Tesla**, supply the client ID, client secret and registered HTTPS redirect URI, then complete sign-in in the embedded Tesla window. The Setup app captures the callback and exchanges its code automatically. This path does not repeat PEM verification or partner registration. Initial registration remains available through **Initial Setup: Verify & Register Partner Account**.
+
+Optionally enable **Remember application settings**. The Setup app encrypts those settings for the current Windows user and restores them at the next launch. Unchecking the option deletes the saved application settings. This does not save issued access or refresh tokens.
+
+After Tesla sign-in and consent, the tokens appear in Setup without copying a URL between websites. The app cancels navigation to the registered callback website. If embedded sign-in is unavailable, expand **Manual browser option (if needed)**, use an external browser and paste the **complete redirected URL**. The Setup app checks the callback address and authorization state before exchanging its code. A bare code is no longer accepted by this UI, and a submitted code is not silently retried after an uncertain result. These Setup improvements are currently unreleased.
+
+Use separate authorizations for independently running applications and tests. Sharing the same refresh token between independent clients can leave one client holding an obsolete token after the other refreshes it. The new Windows `TeslaPowerwallLibrary.TestCredentials` helper maintains dedicated Owner and Fleet test profiles, with encrypted rotation storage and exclusive ownership during a test session; see its README in the source repository. Local testing will use its own connection-specific authentication when that integration is available.
+
+### Calling the Owner API login library
+
 ```csharp
 using TeslaPowerwallLibrary.Login;
 

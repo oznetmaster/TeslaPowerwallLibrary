@@ -156,6 +156,10 @@ FleetAPI mode covers profile, energy product information, energy product command
 
 ### Obtaining a FleetAPI refresh token (`TeslaPowerwallLibrary.Login`)
 
+For repeated Fleet authorization with an already registered application, the Setup app now offers **Sign in to Tesla**. It skips partner registration, can remember application settings encrypted for your Windows account, and automatically captures the callback and exchanges its code in an embedded Tesla sign-in window. A manual browser fallback is available. Initial application registration remains a separate option.
+
+For credentials issued specifically to tests, see [dedicated test credentials](TeslaPowerwallLibrary.TestCredentials/README.md). Owner and Fleet profiles maintain their own refresh-token rotation; local test integration is reserved for the upcoming local access work. The helper is included in the 1.2.5 GitHub release; see its guide for usage and limitations.
+
 The initial `FleetApiRefreshToken` isn't hand-entered from Tesla's docs — it comes from completing Tesla's FleetAPI OAuth setup once. `TeslaPowerwallLibrary.Login` exposes this as a small set of stateless, non-interactive steps adapted from upstream `pypowerwall`'s `fleetapi.setup()` wizard, via the static `TeslaFleetApiLogin` class. The library performs no browser automation and stores nothing itself — the caller supplies its own registered Client ID/Secret, domain, and redirect URI (from [developer.tesla.com](https://developer.tesla.com/)), opens the authorize URL itself, and captures the resulting authorization code:
 
 ```csharp
@@ -216,7 +220,7 @@ Public documentation for this repository is available on GitHub Pages:
 
 - https://oznetmaster.github.io/TeslaPowerwallLibrary/
 
-See [CHANGELOG.md](CHANGELOG.md) for release history.
+See [CHANGELOG.md](CHANGELOG.md) for release history and [RELEASE-NOTES.md](RELEASE-NOTES.md) for this release.
 
 ## Acknowledgements
 
@@ -240,3 +244,7 @@ The suite covers facade guards, mode selection, token-cache behavior, model dese
 ## Continuous integration tests
 
 The [Unit tests workflow](.github/workflows/unit-tests.yml) runs on pull requests and pushes to the main development branch. Separate Windows jobs test **net472** and **.NET 10**, retaining a result file for each suite/runtime. Live tests are excluded; no account credentials or physical devices are needed. These checks do not publish packages or releases.
+
+### Fleet account region (1.2.5)
+
+Fleet connections default to automatic account-region discovery through Tesla's authenticated user-region endpoint before reading sites. The account region can differ from the physical site's location. Explicit FleetApiRegion values na, eu and cn remain supported; China requires its separate registration and explicit region. Automatic discovery rejects missing, mismatched or unrecognized endpoint responses instead of silently using a region. The region is resolved once per connection. Windows and remote read-only live validation passed; EU routing is covered by simulated HTTP tests, not an EU-account hardware test.

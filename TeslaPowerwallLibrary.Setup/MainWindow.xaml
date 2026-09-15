@@ -95,7 +95,7 @@
 							</Grid>
 
 							<TextBlock TextWrapping="Wrap" Foreground="#FF555555" Margin="0,10,0,0"
-										Text="The Access Token bootstraps the first connection; afterwards the library auto-refreshes using the Refresh Token. Supply these via PowerwallOptions.AccessToken and PowerwallOptions.RefreshToken (or PW_ACCESS_TOKEN / PW_REFRESH_TOKEN)." />
+										Text="Supply the Refresh Token to your application. The library obtains and renews access tokens automatically; entering an access token is optional." />
 						</StackPanel>
 					</Border>
 
@@ -116,7 +116,7 @@
 					<ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
 						<StackPanel Margin="16,12">
 							<TextBlock TextWrapping="Wrap" Foreground="#FF555555" Margin="0,0,0,12"
-										Text="Requires a Tesla developer application already registered at developer.tesla.com, with its public PEM key hosted at your domain. Nothing is saved to disk." />
+										Text="Already have a Fleet application? Enter its details once, then choose Sign in to Tesla. Sign-in and token capture happen here. Remember application settings to avoid revisiting the developer portal. Issued tokens are not saved here." />
 
 							<TextBlock Text="Client ID" FontWeight="SemiBold" Margin="0,0,0,4" />
 							<TextBox x:Name="FleetApiClientIdBox" Margin="0,0,0,10" />
@@ -137,13 +137,16 @@
 								<ComboBoxItem Content="China" Tag="cn" />
 							</ComboBox>
 
-							<Button x:Name="FleetApiRegisterButton" Content="1. Verify &amp; Register Partner Account"
+							<CheckBox x:Name="RememberFleetApp" Content="Remember application settings on this Windows account" Margin="0,0,0,10" Unchecked="OnForgetFleetApp" />
+							<Button x:Name="FleetApiExistingButton" Content="Sign in to Tesla" Height="30" Margin="0,0,0,8" Click="OnFleetApiExistingClick" />
+							<Button x:Name="FleetApiRegisterButton" Content="Initial Setup: Verify &amp; Register Partner Account"
 									Height="30" Click="OnFleetApiRegisterClick" />
 
 							<Border Background="#FFF7F7F7" Padding="10" Margin="0,12,0,0"
 									x:Name="FleetApiAuthorizePanel" Visibility="Collapsed">
+								<Expander Header="Manual browser option (if needed)">
 								<StackPanel>
-									<TextBlock Text="2. Visit this URL and authorize access:" FontWeight="SemiBold" Margin="0,0,0,4" />
+									<TextBlock Text="Open this URL and authorize access:" FontWeight="SemiBold" Margin="0,8,0,4" />
 									<Grid>
 										<Grid.ColumnDefinitions>
 											<ColumnDefinition Width="*" />
@@ -160,13 +163,14 @@
 										</StackPanel>
 									</Grid>
 
-									<TextBlock Text="After authorizing, paste the code (or the full redirected URL) here:"
+									<TextBlock Text="After authorizing, paste the complete redirected URL here:"
 												FontWeight="SemiBold" Margin="0,10,0,4" />
 									<TextBox x:Name="FleetApiCodeBox" Margin="0,0,0,10" />
 
-									<Button x:Name="FleetApiExchangeButton" Content="3. Exchange Code for Tokens"
+									<Button x:Name="FleetApiExchangeButton" Content="Complete sign-in"
 											Height="30" Click="OnFleetApiExchangeClick" />
 								</StackPanel>
+								</Expander>
 							</Border>
 
 							<Border x:Name="FleetApiResultsPanel" Background="#FFFFFFFF" Padding="0,12,0,0" Visibility="Collapsed">

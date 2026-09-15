@@ -55,10 +55,16 @@ public sealed record PowerwallOptions
 	public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds (Constants.DEFAULT_TIMEOUT_SECONDS);
 
 	/// <summary>When <see langword="true"/>, use the Tesla cloud for data instead of local access.</summary>
-	public bool CloudMode { get; init; }
+	public bool CloudMode
+		{
+		get; init;
+		}
 
 	/// <summary>Site identifier used in cloud mode.</summary>
-	public string? SiteId { get; init; }
+	public string? SiteId
+		{
+		get; init;
+		}
 
 	/// <summary>
 	/// Tesla Owners API OAuth access token used for cloud mode. Optional: when omitted (or when the supplied
@@ -69,7 +75,10 @@ public sealed record PowerwallOptions
 	/// later runs, so callers do not need to store tokens themselves. Whether this was supplied also affects how
 	/// often <see cref="Powerwall.CloudTokensRefreshed"/> fires - see that event's documentation.
 	/// </summary>
-	public string? AccessToken { get; init; }
+	public string? AccessToken
+		{
+		get; init;
+		}
 
 	/// <summary>
 	/// Tesla Owners API OAuth refresh token used to renew an expired or absent <see cref="AccessToken"/> in
@@ -78,7 +87,10 @@ public sealed record PowerwallOptions
 	/// persists the (possibly rotated) refresh token internally and reuses it on later runs, so it too can be
 	/// omitted once a prior connect has succeeded.
 	/// </summary>
-	public string? RefreshToken { get; init; }
+	public string? RefreshToken
+		{
+		get; init;
+		}
 
 	/// <summary>
 	/// Directory or file used by the library to persist cloud-mode Tesla tokens and the selected site, keyed
@@ -102,7 +114,10 @@ public sealed record PowerwallOptions
 	/// changes. Use this on hosts where the library's default per-user file cache is not appropriate (for
 	/// example Mono-hosted embedded environments without a writable per-user profile folder).
 	/// </summary>
-	public bool NoCloudTokenPersistence { get; init; }
+	public bool NoCloudTokenPersistence
+		{
+		get; init;
+		}
 
 	/// <summary>Authentication mode for local access: <c>cookie</c> (default) or <c>token</c>.</summary>
 	public string AuthMode { get; init; } = "cookie";
@@ -111,26 +126,38 @@ public sealed record PowerwallOptions
 	public string CacheFile { get; init; } = Constants.DEFAULT_CACHE_FILE;
 
 	/// <summary>When <see langword="true"/>, use Tesla FleetAPI for data.</summary>
-	public bool FleetApi { get; init; }
+	public bool FleetApi
+		{
+		get; init;
+		}
 
 	/// <summary>
 	/// Tesla FleetAPI application Client ID registered at <c>https://developer.tesla.com/</c>. Required for
 	/// FleetAPI mode; used only to identify the application on the OAuth refresh-token grant.
 	/// </summary>
-	public string? FleetApiClientId { get; init; }
+	public string? FleetApiClientId
+		{
+		get; init;
+		}
 
 	/// <summary>
 	/// Tesla FleetAPI application Client Secret registered at <c>https://developer.tesla.com/</c>. Reserved
 	/// for future use (for example partner-token flows); it is not required for and not sent on the
 	/// refresh-token grant used to keep <see cref="FleetApiAccessToken"/> current.
 	/// </summary>
-	public string? FleetApiClientSecret { get; init; }
+	public string? FleetApiClientSecret
+		{
+		get; init;
+		}
 
 	/// <summary>
 	/// Tesla FleetAPI OAuth access token. Optional: when omitted (or when the supplied value is stale or
 	/// rejected), the library silently derives a new one from <see cref="FleetApiRefreshToken"/>.
 	/// </summary>
-	public string? FleetApiAccessToken { get; init; }
+	public string? FleetApiAccessToken
+		{
+		get; init;
+		}
 
 	/// <summary>
 	/// Tesla FleetAPI OAuth refresh token used to renew an expired or absent <see cref="FleetApiAccessToken"/>.
@@ -139,14 +166,18 @@ public sealed record PowerwallOptions
 	/// (keyed by <see cref="Email"/>) and reuses them automatically on later runs, so callers do not need to
 	/// store tokens themselves, unless <see cref="NoFleetApiTokenPersistence"/> is <see langword="true"/>.
 	/// </summary>
-	public string? FleetApiRefreshToken { get; init; }
+	public string? FleetApiRefreshToken
+		{
+		get; init;
+		}
 
 	/// <summary>
-	/// Tesla FleetAPI region used to select the regional Fleet API base URL: <c>na</c> (North America /
-	/// Asia-Pacific, default), <c>eu</c> (Europe / Middle East / Africa), or <c>cn</c> (China). Unrecognized
-	/// values fall back to <c>na</c>.
+	/// Tesla FleetAPI region: <c>auto</c> (default) discovers the account's regional base URL before querying
+	/// sites. Explicit overrides are <c>na</c> (North America / Asia-Pacific), <c>eu</c> (Europe / Middle East /
+	/// Africa), or <c>cn</c> (China). China accounts require their separate registration and explicit region.
+	/// Unrecognized values retain the legacy fallback to <c>na</c>.
 	/// </summary>
-	public string FleetApiRegion { get; init; } = "na";
+	public string FleetApiRegion { get; init; } = "auto";
 
 	/// <summary>
 	/// Directory or file used by the library to persist FleetAPI tokens and the selected site, keyed by
@@ -169,5 +200,8 @@ public sealed record PowerwallOptions
 	/// not appropriate (for example Mono-hosted embedded environments without a writable per-user profile
 	/// folder).
 	/// </summary>
-	public bool NoFleetApiTokenPersistence { get; init; }
+	public bool NoFleetApiTokenPersistence
+		{
+		get; init;
+		}
 	}

@@ -1,0 +1,5 @@
+{
+  "mode": "cloud",
+  "refreshToken": "SEPARATELY_ISSUED_TEST_REFRESH_TOKEN",
+  "siteId": "1234567890"
+}

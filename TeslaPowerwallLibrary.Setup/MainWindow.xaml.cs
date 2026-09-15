@@ -3,7 +3,9 @@
 
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -26,6 +28,7 @@ public partial class MainWindow : Window
 		{
 		InitializeComponent ();
 		SelectRegion (App.Region);
+		LoadFleetApp ();
 		}
 
 	private void SelectRegion (string region)
@@ -157,6 +160,91 @@ public partial class MainWindow : Window
 	private string? _fleetApiClientSecret;
 	private string? _fleetApiRedirectUri;
 	private string? _fleetApiAudience;
+	private string? _fleetApiState;
+
+	private void LoadFleetApp ()
+		{
+		try
+			{
+			var saved = FleetSetupPreferences.Load (FleetSetupPreferences.FilePath);
+			if (saved is null)
+				return;
+			FleetApiClientIdBox.Text = saved.ClientId;
+			FleetApiClientSecretBox.Password = saved.ClientSecret;
+			FleetApiDomainBox.Text = saved.Domain;
+			FleetApiRedirectUriBox.Text = saved.RedirectUri;
+			foreach (ComboBoxItem item in FleetApiRegionSelector.Items)
+				if ((string?)item.Tag == saved.Region)
+					FleetApiRegionSelector.SelectedItem = item;
+			RememberFleetApp.IsChecked = true;
+			}
+		catch { SetFleetApiStatus ("Saved application settings could not be loaded. Enter them again; no authorization was attempted."); }
+		}
+
+	private void OnForgetFleetApp (object sender, RoutedEventArgs e)
+		{
+		try
+			{
+			if (File.Exists (FleetSetupPreferences.FilePath))
+				File.Delete (FleetSetupPreferences.FilePath);
+			}
+		catch { SetFleetApiStatus ("Saved application settings could not be removed. Check local file access."); }
+		}
+
+	private void PrepareFleetAuthorization (string clientId, string secret, string redirect, string region, string domain)
+		{
+		if (string.IsNullOrWhiteSpace (clientId) || string.IsNullOrWhiteSpace (secret)
+			|| !Uri.TryCreate (redirect, UriKind.Absolute, out var callback) || callback.Scheme != Uri.UriSchemeHttps)
+			throw new InvalidDataException ("Client ID, Client Secret and the registered HTTPS Redirect URI are required.");
+		if (RememberFleetApp.IsChecked == true)
+			new FleetSetupPreferences { ClientId = clientId, ClientSecret = secret, Domain = domain, RedirectUri = redirect, Region = region }.Save (FleetSetupPreferences.FilePath);
+		_fleetApiClientId = clientId;
+		_fleetApiClientSecret = secret;
+		_fleetApiRedirectUri = redirect;
+		_fleetApiAudience = FleetApiRegionAudience (region);
+		var authorization = TeslaFleetApiLogin.BuildAuthorizeUrl (clientId, redirect);
+		_fleetApiState = authorization.State;
+		FleetApiAuthorizeUrlText.Text = authorization.AuthorizeUrl;
+		FleetApiCodeBox.Clear ();
+		FleetApiRefreshTokenText.Clear ();
+		FleetApiAccessTokenText.Clear ();
+		FleetApiResultsPanel.Visibility = Visibility.Collapsed;
+		FleetApiAuthorizePanel.Visibility = Visibility.Visible;
+		FleetApiExchangeButton.IsEnabled = true;
+		SetFleetApiStatus ("Opening Tesla sign-in. The callback and token exchange are handled automatically.");
+		}
+
+	private async void OnFleetApiExistingClick (object sender, RoutedEventArgs e)
+		{
+		try
+			{
+			PrepareFleetAuthorization (FleetApiClientIdBox.Text.Trim (), FleetApiClientSecretBox.Password, FleetApiRedirectUriBox.Text.Trim (), FleetApiSelectedRegion, FleetApiDomainBox.Text.Trim ());
+			await AuthorizeFleetAsync ();
+			}
+		catch { SetFleetApiStatus ("Could not prepare authorization. Check the Client ID, Client Secret, registered HTTPS Redirect URI and local file access."); }
+		}
+
+	private async Task AuthorizeFleetAsync ()
+		{
+		FleetApiExistingButton.IsEnabled = false;
+		FleetApiRegisterButton.IsEnabled = false;
+		try
+			{
+			var login = new FleetAuthorizationWindow (FleetApiAuthorizeUrlText.Text, _fleetApiRedirectUri!, _fleetApiState!) { Owner = this };
+			login.ShowDialog ();
+			if (login.CallbackUrl is null)
+				{
+				SetFleetApiStatus (login.FailureMessage);
+				return;
+				}
+			await ExchangeFleetCallbackAsync (login.CallbackUrl);
+			}
+		finally
+			{
+			FleetApiExistingButton.IsEnabled = true;
+			FleetApiRegisterButton.IsEnabled = true;
+			}
+		}
 
 	private string FleetApiSelectedRegion =>
 		(FleetApiRegionSelector.SelectedItem as ComboBoxItem)?.Tag as string ?? "na";
@@ -164,10 +252,10 @@ public partial class MainWindow : Window
 	private static string FleetApiRegionAudience (string region) =>
 		region switch
 			{
-			"eu" => "https://fleet-api.prd.eu.vn.cloud.tesla.com",
-			"cn" => "https://fleet-api.prd.cn.vn.cloud.tesla.cn",
-			_ => "https://fleet-api.prd.na.vn.cloud.tesla.com"
-			};
+				"eu" => "https://fleet-api.prd.eu.vn.cloud.tesla.com",
+				"cn" => "https://fleet-api.prd.cn.vn.cloud.tesla.cn",
+				_ => "https://fleet-api.prd.na.vn.cloud.tesla.com"
+				};
 
 	private async void OnFleetApiRegisterClick (object sender, RoutedEventArgs e)
 		{
@@ -189,6 +277,7 @@ public partial class MainWindow : Window
 			}
 
 		FleetApiRegisterButton.IsEnabled = false;
+		FleetApiExistingButton.IsEnabled = false;
 		FleetApiAuthorizePanel.Visibility = Visibility.Collapsed;
 		FleetApiResultsPanel.Visibility = Visibility.Collapsed;
 
@@ -220,15 +309,8 @@ public partial class MainWindow : Window
 				return;
 				}
 
-			_fleetApiClientId = clientId;
-			_fleetApiClientSecret = clientSecret;
-			_fleetApiRedirectUri = redirectUri;
-			_fleetApiAudience = audience;
-
-			var (authorizeUrl, _) = TeslaFleetApiLogin.BuildAuthorizeUrl (clientId, redirectUri);
-			FleetApiAuthorizeUrlText.Text = authorizeUrl;
-			FleetApiAuthorizePanel.Visibility = Visibility.Visible;
-			SetFleetApiStatus ("Partner account registered. Visit the authorize URL, sign in, then paste the returned code below.");
+			PrepareFleetAuthorization (clientId, clientSecret, redirectUri, region, domain);
+			await AuthorizeFleetAsync ();
 			}
 		catch (Exception exc)
 			{
@@ -237,6 +319,7 @@ public partial class MainWindow : Window
 		finally
 			{
 			FleetApiRegisterButton.IsEnabled = true;
+			FleetApiExistingButton.IsEnabled = true;
 			}
 		}
 
@@ -261,37 +344,35 @@ public partial class MainWindow : Window
 
 	private async void OnFleetApiExchangeClick (object sender, RoutedEventArgs e)
 		{
-		if (_fleetApiClientId is null || _fleetApiClientSecret is null || _fleetApiRedirectUri is null || _fleetApiAudience is null)
+		await ExchangeFleetCallbackAsync (FleetApiCodeBox.Text.Trim ());
+		}
+
+	private async Task ExchangeFleetCallbackAsync (string callbackUrl)
+		{
+		if (_fleetApiClientId is null || _fleetApiClientSecret is null || _fleetApiRedirectUri is null || _fleetApiAudience is null || _fleetApiState is null)
 			{
-			SetFleetApiStatus ("Complete step 1 before exchanging a code.");
+			SetFleetApiStatus ("Start a new Fleet sign-in before exchanging a code.");
 			return;
 			}
 
-		var code = FleetApiCodeBox.Text.Trim ();
-		if (string.IsNullOrWhiteSpace (code))
+		string code;
+		try
 			{
-			SetFleetApiStatus ("Enter the authorization code returned after signing in.");
-			return;
+			code = FleetSetupPreferences.ParseCallback (callbackUrl, _fleetApiRedirectUri, _fleetApiState);
 			}
-
-		if (code.StartsWith ("http", StringComparison.OrdinalIgnoreCase))
-			{
-			var codeIndex = code.IndexOf ("code=", StringComparison.OrdinalIgnoreCase);
-			if (codeIndex >= 0)
-				{
-				code = code.Substring (codeIndex + "code=".Length);
-				var ampersandIndex = code.IndexOf ('&');
-				if (ampersandIndex >= 0)
-					code = code.Substring (0, ampersandIndex);
-				}
-			}
+		catch { SetFleetApiStatus ("Paste the complete redirected URL from this authorization attempt. The callback address and state must match."); return; }
+		// Authorization codes are single-use; an uncertain exchange must not be repeated silently.
+		_fleetApiState = null;
 
 		FleetApiExchangeButton.IsEnabled = false;
+		FleetApiExistingButton.IsEnabled = false;
+		FleetApiRegisterButton.IsEnabled = false;
 		try
 			{
 			SetFleetApiStatus ("Exchanging authorization code for tokens...");
+			using var timeout = new CancellationTokenSource (TimeSpan.FromSeconds (30));
 			var result = await TeslaFleetApiLogin.ExchangeCodeAsync (
-				_fleetApiClientId, _fleetApiClientSecret, code, _fleetApiRedirectUri, _fleetApiAudience).ConfigureAwait (true);
+				_fleetApiClientId, _fleetApiClientSecret, code, _fleetApiRedirectUri, _fleetApiAudience, timeout.Token).ConfigureAwait (true);
 
 			if (result.Status != TeslaFleetApiLoginStatus.Success)
 				{
@@ -302,15 +383,19 @@ public partial class MainWindow : Window
 			FleetApiRefreshTokenText.Text = result.Tokens!.RefreshToken;
 			FleetApiAccessTokenText.Text = result.Tokens.AccessToken;
 			FleetApiResultsPanel.Visibility = Visibility.Visible;
-			SetFleetApiStatus ("Done. Copy the tokens into your Powerwall configuration.");
+			FleetApiAuthorizePanel.Visibility = Visibility.Collapsed;
+			FleetApiCodeBox.Clear ();
+			SetFleetApiStatus ("Done. Use the refresh token and Client ID in your Fleet configuration.");
 			}
-		catch (Exception exc)
+		catch
 			{
-			SetFleetApiStatus ($"Error: {exc.Message}");
+			SetFleetApiStatus ("The token exchange did not complete. Start a new sign-in; this code will not be retried.");
 			}
 		finally
 			{
-			FleetApiExchangeButton.IsEnabled = true;
+			FleetApiExchangeButton.IsEnabled = false;
+			FleetApiExistingButton.IsEnabled = true;
+			FleetApiRegisterButton.IsEnabled = true;
 			}
 		}
 

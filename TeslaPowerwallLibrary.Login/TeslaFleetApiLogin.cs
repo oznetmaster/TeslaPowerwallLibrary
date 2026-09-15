@@ -51,8 +51,8 @@ public sealed record TeslaFleetApiLoginResult (TeslaFleetApiLoginStatus Status, 
 /// responsible for opening the authorize URL and capturing the resulting authorization code (for example
 /// via its own hosted redirect endpoint, or by asking the user to paste the redirected URL). This mirrors
 /// the split between <see cref="TeslaAuth"/> (mechanics) and <see cref="TeslaCloudLogin"/> (orchestration)
-/// used for the cloud login flow, except FleetAPI's browser step cannot be automated in-process because it
-/// redirects to the caller's own domain rather than a native <c>tesla://</c> scheme.
+/// used for the cloud login flow. The Setup application captures the registered HTTPS callback in an
+/// embedded browser before navigation, validates its address and state, and exchanges the code automatically.
 /// </summary>
 public static class TeslaFleetApiLogin
 	{

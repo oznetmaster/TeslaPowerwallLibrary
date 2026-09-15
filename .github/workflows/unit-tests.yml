@@ -16,6 +16,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  credential-tools:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Test private credential storage and authorization callbacks without live credentials
+        run: dotnet test TeslaPowerwallLibrary.TestCredentials.Tests/TeslaPowerwallLibrary.TestCredentials.Tests.csproj -c Release --logger "trx;LogFileName=credentials.trx" --results-directory TestResults
+      - name: Build the Windows setup application
+        run: dotnet build TeslaPowerwallLibrary.Setup/TeslaPowerwallLibrary.Setup.csproj -c Release
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: credential-tool-tests
+          path: TestResults/*.trx
+          if-no-files-found: warn
   test:
     runs-on: windows-latest
     strategy:

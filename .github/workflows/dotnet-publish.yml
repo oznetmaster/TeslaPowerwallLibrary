@@ -70,28 +70,20 @@ jobs:
       - name: Run tests (net10.0)
         run: dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj --configuration Release --no-build --framework net10.0
 
+      - name: Test credential helper and callback handling
+        run: dotnet test TeslaPowerwallLibrary.TestCredentials.Tests/TeslaPowerwallLibrary.TestCredentials.Tests.csproj --configuration Release --no-build
+
       - name: Pack library
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path "${{ env.ARTIFACT_DIR }}/nuget" -Force | Out-Null
           dotnet pack ${{ env.PROJECT_PATH }} --configuration Release --no-build -p:ContinuousIntegrationBuild=true -p:Version=${{ steps.version.outputs.package_version }} -p:PackageVersion=${{ steps.version.outputs.package_version }} --output "${{ env.ARTIFACT_DIR }}/nuget"
 
-      - name: Publish package
-        shell: pwsh
-        run: |
-          $packages = Get-ChildItem -Path "${{ env.ARTIFACT_DIR }}/nuget" -Filter '*.nupkg' | Where-Object { $_.Name -notlike '*.symbols.nupkg' }
-          if (-not $packages) {
-              throw 'No NuGet package was produced.'
-          }
-
-          foreach ($package in $packages) {
-              dotnet nuget push $package.FullName --api-key "${{ secrets.NUGET_API_KEY }}" --source "https://api.nuget.org/v3/index.json" --skip-duplicate
-          }
-
       - name: Publish applications
         shell: pwsh
         run: |
           $apps = @(
+              @{ Project = 'TeslaPowerwallLibrary.TestCredentials/TeslaPowerwallLibrary.TestCredentials.csproj'; Name = 'TeslaPowerwallTestCredentials'; Frameworks = @('net10.0-windows') },
               @{ Project = 'TeslaPowerwallLibrary.App/TeslaPowerwallLibrary.App.csproj'; Name = 'TeslaPowerwallApp'; Frameworks = @('net10.0-windows') },
               @{ Project = 'TeslaPowerwallLibrary.Setup/TeslaPowerwallLibrary.Setup.csproj'; Name = 'TeslaPowerwallSetup'; Frameworks = @('net10.0-windows') },
               @{ Project = 'TeslaPowerwallLibrary.TestConsole/TeslaPowerwallLibrary.TestConsole.csproj'; Name = 'TeslaPowerwallTestConsole'; Frameworks = @('net472', 'net10.0-windows') }
@@ -138,13 +130,25 @@ jobs:
               }
           }
 
+      - name: Publish package
+        shell: pwsh
+        run: |
+          $packages = Get-ChildItem -Path "${{ env.ARTIFACT_DIR }}/nuget" -Filter '*.nupkg' | Where-Object { $_.Name -notlike '*.symbols.nupkg' }
+          if (-not $packages) {
+              throw 'No NuGet package was produced.'
+          }
+
+          foreach ($package in $packages) {
+              dotnet nuget push $package.FullName --api-key "${{ secrets.NUGET_API_KEY }}" --source "https://api.nuget.org/v3/index.json" --skip-duplicate
+          }
+
       - name: Create GitHub release from tag
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.raw_version }}
           name: ${{ steps.version.outputs.raw_version }}
-          generate_release_notes: true
+          body_path: RELEASE-NOTES.md
           prerelease: ${{ contains(steps.version.outputs.package_version, '-') }}
           files: |
             ${{ env.ARTIFACT_DIR }}/release/*.dll

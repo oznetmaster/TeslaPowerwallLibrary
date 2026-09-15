@@ -25,6 +25,7 @@ namespace TeslaPowerwallLibrary.Login;
 internal static class FleetApiAuth
 	{
 	private const string SSO_BASE_URL = "https://auth.tesla.com";
+	private const string TOKEN_BASE_URL = "https://fleet-auth.prd.vn.cloud.tesla.com";
 	private const string TOKEN_URL_PATH = "/oauth2/v3/token";
 	private const string AUTHORIZE_URL_PATH = "/oauth2/v3/authorize";
 
@@ -77,7 +78,7 @@ internal static class FleetApiAuth
 			new KeyValuePair<string, string> ("audience", audience)
 			});
 
-		var body = await PostFormAsync (SSO_BASE_URL + TOKEN_URL_PATH, form, cancellationToken).ConfigureAwait (false);
+		var body = await PostFormAsync (TOKEN_BASE_URL + TOKEN_URL_PATH, form, cancellationToken).ConfigureAwait (false);
 		var token = JObject.Parse (body).Value<string> ("access_token");
 		if (string.IsNullOrWhiteSpace (token))
 			throw new FleetApiAuthException ($"No access_token in Tesla partner token response: {body}");
@@ -123,7 +124,7 @@ internal static class FleetApiAuth
 		using (response)
 			{
 			if (!response.IsSuccessStatusCode)
-				throw new FleetApiAuthException ($"Partner account registration failed (HTTP {(int) response.StatusCode}): {responseBody}");
+				throw new FleetApiAuthException ($"Partner account registration failed (HTTP {(int)response.StatusCode}): {responseBody}");
 
 			return responseBody;
 			}
@@ -181,7 +182,7 @@ internal static class FleetApiAuth
 			new KeyValuePair<string, string> ("scope", Scope)
 			});
 
-		var body = await PostFormAsync (SSO_BASE_URL + TOKEN_URL_PATH, form, cancellationToken).ConfigureAwait (false);
+		var body = await PostFormAsync (TOKEN_BASE_URL + TOKEN_URL_PATH, form, cancellationToken).ConfigureAwait (false);
 		JObject root;
 		try
 			{
@@ -217,7 +218,7 @@ internal static class FleetApiAuth
 		using (response)
 			{
 			if (!response.IsSuccessStatusCode)
-				throw new FleetApiAuthException ($"Tesla FleetAPI auth request failed (HTTP {(int) response.StatusCode}): {body}");
+				throw new FleetApiAuthException ($"Tesla FleetAPI auth request failed (HTTP {(int)response.StatusCode}): {body}");
 
 			return body;
 			}

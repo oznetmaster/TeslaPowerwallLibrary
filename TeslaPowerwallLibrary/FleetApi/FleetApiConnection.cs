@@ -30,14 +30,15 @@ namespace TeslaPowerwallLibrary.FleetApi;
 /// </remarks>
 internal sealed class FleetApiConnection : IDisposable
 	{
-	private const string SSO_BASE_URL = "https://auth.tesla.com/";
+	private const string SSO_BASE_URL = "https://fleet-auth.prd.vn.cloud.tesla.com/";
 	private const string TOKEN_ENDPOINT = "oauth2/v3/token";
 
 	private static readonly ILog _log = LogManager.GetLogger (typeof (FleetApiConnection));
 
 	private readonly HttpClient _httpClient;
 	private readonly string _clientId;
-	private readonly string _baseUrl;
+	private string _baseUrl;
+	private bool _regionResolved;
 	private string? _accessToken;
 	private string? _refreshToken;
 
@@ -56,13 +57,18 @@ internal sealed class FleetApiConnection : IDisposable
 	/// <param name="baseUrl">The regional FleetAPI base URL (see <see cref="FleetApiRegions"/>).</param>
 	/// <param name="timeout">Per-request HTTP timeout.</param>
 	public FleetApiConnection (string clientId, string? accessToken, string? refreshToken, string baseUrl, TimeSpan timeout)
+		: this (clientId, accessToken, refreshToken, baseUrl, timeout, new HttpClientHandler ())
+		{
+		}
+
+	internal FleetApiConnection (string clientId, string? accessToken, string? refreshToken, string baseUrl, TimeSpan timeout, HttpMessageHandler handler)
 		{
 		_clientId = clientId;
 		_baseUrl = baseUrl.TrimEnd ('/');
 		_accessToken = string.IsNullOrWhiteSpace (accessToken) ? null : accessToken;
 		_refreshToken = string.IsNullOrWhiteSpace (refreshToken) ? null : refreshToken;
 		AccessTokenProvidedAtConstruction = _accessToken is not null;
-		_httpClient = new HttpClient { Timeout = timeout };
+		_httpClient = new HttpClient (handler) { Timeout = timeout };
 		}
 
 	/// <summary>Gets a value indicating whether any usable token (access or refresh) is available.</summary>
@@ -72,7 +78,10 @@ internal sealed class FleetApiConnection : IDisposable
 	/// Gets a value indicating whether a non-null access token was supplied to the constructor (as opposed to
 	/// this connection having bootstrapped its first access token from the refresh token alone).
 	/// </summary>
-	public bool AccessTokenProvidedAtConstruction { get; }
+	public bool AccessTokenProvidedAtConstruction
+		{
+		get;
+		}
 
 	/// <summary>Gets the current access token, which may be renewed after a refresh.</summary>
 	public string? AccessToken => _accessToken;
@@ -91,7 +100,7 @@ internal sealed class FleetApiConnection : IDisposable
 		if (_refreshToken is null)
 			return false;
 
-		var body = new JObject
+		var body = new Dictionary<string, string>
 			{
 			["grant_type"] = "refresh_token",
 			["client_id"] = _clientId,
@@ -103,7 +112,7 @@ internal sealed class FleetApiConnection : IDisposable
 			{
 			using var request = new HttpRequestMessage (HttpMethod.Post, SSO_BASE_URL + TOKEN_ENDPOINT)
 				{
-				Content = new StringContent (body.ToString (Formatting.None), Encoding.UTF8, "application/json")
+				Content = new FormUrlEncodedContent (body)
 				};
 			response = await _httpClient.SendAsync (request, cancellationToken).ConfigureAwait (false);
 			}
@@ -122,7 +131,7 @@ internal sealed class FleetApiConnection : IDisposable
 #endif
 			if (!response.IsSuccessStatusCode)
 				{
-				_log.Error ($"Tesla FleetAPI token refresh failed (HTTP {(int) response.StatusCode}).");
+				_log.Error ($"Tesla FleetAPI token refresh failed (HTTP {(int)response.StatusCode}).");
 				return false;
 				}
 
@@ -153,6 +162,23 @@ internal sealed class FleetApiConnection : IDisposable
 				return false;
 				}
 			}
+		}
+
+	internal async Task<bool> DiscoverRegionAsync (CancellationToken cancellationToken)
+		{
+		if (_regionResolved)
+			return true;
+		JToken? response = await SendApiAsync (HttpMethod.Get, "api/1/users/region", null, null, cancellationToken).ConfigureAwait (false);
+		FleetAccountRegion? region = ToTypedResponse<FleetAccountRegion> (response);
+		string? baseUrl = FleetApiRegions.ValidateDiscoveredUrl (region?.Region, region?.BaseUrl);
+		if (baseUrl is null)
+			{
+			_log.Error ("Tesla FleetAPI account region could not be resolved to a recognized endpoint.");
+			return false;
+			}
+		_baseUrl = baseUrl;
+		_regionResolved = true;
+		return true;
 		}
 
 	/// <summary>Retrieves the list of Tesla energy products (batteries and solar) for the account.</summary>
@@ -376,7 +402,7 @@ internal sealed class FleetApiConnection : IDisposable
 
 		using (response)
 			{
-			if ((int) response.StatusCode is 401 or 403 && allowRetry)
+			if ((int)response.StatusCode is 401 or 403 && allowRetry)
 				{
 				_log.Debug ("Tesla FleetAPI session expired - attempting token refresh");
 				if (await RefreshAccessTokenAsync (cancellationToken).ConfigureAwait (false))
@@ -389,14 +415,14 @@ internal sealed class FleetApiConnection : IDisposable
 			var payload = await response.Content.ReadAsStringAsync ().ConfigureAwait (false);
 			if (!response.IsSuccessStatusCode)
 				{
-				if ((int) response.StatusCode == 410)
+				if ((int)response.StatusCode == 410)
 					{
 					_log.Error ($"Tesla FleetAPI {uri} returned HTTP 410 (Gone) - endpoint permanently removed");
 					throw new PowerwallFleetApiEndpointRemovedException (ExtractServerError (payload)
 						?? $"The Tesla FleetAPI endpoint '{uri}' has been permanently removed (HTTP 410 Gone).");
 					}
 
-				_log.Error ($"Tesla FleetAPI {uri} returned HTTP {(int) response.StatusCode}");
+				_log.Error ($"Tesla FleetAPI {uri} returned HTTP {(int)response.StatusCode}");
 				return null;
 				}
 

@@ -1,13 +1,25 @@
 # Changelog
 
-## Unreleased
+All notable changes are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
-- Add dedicated pull-request and branch CI tests on net472 and .NET 10, excluding live tests and retaining per-runtime results. Test/CI-only change; no library behavior or package release.
+## [1.2.5] - 2026-09-15
 
-All notable changes to this project are documented in this file.
+### Fixed
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project follows [Semantic Versioning](https://semver.org/).
+- Use Tesla's documented Fleet authentication endpoint for refresh, authorization-code and partner-token requests. Refresh requests use form encoding.
+- Discover the authenticated Fleet account's region before reading sites. The default is now `auto`; explicit `na`, `eu` and `cn` overrides remain supported. Validate discovered regional endpoints before forwarding credentials. China requires separate registration and an explicit region.
+
+### Added
+
+- Windows helper for dedicated Owner and Fleet test authorizations, with encrypted atomic token persistence, exclusive session ownership and access-token-only remote test inputs. Local gateway test authentication is not implemented.
+- Existing-application sign-in in the Setup app, optional encrypted application settings, embedded callback validation and code exchange, and a manual browser fallback.
+- CI checks for both supported library runtimes, credential handling and the Setup build.
+
+### Validation
+
+- 118 library tests passed on both net472 and .NET 10; 47 credential, callback and privacy tests passed on Windows.
+- Dedicated Owner and Fleet authorizations each passed three read-only live tests on Windows and three on a remote test host. Automatic region discovery passed with a North America/Asia-Pacific account; EU routing is covered by simulated HTTP tests.
+- The Setup app builds and its callback handling has offline coverage. Its new embedded Fleet sign-in flow has not yet completed an end-to-end interactive validation; the manual browser fallback remains available.
 
 ## [1.2.4] - 2026-09-07
 
