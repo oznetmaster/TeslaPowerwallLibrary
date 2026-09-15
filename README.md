@@ -248,3 +248,9 @@ The [Unit tests workflow](.github/workflows/unit-tests.yml) runs on pull request
 ### Fleet account region (1.2.5)
 
 Fleet connections default to automatic account-region discovery through Tesla's authenticated user-region endpoint before reading sites. The account region can differ from the physical site's location. Explicit FleetApiRegion values na, eu and cn remain supported; China requires its separate registration and explicit region. Automatic discovery rejects missing, mismatched or unrecognized endpoint responses instead of silently using a region. The region is resolved once per connection. Windows and remote read-only live validation passed; EU routing is covered by simulated HTTP tests, not an EU-account hardware test.
+
+## Publishing when local hardware is unavailable
+
+The publish/release workflows support an explicit manual override when the processor or local self-hosted GitHub Actions runner is unavailable. Select `skip_hardware_checks` and provide a single-line `hardware_skip_reason`. Use the workflow's normal source and version controls. The override applies only to that invocation and is recorded with the exact source revision in its warning and job summary; it does not create a passing hardware-test result.
+
+GitHub-hosted validation remains mandatory for the checked-out source, and the normal build, tests and packaging steps still run. Wait for the configured hosted workflows to pass, or run them on the same source revision first. None of these hosted checks needs the local runner or processor. Automatic tag/release-triggered runs retain the normal hardware checks; use a manual invocation of the updated release workflow when an offline override is needed.
