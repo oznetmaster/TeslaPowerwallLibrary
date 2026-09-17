@@ -1,5 +1,8 @@
 # TeslaPowerwallLibrary
 
+For shipped changes, see the [changelog](CHANGELOG.md). Test, CI and build history is recorded separately in [development and validation history](DEVELOPMENT-HISTORY.md).
+
+
 A .NET client library for the Tesla™ Powerwall™ Energy Gateway, providing direct local-network access and Tesla Owners (cloud) API access to status, power flow, energy history, and control operations.
 
 Tesla and Powerwall are trademarks of Tesla, Inc. This project is an independent, unofficial .NET library and is not affiliated with or endorsed by Tesla.
