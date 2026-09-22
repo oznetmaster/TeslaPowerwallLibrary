@@ -5,7 +5,8 @@
 // not references to the local member names they happen to be attached to.
 #pragma warning disable CA1507
 
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace TeslaPowerwallLibrary.Models;
 
@@ -15,51 +16,51 @@ namespace TeslaPowerwallLibrary.Models;
 public sealed record GatewayStatus
 	{
 	/// <summary>Device identification number (DIN).</summary>
-	[JsonProperty ("din")]
+	[JsonPropertyName ("din")]
 	public string? Din { get; init; }
 
 	/// <summary>Gateway start time.</summary>
-	[JsonProperty ("start_time")]
+	[JsonPropertyName ("start_time")]
 	public string? StartTime { get; init; }
 
 	/// <summary>System uptime, expressed as a duration string (for example <c>1541h38m20.998412744s</c>).</summary>
-	[JsonProperty ("up_time_seconds")]
+	[JsonPropertyName ("up_time_seconds")]
 	public string? UpTimeSeconds { get; init; }
 
 	/// <summary>Indicates whether the gateway is newly commissioned.</summary>
-	[JsonProperty ("is_new")]
+	[JsonPropertyName ("is_new")]
 	public bool? IsNew { get; init; }
 
 	/// <summary>Firmware version string.</summary>
-	[JsonProperty ("version")]
+	[JsonPropertyName ("version")]
 	public string? Version { get; init; }
 
 	/// <summary>Source control hash for the firmware build.</summary>
-	[JsonProperty ("git_hash")]
+	[JsonPropertyName ("git_hash")]
 	public string? GitHash { get; init; }
 
 	/// <summary>Number of times the gateway has been commissioned.</summary>
-	[JsonProperty ("commission_count")]
+	[JsonPropertyName ("commission_count")]
 	public int? CommissionCount { get; init; }
 
 	/// <summary>Device type identifier.</summary>
-	[JsonProperty ("device_type")]
+	[JsonPropertyName ("device_type")]
 	public string? DeviceType { get; init; }
 
 	/// <summary>Synchronization type identifier.</summary>
-	[JsonProperty ("sync_type")]
+	[JsonPropertyName ("sync_type")]
 	public string? SyncType { get; init; }
 
 	/// <summary>Leader identifier in a multi-gateway configuration.</summary>
-	[JsonProperty ("leader")]
+	[JsonPropertyName ("leader")]
 	public string? Leader { get; init; }
 
 	/// <summary>Follower identifiers in a multi-gateway configuration.</summary>
-	[JsonProperty ("followers")]
+	[JsonPropertyName ("followers")]
 	public IReadOnlyList<string>? Followers { get; init; }
 
 	/// <summary>Indicates whether the cellular interface is disabled.</summary>
-	[JsonProperty ("cellular_disabled")]
+	[JsonPropertyName ("cellular_disabled")]
 	public bool? CellularDisabled { get; init; }
 	}
 
@@ -69,11 +70,11 @@ public sealed record GatewayStatus
 public sealed record SiteName
 	{
 	/// <summary>Configured site name.</summary>
-	[JsonProperty ("site_name")]
+	[JsonPropertyName ("site_name")]
 	public string? Name { get; init; }
 
 	/// <summary>Configured site time zone.</summary>
-	[JsonProperty ("timezone")]
+	[JsonPropertyName ("timezone")]
 	public string? Timezone { get; init; }
 	}
 
@@ -83,19 +84,19 @@ public sealed record SiteName
 public sealed record SitemasterStatus
 	{
 	/// <summary>Sitemaster status string (for example <c>StatusUp</c>).</summary>
-	[JsonProperty ("status")]
+	[JsonPropertyName ("status")]
 	public string? Status { get; init; }
 
 	/// <summary>Indicates whether the sitemaster is running.</summary>
-	[JsonProperty ("running")]
+	[JsonPropertyName ("running")]
 	public bool? Running { get; init; }
 
 	/// <summary>Indicates whether the gateway is connected to Tesla™.</summary>
-	[JsonProperty ("connected_to_tesla")]
+	[JsonPropertyName ("connected_to_tesla")]
 	public bool? ConnectedToTesla { get; init; }
 
 	/// <summary>Indicates whether the system is in power supply mode.</summary>
-	[JsonProperty ("power_supply_mode")]
+	[JsonPropertyName ("power_supply_mode")]
 	public bool? PowerSupplyMode { get; init; }
 	}
 

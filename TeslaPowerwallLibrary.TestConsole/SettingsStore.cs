@@ -3,7 +3,8 @@
 
 using System.IO;
 
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace TeslaPowerwallLibrary.TestConsole;
 
@@ -16,35 +17,35 @@ namespace TeslaPowerwallLibrary.TestConsole;
 internal sealed class ConsoleSettings
 	{
 	/// <summary>Gateway host name or IP address to default on the next run.</summary>
-	[JsonProperty ("host")]
+	[JsonPropertyName ("host")]
 	public string? Host { get; set; }
 
 	/// <summary>Encrypted (DPAPI, base64) Powerwall password; never stored in plaintext.</summary>
-	[JsonProperty ("protectedPassword")]
+	[JsonPropertyName ("protectedPassword")]
 	public string? ProtectedPassword { get; set; }
 
 	/// <summary>Customer email to default on the next run.</summary>
-	[JsonProperty ("email")]
+	[JsonPropertyName ("email")]
 	public string? Email { get; set; }
 
 	/// <summary>IANA time zone to default on the next run.</summary>
-	[JsonProperty ("timezone")]
+	[JsonPropertyName ("timezone")]
 	public string? Timezone { get; set; }
 
 	/// <summary>Per-request HTTP timeout, in seconds, to default on the next run.</summary>
-	[JsonProperty ("timeoutSeconds")]
+	[JsonPropertyName ("timeoutSeconds")]
 	public int? TimeoutSeconds { get; set; }
 
 	/// <summary>Cached response expiry, in seconds, to default on the next run.</summary>
-	[JsonProperty ("cacheExpireSeconds")]
+	[JsonPropertyName ("cacheExpireSeconds")]
 	public int? CacheExpireSeconds { get; set; }
 
 	/// <summary>Tesla region (<c>us</c> or <c>cn</c>) to default for the cloud browser login.</summary>
-	[JsonProperty ("region")]
+	[JsonPropertyName ("region")]
 	public string? Region { get; set; }
 
 	/// <summary>Tesla FleetAPI application Client ID to default on the next run.</summary>
-	[JsonProperty ("fleetApiClientId")]
+	[JsonPropertyName ("fleetApiClientId")]
 	public string? FleetApiClientId { get; set; }
 
 	/// <summary>
@@ -52,18 +53,18 @@ internal sealed class ConsoleSettings
 	/// library-owned token cache, so the console persists this itself (mirroring <see cref="ProtectedPassword"/>)
 	/// so the caller does not have to supply it on every run.
 	/// </summary>
-	[JsonProperty ("protectedFleetApiRefreshToken")]
+	[JsonPropertyName ("protectedFleetApiRefreshToken")]
 	public string? ProtectedFleetApiRefreshToken { get; set; }
 
 	/// <summary>Tesla FleetAPI region (<c>na</c>, <c>eu</c>, or <c>cn</c>) to default on the next run.</summary>
-	[JsonProperty ("fleetApiRegion")]
+	[JsonPropertyName ("fleetApiRegion")]
 	public string? FleetApiRegion { get; set; }
 
 	/// <summary>
 	/// Whether the last session used Tesla FleetAPI mode, so it is remembered as the default connection mode
 	/// on the next run even without a host configured (which would otherwise default to Tesla Owners cloud mode).
 	/// </summary>
-	[JsonProperty ("preferFleetApi")]
+	[JsonPropertyName ("preferFleetApi")]
 	public bool? PreferFleetApi { get; set; }
 	}
 
@@ -85,7 +86,7 @@ internal static class SettingsStore
 				return new ConsoleSettings ();
 
 			var json = File.ReadAllText (FilePath);
-			return JsonConvert.DeserializeObject<ConsoleSettings> (json) ?? new ConsoleSettings ();
+			return JsonSerializer.Deserialize<ConsoleSettings> (json) ?? new ConsoleSettings ();
 			}
 		catch (Exception exc) when (exc is IOException or UnauthorizedAccessException or JsonException)
 			{
@@ -103,7 +104,7 @@ internal static class SettingsStore
 			if (!string.IsNullOrEmpty (directory))
 				Directory.CreateDirectory (directory!);
 
-			var json = JsonConvert.SerializeObject (settings, Formatting.Indented);
+			var json = JsonSerializer.Serialize (settings, new JsonSerializerOptions { WriteIndented = true });
 			File.WriteAllText (FilePath, json);
 			}
 		catch (Exception exc) when (exc is IOException or UnauthorizedAccessException)

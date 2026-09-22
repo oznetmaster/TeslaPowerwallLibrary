@@ -12,8 +12,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 
 namespace TeslaPowerwallLibrary.Login;
 
@@ -156,13 +157,13 @@ internal static class TeslaAuth
 		var authHost = ResolveAuthHost (region);
 		var url = $"{authHost}{TokenUrlPath}";
 
-		var body = new JObject
+		var body = new TeslaCodeExchangeRequest
 			{
-			["grant_type"] = "authorization_code",
-			["client_id"] = ClientId,
-			["code"] = authCode,
-			["code_verifier"] = codeVerifier,
-			["redirect_uri"] = RedirectUri
+			GrantType = "authorization_code",
+			ClientId = ClientId,
+			Code = authCode,
+			CodeVerifier = codeVerifier,
+			RedirectUri = RedirectUri
 			};
 
 		HttpResponseMessage response;
@@ -175,7 +176,7 @@ internal static class TeslaAuth
 				Version = HttpVersion.Version20,
 				VersionPolicy = HttpVersionPolicy.RequestVersionOrHigher,
 #endif
-				Content = new StringContent (body.ToString (Formatting.None), Encoding.UTF8, "application/json")
+				Content = new StringContent (JsonSerializer.Serialize (body), Encoding.UTF8, "application/json")
 				};
 			response = await _httpClient.SendAsync (request, cancellationToken).ConfigureAwait (false);
 #if NETFRAMEWORK
@@ -192,7 +193,7 @@ internal static class TeslaAuth
 		using (response)
 			{
 			if (!response.IsSuccessStatusCode)
-				throw new TeslaAuthException ($"Token exchange failed (HTTP {(int) response.StatusCode}): {responseBody}");
+				throw new TeslaAuthException ($"Token exchange failed (HTTP {(int)response.StatusCode}): {responseBody}");
 
 			return ParseTokenResponse (responseBody);
 			}
@@ -203,7 +204,7 @@ internal static class TeslaAuth
 		TeslaTokenExchangeResponse root;
 		try
 			{
-			root = JsonConvert.DeserializeObject<TeslaTokenExchangeResponse> (body) ?? new TeslaTokenExchangeResponse ();
+			root = JsonSerializer.Deserialize<TeslaTokenExchangeResponse> (body) ?? new TeslaTokenExchangeResponse ();
 			}
 		catch (JsonException exc)
 			{
@@ -241,7 +242,7 @@ internal static class TeslaAuth
 				return string.Empty;
 
 			var payload = Encoding.UTF8.GetString (Base64UrlDecode (parts[1]));
-			TeslaIdTokenPayload? root = JsonConvert.DeserializeObject<TeslaIdTokenPayload> (payload);
+			TeslaIdTokenPayload? root = JsonSerializer.Deserialize<TeslaIdTokenPayload> (payload);
 
 			if (!string.IsNullOrEmpty (root?.Email))
 				return root!.Email!;
@@ -322,8 +323,12 @@ internal static class TeslaAuth
 		var builder = new StringBuilder (input.Replace ('-', '+').Replace ('_', '/'));
 		switch (builder.Length % 4)
 			{
-			case 2: builder.Append ("=="); break;
-			case 3: builder.Append ('='); break;
+			case 2:
+				builder.Append ("==");
+				break;
+			case 3:
+				builder.Append ('=');
+				break;
 			}
 
 		return Convert.FromBase64String (builder.ToString ());
@@ -374,23 +379,23 @@ internal sealed record TeslaTokens (
 internal sealed record TeslaTokenExchangeResponse
 	{
 	/// <summary>The long-lived refresh token (valid ~90 days).</summary>
-	[JsonProperty ("refresh_token")]
+	[JsonPropertyName ("refresh_token")]
 	public string? RefreshToken { get; init; }
 
 	/// <summary>The short-lived access token (valid ~8 hours).</summary>
-	[JsonProperty ("access_token")]
+	[JsonPropertyName ("access_token")]
 	public string? AccessToken { get; init; }
 
 	/// <summary>The token type, normally <c>Bearer</c>.</summary>
-	[JsonProperty ("token_type")]
+	[JsonPropertyName ("token_type")]
 	public string? TokenType { get; init; }
 
 	/// <summary>The raw OpenID id_token, when returned.</summary>
-	[JsonProperty ("id_token")]
+	[JsonPropertyName ("id_token")]
 	public string? IdToken { get; init; }
 
 	/// <summary>The access-token lifetime, in seconds.</summary>
-	[JsonProperty ("expires_in")]
+	[JsonPropertyName ("expires_in"), JsonNumberHandling (JsonNumberHandling.AllowReadingFromString)]
 	public int? ExpiresIn { get; init; }
 	}
 
@@ -400,11 +405,11 @@ internal sealed record TeslaTokenExchangeResponse
 internal sealed record TeslaIdTokenPayload
 	{
 	/// <summary>The account email, when present directly on the payload.</summary>
-	[JsonProperty ("email")]
+	[JsonPropertyName ("email")]
 	public string? Email { get; init; }
 
 	/// <summary>A nested <c>data</c> object that carries the account email on some token shapes.</summary>
-	[JsonProperty ("data")]
+	[JsonPropertyName ("data")]
 	public TeslaIdTokenPayloadData? Data { get; init; }
 	}
 
@@ -414,7 +419,7 @@ internal sealed record TeslaIdTokenPayload
 internal sealed record TeslaIdTokenPayloadData
 	{
 	/// <summary>The account email.</summary>
-	[JsonProperty ("email")]
+	[JsonPropertyName ("email")]
 	public string? Email { get; init; }
 	}
 
@@ -438,5 +443,34 @@ internal sealed class TeslaAuthException : Exception
 	public TeslaAuthException (string message, Exception innerException)
 		: base (message, innerException)
 		{
+		}
+	}
+
+internal sealed record TeslaCodeExchangeRequest
+	{
+	[JsonPropertyName ("grant_type")]
+	public string? GrantType
+		{
+		get; init;
+		}
+	[JsonPropertyName ("client_id")]
+	public string? ClientId
+		{
+		get; init;
+		}
+	[JsonPropertyName ("code")]
+	public string? Code
+		{
+		get; init;
+		}
+	[JsonPropertyName ("code_verifier")]
+	public string? CodeVerifier
+		{
+		get; init;
+		}
+	[JsonPropertyName ("redirect_uri")]
+	public string? RedirectUri
+		{
+		get; init;
 		}
 	}

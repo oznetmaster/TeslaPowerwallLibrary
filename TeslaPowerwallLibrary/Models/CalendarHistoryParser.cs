@@ -1,10 +1,11 @@
 // Copyright © 2026 Neil Colvin.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
-using System.IO;
 
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 
 namespace TeslaPowerwallLibrary.Models;
 
@@ -12,7 +13,7 @@ namespace TeslaPowerwallLibrary.Models;
 /// Parses the raw JSON returned by <see cref="Powerwall.GetCalendarHistoryAsync"/> into strongly typed
 /// records for the calendar-history kinds with a stable, verified schema (<c>energy</c>, <c>power</c>,
 /// <c>soe</c>, <c>self_consumption</c>, and <c>backup</c>). Each payload is deserialized directly into its
-/// corresponding record via Json.NET's <c>[JsonProperty]</c> mappings; missing or malformed payloads never
+/// corresponding record via System.Text.Json <c>[JsonPropertyName]</c> mappings; missing or malformed payloads never
 /// throw, they simply yield an empty result. <c>time_of_use_energy</c> and <c>savings</c> have no parser
 /// yet because Tesla returns an empty payload for both unless a time-of-use tariff is configured.
 /// </summary>
@@ -47,56 +48,33 @@ public static class CalendarHistoryParser
 	/// <returns>The parsed envelope; an empty envelope when the payload is missing or malformed.</returns>
 	public static BackupHistory ParseBackup (string? json)
 		{
-		JObject? body = GetBody (json);
-		if (body is null)
+		if (string.IsNullOrWhiteSpace (json))
 			return new BackupHistory ();
-
 		try
 			{
-			return body.ToObject<BackupHistory> () ?? new BackupHistory ();
+			return JsonHelper.Deserialize<ApiResponse<BackupHistory>> (json!)?.Response
+				 ?? JsonHelper.Deserialize<BackupHistory> (json!) ?? new BackupHistory ();
 			}
-		catch (JsonException)
-			{
-			return new BackupHistory ();
-			}
+		catch (JsonException) { return new BackupHistory (); }
 		}
 
-	/// <summary>Parses a calendar-history payload's <c>time_series</c> array directly into <typeparamref name="T"/> instances.</summary>
 	private static List<T> ParseTimeSeries<T> (string? json)
 		{
-		JObject? body = GetBody (json);
-		if (body?["time_series"] is not JArray series || series.Count == 0)
-			return [];
-
-		try
-			{
-			return series.ToObject<List<T>> () ?? [];
-			}
-		catch (JsonException)
-			{
-			return [];
-			}
+		var root = JsonHelper.DeserializeOrNull<HistoryEnvelope<T>> (json);
+		return (root?.Response ?? root)?.TimeSeries ?? new List<T> ();
 		}
 
-	/// <summary>Parses the payload root and unwraps the optional Fleet-API-style <c>response</c> envelope.</summary>
-	private static JObject? GetBody (string? json)
+	private sealed record HistoryEnvelope<T>
 		{
-		if (string.IsNullOrWhiteSpace (json))
-			return null;
-
-		try
+		[JsonPropertyName ("response")]
+		public HistoryEnvelope<T>? Response
 			{
-			// DateParseHandling.None keeps timestamp-like strings (e.g. "...+01:00" or "...Z") as raw JSON
-			// strings instead of Newtonsoft eagerly converting them to JTokenType.Date - which discards the
-			// original UTC offset. The records below declare their timestamp members as DateTimeOffset, so
-			// deserializing straight from the preserved string parses the real, offset-preserving value.
-			using var reader = new JsonTextReader (new StringReader (json!)) { DateParseHandling = DateParseHandling.None };
-			JObject root = JObject.Load (reader);
-			return (root["response"] as JObject) ?? root;
+			get; init;
 			}
-		catch (JsonException)
+		[JsonPropertyName ("time_series")]
+		public List<T>? TimeSeries
 			{
-			return null;
+			get; init;
 			}
 		}
 	}

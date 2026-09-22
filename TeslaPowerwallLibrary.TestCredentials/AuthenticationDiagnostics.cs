@@ -3,28 +3,21 @@
 
 using System.Text.RegularExpressions;
 
-using log4net;
-using log4net.Appender;
-using log4net.Core;
-using log4net.Repository.Hierarchy;
+using Microsoft.Extensions.Logging;
 
 namespace TeslaPowerwallLibrary.TestCredentials;
 
 // Only fixed categories and HTTP status numbers may leave the credential process.
-internal sealed class AuthenticationDiagnostics : AppenderSkeleton, IDisposable
+internal sealed class AuthenticationDiagnostics : ILogger, IDisposable
 	{
-	private readonly Hierarchy _repository;
-	internal AuthenticationDiagnostics ()
+	private bool _disposed;
+	public bool IsEnabled (LogLevel logLevel) => !_disposed && logLevel >= LogLevel.Warning && logLevel != LogLevel.None;
+	public IDisposable? BeginScope<TState> (TState state) where TState : notnull => null;
+	public void Log<TState> (LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
 		{
-		Threshold = Level.Warn;
-		_repository = (Hierarchy)LogManager.GetRepository (typeof (Powerwall).Assembly);
-		_repository.Root.AddAppender (this);
-		_repository.Configured = true;
-		}
-
-	protected override void Append (LoggingEvent loggingEvent)
-		{
-		string? summary = Summarize (loggingEvent.LoggerName, loggingEvent.RenderedMessage);
+		if (!IsEnabled (logLevel))
+			return;
+		string? summary = Summarize ("TeslaPowerwallLibrary.FleetApi.FleetApiConnection", formatter (state, exception));
 		if (summary is not null)
 			Console.Error.WriteLine (summary);
 		}
@@ -58,11 +51,5 @@ internal sealed class AuthenticationDiagnostics : AppenderSkeleton, IDisposable
 			_ => "Failure category: " + exception.GetType ().Name + ". Private details withheld."
 			};
 
-	public void Dispose () => Close ();
-
-	protected override void OnClose ()
-		{
-		_repository.Root.RemoveAppender (this);
-		base.OnClose ();
-		}
+	public void Dispose () => _disposed = true;
 	}

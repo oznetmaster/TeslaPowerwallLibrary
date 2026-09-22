@@ -4,9 +4,11 @@
 
 using System.IO;
 
-using log4net;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace TeslaPowerwallLibrary.Cloud;
 
@@ -25,7 +27,7 @@ namespace TeslaPowerwallLibrary.Cloud;
 /// </remarks>
 internal sealed class TeslaCloudTokenCache
 	{
-	private static readonly ILog _log = LogManager.GetLogger (typeof (TeslaCloudTokenCache));
+	private readonly ILogger _log;
 
 	private readonly object _gate = new ();
 	private readonly string _filePath;
@@ -41,8 +43,10 @@ internal sealed class TeslaCloudTokenCache
 	/// cache file name is appended.
 	/// </param>
 	/// <param name="email">The customer email the cached entry is keyed by.</param>
-	public TeslaCloudTokenCache (string? authPath, string email)
+	/// <param name="logger">Caller-owned logger; null disables logging.</param>
+	public TeslaCloudTokenCache (string? authPath, string email, ILogger? logger = null)
 		{
+		_log = logger ?? NullLogger.Instance;
 		_email = string.IsNullOrWhiteSpace (email) ? Constants.DEFAULT_EMAIL : email;
 		_isExplicitPath = !string.IsNullOrWhiteSpace (authPath);
 		_filePath = ResolveFilePath (authPath);
@@ -119,7 +123,7 @@ internal sealed class TeslaCloudTokenCache
 			if (string.IsNullOrWhiteSpace (json))
 				return [];
 
-			return JsonConvert.DeserializeObject<Dictionary<string, CloudTokenCacheFileEntry>> (json) ?? [];
+			return JsonHelper.Deserialize<Dictionary<string, CloudTokenCacheFileEntry>> (json) ?? [];
 			}
 		catch (Exception exc) when (exc is IOException or UnauthorizedAccessException or JsonException)
 			{
@@ -130,7 +134,7 @@ internal sealed class TeslaCloudTokenCache
 					exc);
 				}
 
-			_log.Warn ($"Unable to read Tesla cloud token cache '{_filePath}': {exc.Message}");
+			LibraryLog.UnableToReadTeslaCloudTokenCache (_log, _filePath, exc.Message);
 			return [];
 			}
 		}
@@ -143,7 +147,7 @@ internal sealed class TeslaCloudTokenCache
 			if (!string.IsNullOrEmpty (directory))
 				Directory.CreateDirectory (directory!);
 
-			File.WriteAllText (_filePath, JsonConvert.SerializeObject (root, Formatting.Indented));
+			File.WriteAllText (_filePath, JsonHelper.Serialize (root, true));
 			}
 		catch (Exception exc) when (exc is IOException or UnauthorizedAccessException)
 			{
@@ -156,7 +160,7 @@ internal sealed class TeslaCloudTokenCache
 
 			// Persisting tokens at the default per-user location is best-effort; a failure here must not
 			// disrupt an active connection.
-			_log.Warn ($"Unable to write Tesla cloud token cache '{_filePath}': {exc.Message}");
+			LibraryLog.UnableToWriteTeslaCloudTokenCache (_log, _filePath, exc.Message);
 			}
 		}
 
@@ -195,13 +199,22 @@ internal sealed class CloudTokenCacheEntry
 		}
 
 	/// <summary>Gets the cached Tesla Owners API access token, or <see langword="null"/> when absent.</summary>
-	public string? AccessToken { get; }
+	public string? AccessToken
+		{
+		get;
+		}
 
 	/// <summary>Gets the cached Tesla Owners API refresh token, or <see langword="null"/> when absent.</summary>
-	public string? RefreshToken { get; }
+	public string? RefreshToken
+		{
+		get;
+		}
 
 	/// <summary>Gets the cached Tesla energy site identifier, or <see langword="null"/> when absent.</summary>
-	public string? SiteId { get; }
+	public string? SiteId
+		{
+		get;
+		}
 
 	/// <summary>Gets a value indicating whether any token is present in this entry.</summary>
 	public bool HasToken => !string.IsNullOrWhiteSpace (AccessToken) || !string.IsNullOrWhiteSpace (RefreshToken);
@@ -211,18 +224,18 @@ internal sealed class CloudTokenCacheEntry
 internal sealed record CloudTokenCacheFileEntry
 	{
 	/// <summary>The access token, protected at rest when <see cref="Protected"/> is <see langword="true"/>.</summary>
-	[JsonProperty ("access_token")]
+	[JsonPropertyName ("access_token")]
 	public string? AccessToken { get; init; }
 
 	/// <summary>The refresh token, protected at rest when <see cref="Protected"/> is <see langword="true"/>.</summary>
-	[JsonProperty ("refresh_token")]
+	[JsonPropertyName ("refresh_token")]
 	public string? RefreshToken { get; init; }
 
 	/// <summary>Indicates whether <see cref="AccessToken"/> and <see cref="RefreshToken"/> were DPAPI-protected when written.</summary>
-	[JsonProperty ("protected")]
+	[JsonPropertyName ("protected")]
 	public bool Protected { get; init; }
 
 	/// <summary>The remembered Tesla energy site identifier, when one has been selected.</summary>
-	[JsonProperty ("site_id")]
+	[JsonPropertyName ("site_id")]
 	public string? SiteId { get; init; }
 	}

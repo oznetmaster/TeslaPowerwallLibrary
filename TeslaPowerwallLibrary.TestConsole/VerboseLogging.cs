@@ -1,37 +1,22 @@
-// Copyright © 2026 Neil Colvin.
-// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+using Microsoft.Extensions.Logging;
 
 namespace TeslaPowerwallLibrary.TestConsole;
 
-/// <summary>
-/// Configures log4net to emit the library's log output to the console when verbose mode is enabled.
-/// </summary>
+/// <summary>Caller-owned console logging for connections opened by this tool.</summary>
 internal static class VerboseLogging
 	{
-	private static bool _enabled;
+	private static volatile bool _enabled;
+	internal static ILogger Logger { get; } = new ConsoleLogger ();
+	public static void Enable () => _enabled = true;
 
-	/// <summary>Enables console logging for the library's log4net repository. Safe to call more than once.</summary>
-	public static void Enable ()
+	private sealed class ConsoleLogger : ILogger
 		{
-		if (_enabled)
-			return;
-
-		_enabled = true;
-
-		try
+		public bool IsEnabled (LogLevel logLevel) => _enabled && logLevel != LogLevel.None;
+		public IDisposable? BeginScope<TState> (TState state) where TState : notnull => null;
+		public void Log<TState> (LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
 			{
-			var layout = new log4net.Layout.PatternLayout ("%date{HH:mm:ss} %-5level %logger{1} - %message%newline");
-			layout.ActivateOptions ();
-
-			var appender = new log4net.Appender.ConsoleAppender { Layout = layout };
-			appender.ActivateOptions ();
-
-			var repository = log4net.LogManager.GetRepository (typeof (Powerwall).Assembly);
-			log4net.Config.BasicConfigurator.Configure (repository, appender);
-			}
-		catch (Exception exc)
-			{
-			ConsoleHelpers.WriteError ($"Failed to enable verbose logging: {exc.Message}");
+			if (IsEnabled (logLevel))
+				Console.Error.WriteLine ($"{DateTime.Now:HH:mm:ss} {logLevel} Powerwall: {formatter (state, exception)}");
 			}
 		}
 	}

@@ -27,6 +27,14 @@ public enum PowerwallMode
 /// </summary>
 public sealed record PowerwallOptions
 	{
+	/// <summary>Caller-owned logger used by this connection and its clients. Defaults to no logging.
+	/// Supply a logger with the desired category and scopes to associate messages with an application or device.</summary>
+	[System.Text.Json.Serialization.JsonIgnore]
+	public Microsoft.Extensions.Logging.ILogger? Logger
+		{
+		get; init;
+		}
+
 	/// <summary>
 	/// Hostname or IP address of the Powerwall gateway (for example <c>10.0.1.99</c>), optionally
 	/// including a non-standard HTTPS port (for example <c>10.0.1.99:8443</c>). When empty, cloud mode is assumed.

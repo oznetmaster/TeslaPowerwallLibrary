@@ -4,7 +4,8 @@
 using System;
 using System.IO;
 
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace TeslaPowerwallLibrary.App.Services;
 
@@ -17,27 +18,27 @@ namespace TeslaPowerwallLibrary.App.Services;
 public sealed class AppSettings
 	{
 	/// <summary>Gets or sets the last connection mode used (<c>Cloud</c> or <c>Local</c>).</summary>
-	[JsonProperty ("mode")]
+	[JsonPropertyName ("mode")]
 	public string? Mode { get; set; }
 
 	/// <summary>Gets or sets the gateway host name or IP address for local mode.</summary>
-	[JsonProperty ("host")]
+	[JsonPropertyName ("host")]
 	public string? Host { get; set; }
 
 	/// <summary>Gets or sets the encrypted (DPAPI, base64) Powerwall™ password; never stored in plaintext.</summary>
-	[JsonProperty ("protectedPassword")]
+	[JsonPropertyName ("protectedPassword")]
 	public string? ProtectedPassword { get; set; }
 
 	/// <summary>Gets or sets the customer email for cloud mode.</summary>
-	[JsonProperty ("email")]
+	[JsonPropertyName ("email")]
 	public string? Email { get; set; }
 
 	/// <summary>Gets or sets the Tesla region (<c>us</c> or <c>cn</c>) used by the browser sign-in flow.</summary>
-	[JsonProperty ("region")]
+	[JsonPropertyName ("region")]
 	public string? Region { get; set; }
 
 	/// <summary>Gets or sets the Tesla FleetAPI application Client ID.</summary>
-	[JsonProperty ("fleetApiClientId")]
+	[JsonPropertyName ("fleetApiClientId")]
 	public string? FleetApiClientId { get; set; }
 
 	/// <summary>
@@ -46,11 +47,11 @@ public sealed class AppSettings
 	/// (mirroring <see cref="ProtectedPassword"/>) so the initial sign-in value is remembered even before a
 	/// successful connect populates the library's own cache.
 	/// </summary>
-	[JsonProperty ("protectedFleetApiRefreshToken")]
+	[JsonPropertyName ("protectedFleetApiRefreshToken")]
 	public string? ProtectedFleetApiRefreshToken { get; set; }
 
 	/// <summary>Gets or sets the Tesla FleetAPI region (<c>na</c>, <c>eu</c>, or <c>cn</c>).</summary>
-	[JsonProperty ("fleetApiRegion")]
+	[JsonPropertyName ("fleetApiRegion")]
 	public string? FleetApiRegion { get; set; }
 	}
 
@@ -73,7 +74,7 @@ public static class AppSettingsStore
 				return new AppSettings ();
 
 			var json = File.ReadAllText (FilePath);
-			return JsonConvert.DeserializeObject<AppSettings> (json) ?? new AppSettings ();
+			return JsonSerializer.Deserialize<AppSettings> (json) ?? new AppSettings ();
 			}
 		catch (Exception exc) when (exc is IOException or UnauthorizedAccessException or JsonException)
 			{
@@ -94,7 +95,7 @@ public static class AppSettingsStore
 			if (!string.IsNullOrEmpty (directory))
 				Directory.CreateDirectory (directory!);
 
-			var json = JsonConvert.SerializeObject (settings, Formatting.Indented);
+			var json = JsonSerializer.Serialize (settings, new JsonSerializerOptions { WriteIndented = true });
 			File.WriteAllText (FilePath, json);
 			}
 		catch (Exception exc) when (exc is IOException or UnauthorizedAccessException)

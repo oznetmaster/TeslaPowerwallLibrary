@@ -5,7 +5,8 @@
 // not references to the local member names they happen to be attached to.
 #pragma warning disable CA1507
 
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace TeslaPowerwallLibrary.Models;
 
@@ -19,46 +20,46 @@ namespace TeslaPowerwallLibrary.Models;
 public sealed record EnergyHistoryPoint
 	{
 	/// <summary>The point's timestamp, used to resample the data into period-appropriate buckets.</summary>
-	[JsonProperty ("timestamp")]
+	[JsonPropertyName ("timestamp")]
 	public DateTimeOffset Timestamp { get; init; }
 
-	[JsonProperty ("solar_energy_exported")]
+	[JsonPropertyName ("solar_energy_exported"), JsonInclude]
 	private double SolarEnergyExported { get; init; }
 
-	[JsonProperty ("grid_energy_imported")]
+	[JsonPropertyName ("grid_energy_imported"), JsonInclude]
 	private double GridEnergyImported { get; init; }
 
-	[JsonProperty ("grid_energy_exported_from_solar")]
+	[JsonPropertyName ("grid_energy_exported_from_solar"), JsonInclude]
 	private double GridEnergyExportedFromSolar { get; init; }
 
-	[JsonProperty ("grid_energy_exported_from_battery")]
+	[JsonPropertyName ("grid_energy_exported_from_battery"), JsonInclude]
 	private double GridEnergyExportedFromBattery { get; init; }
 
-	[JsonProperty ("grid_energy_exported_from_generator")]
+	[JsonPropertyName ("grid_energy_exported_from_generator"), JsonInclude]
 	private double GridEnergyExportedFromGenerator { get; init; }
 
-	[JsonProperty ("battery_energy_exported")]
+	[JsonPropertyName ("battery_energy_exported"), JsonInclude]
 	private double BatteryEnergyExported { get; init; }
 
-	[JsonProperty ("battery_energy_imported_from_grid")]
+	[JsonPropertyName ("battery_energy_imported_from_grid"), JsonInclude]
 	private double BatteryEnergyImportedFromGrid { get; init; }
 
-	[JsonProperty ("battery_energy_imported_from_solar")]
+	[JsonPropertyName ("battery_energy_imported_from_solar"), JsonInclude]
 	private double BatteryEnergyImportedFromSolar { get; init; }
 
-	[JsonProperty ("battery_energy_imported_from_generator")]
+	[JsonPropertyName ("battery_energy_imported_from_generator"), JsonInclude]
 	private double BatteryEnergyImportedFromGenerator { get; init; }
 
-	[JsonProperty ("consumer_energy_imported_from_grid")]
+	[JsonPropertyName ("consumer_energy_imported_from_grid"), JsonInclude]
 	private double ConsumerEnergyImportedFromGrid { get; init; }
 
-	[JsonProperty ("consumer_energy_imported_from_solar")]
+	[JsonPropertyName ("consumer_energy_imported_from_solar"), JsonInclude]
 	private double ConsumerEnergyImportedFromSolar { get; init; }
 
-	[JsonProperty ("consumer_energy_imported_from_battery")]
+	[JsonPropertyName ("consumer_energy_imported_from_battery"), JsonInclude]
 	private double ConsumerEnergyImportedFromBattery { get; init; }
 
-	[JsonProperty ("consumer_energy_imported_from_generator")]
+	[JsonPropertyName ("consumer_energy_imported_from_generator"), JsonInclude]
 	private double ConsumerEnergyImportedFromGenerator { get; init; }
 
 	/// <summary>Solar energy produced, in kilowatt-hours.</summary>
@@ -100,27 +101,27 @@ public sealed record EnergyHistoryPoint
 public sealed record PowerHistoryPoint
 	{
 	/// <summary>The point's timestamp.</summary>
-	[JsonProperty ("timestamp")]
+	[JsonPropertyName ("timestamp")]
 	public DateTimeOffset Timestamp { get; init; }
 
 	/// <summary>Solar generation power.</summary>
-	[JsonProperty ("solar_power")]
+	[JsonPropertyName ("solar_power")]
 	public double SolarPower { get; init; }
 
 	/// <summary>Powerwall™ battery power. Positive values indicate discharge.</summary>
-	[JsonProperty ("battery_power")]
+	[JsonPropertyName ("battery_power")]
 	public double BatteryPower { get; init; }
 
 	/// <summary>Grid (site) power. Positive values indicate import from the grid.</summary>
-	[JsonProperty ("grid_power")]
+	[JsonPropertyName ("grid_power")]
 	public double GridPower { get; init; }
 
 	/// <summary>Power committed to grid services (for example demand response).</summary>
-	[JsonProperty ("grid_services_power")]
+	[JsonPropertyName ("grid_services_power")]
 	public double GridServicesPower { get; init; }
 
 	/// <summary>Backup generator power.</summary>
-	[JsonProperty ("generator_power")]
+	[JsonPropertyName ("generator_power")]
 	public double GeneratorPower { get; init; }
 	}
 
@@ -130,11 +131,11 @@ public sealed record PowerHistoryPoint
 public sealed record StateOfEnergyHistoryPoint
 	{
 	/// <summary>The point's timestamp.</summary>
-	[JsonProperty ("timestamp")]
+	[JsonPropertyName ("timestamp")]
 	public DateTimeOffset Timestamp { get; init; }
 
 	/// <summary>Battery state of energy as a percentage (raw gateway scale).</summary>
-	[JsonProperty ("soe")]
+	[JsonPropertyName ("soe")]
 	public double Soe { get; init; }
 	}
 
@@ -144,15 +145,15 @@ public sealed record StateOfEnergyHistoryPoint
 public sealed record SelfConsumptionHistoryPoint
 	{
 	/// <summary>The point's timestamp.</summary>
-	[JsonProperty ("timestamp")]
+	[JsonPropertyName ("timestamp")]
 	public DateTimeOffset Timestamp { get; init; }
 
 	/// <summary>Percentage of consumption self-supplied from solar.</summary>
-	[JsonProperty ("solar")]
+	[JsonPropertyName ("solar")]
 	public double SolarPercentage { get; init; }
 
 	/// <summary>Percentage of consumption self-supplied from the Powerwall™ battery.</summary>
-	[JsonProperty ("battery")]
+	[JsonPropertyName ("battery")]
 	public double BatteryPercentage { get; init; }
 	}
 
@@ -164,25 +165,24 @@ public sealed record SelfConsumptionHistoryPoint
 public sealed record BackupHistory
 	{
 	/// <summary>The backup events on the requested page, field names preserved as reported by Tesla.</summary>
-	[JsonProperty ("events")]
+	[JsonPropertyName ("events")]
 	public IReadOnlyList<IReadOnlyDictionary<string, object?>> Events { get; init; } = Array.Empty<IReadOnlyDictionary<string, object?>> ();
 
 	/// <summary>The number of events included in <see cref="Events"/>.</summary>
-	[JsonProperty ("events_count")]
+	[JsonPropertyName ("events_count")]
 	public int EventsCount { get; init; }
 
 	/// <summary>The total number of events available across all pages.</summary>
-	[JsonProperty ("total_events")]
+	[JsonPropertyName ("total_events")]
 	public int TotalEvents { get; init; }
 
 	/// <summary>The start of the next page's date range, when more events are available.</summary>
-	[JsonProperty ("next_start_date")]
+	[JsonPropertyName ("next_start_date")]
 	public DateTimeOffset? NextStartDate { get; init; }
 
 	/// <summary>The end of the next page's date range, when more events are available.</summary>
-	[JsonProperty ("next_end_date")]
+	[JsonPropertyName ("next_end_date")]
 	public DateTimeOffset? NextEndDate { get; init; }
 	}
 
 #pragma warning restore CA1507
-

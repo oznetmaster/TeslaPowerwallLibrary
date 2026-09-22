@@ -22,11 +22,11 @@
 		<Company>Neil Colvin</Company>
 		<Product>TeslaPowerwallLibrary</Product>
 		<Copyright>Copyright © 2026 Neil Colvin</Copyright>
-		<AssemblyVersion>1.2.5.0</AssemblyVersion>
-		<FileVersion>1.2.5.0</FileVersion>
+		<AssemblyVersion>2.0.0.0</AssemblyVersion>
+		<FileVersion>2.0.0.0</FileVersion>
 		<PackageId>TeslaPowerwallLibrary</PackageId>
-		<Version>1.2.5.0</Version>
-		<PackageReleaseNotes>Fix Fleet OAuth token endpoints and form encoding. Discover the account region automatically before site requests, retaining explicit region overrides.</PackageReleaseNotes>
+		<Version>2.0.0</Version>
+		<PackageReleaseNotes>Move to System.Text.Json and caller-owned Microsoft ILogger; remove Newtonsoft.Json and log4net runtime dependencies. Consumers deserializing models with Newtonsoft or casting object-valued results must migrate. Fix partial Cloud/Fleet operation writes, numeric zero reserve and stale configuration caches. See MIGRATION-SystemTextJson.md.</PackageReleaseNotes>
 		<Authors>Neil Colvin</Authors>
 		<PackageTags>tesla;powerwall;smart-home;iot;rest;api;nuget</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -80,8 +80,8 @@
 	<!-- Packages common to both TFMs -->
 	<ItemGroup>
 		<PackageReference Include="Google.Protobuf" Version="3.35.1" />
-		<PackageReference Include="log4net" Version="3.3.2" />
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+		<PackageReference Include="System.Text.Json" Version="10.0.12" />
 		<PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.2" />
 		<PackageReference Include="YamlDotNet" Version="18.1.0" />
 	</ItemGroup>
@@ -106,7 +106,7 @@
 	<!-- net472-specific packages -->
 	<ItemGroup Condition=" '$(TargetFramework)' == 'net472' ">
 		<PackageReference Include="Hafner.Compatibility.MetaPackage" Version="1.9.0" />
-		<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.9" />
+		<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.12" />
 		<PackageReference Include="Microsoft.Bcl.HashCode" Version="6.0.0" />
 		<PackageReference Include="Microsoft.Bcl.Memory" Version="10.0.9" />
 		<PackageReference Include="System.Net.Http" Version="4.3.4" />
@@ -122,6 +122,7 @@
 	</ItemGroup>
 	<ItemGroup>
 		<None Include="..\README.md" Pack="true" PackagePath="\" />
+        <None Include="..\MIGRATION-SystemTextJson.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
 	<!-- Detect docfx.exe from docfx.console package or global dotnet tool -->
@@ -148,7 +149,7 @@
 		</Otherwise>
 	</Choose>
 
-	<Target Name="GenerateDocfxDoc" AfterTargets="Build" Condition="'$(Configuration)' == 'Release' and '$(TargetFramework)' == 'net472'">
+	<Target Name="GenerateDocfxDoc" AfterTargets="Build" Condition="'$(Configuration)' == 'Release' and '$(TargetFramework)' == 'net472' and '$(GenerateDocfxDocumentation)' != 'false'">
 		<PropertyGroup>
 			<DocsDir>$(MSBuildProjectDirectory)\..\docs</DocsDir>
 			<DocfxConfig>$(MSBuildProjectDirectory)\..\docfx_project\docfx.json</DocfxConfig>
@@ -163,7 +164,7 @@
 
 		<!--2) Build site directly into docs -->
 		<Message Importance="high" Text="DOCFX: Building site to $(DocsDir)" Condition="'$(DocfxExe)' != '' and Exists('$(DocfxConfig)')" />
-		<RemoveDir Directories="$(DocsDir)" Condition="Exists('$(DocsDir)')" />
+		<RemoveDir Directories="$(DocsDir)" Condition="'$(DocfxExe)' != '' and Exists('$(DocfxConfig)') and Exists('$(DocsDir)')" />
 		<MakeDir Directories="$(DocsDir)" Condition="'$(DocfxExe)' != '' and Exists('$(DocfxConfig)')" />
 		<Exec Command="&quot;$(DocfxExe)&quot; build &quot;$(DocfxConfig)&quot; --output &quot;$(DocsDir)&quot; --logLevel Error" ContinueOnError="true" IgnoreExitCode="true" Condition="'$(DocfxExe)' != '' and Exists('$(DocfxConfig)')" />
 

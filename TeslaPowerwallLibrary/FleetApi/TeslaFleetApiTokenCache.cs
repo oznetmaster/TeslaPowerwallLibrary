@@ -3,9 +3,11 @@
 
 using System.IO;
 
-using log4net;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using TeslaPowerwallLibrary.Cloud;
 
@@ -26,7 +28,7 @@ namespace TeslaPowerwallLibrary.FleetApi;
 /// </remarks>
 internal sealed class TeslaFleetApiTokenCache
 	{
-	private static readonly ILog _log = LogManager.GetLogger (typeof (TeslaFleetApiTokenCache));
+	private readonly ILogger _log;
 
 	private readonly object _gate = new ();
 	private readonly string _filePath;
@@ -42,8 +44,10 @@ internal sealed class TeslaFleetApiTokenCache
 	/// cache file name is appended.
 	/// </param>
 	/// <param name="email">The customer email the cached entry is keyed by.</param>
-	public TeslaFleetApiTokenCache (string? authPath, string email)
+	/// <param name="logger">Caller-owned logger; null disables logging.</param>
+	public TeslaFleetApiTokenCache (string? authPath, string email, ILogger? logger = null)
 		{
+		_log = logger ?? NullLogger.Instance;
 		_email = string.IsNullOrWhiteSpace (email) ? Constants.DEFAULT_EMAIL : email;
 		_isExplicitPath = !string.IsNullOrWhiteSpace (authPath);
 		_filePath = ResolveFilePath (authPath);
@@ -123,7 +127,7 @@ internal sealed class TeslaFleetApiTokenCache
 			if (string.IsNullOrWhiteSpace (json))
 				return [];
 
-			return JsonConvert.DeserializeObject<Dictionary<string, FleetApiTokenCacheFileEntry>> (json) ?? [];
+			return JsonHelper.Deserialize<Dictionary<string, FleetApiTokenCacheFileEntry>> (json) ?? [];
 			}
 		catch (Exception exc) when (exc is IOException or UnauthorizedAccessException or JsonException)
 			{
@@ -134,7 +138,7 @@ internal sealed class TeslaFleetApiTokenCache
 					exc);
 				}
 
-			_log.Warn ($"Unable to read Tesla FleetAPI token cache '{_filePath}': {exc.Message}");
+			LibraryLog.UnableToReadTeslaFleetAPITokenCache (_log, _filePath, exc.Message);
 			return [];
 			}
 		}
@@ -147,7 +151,7 @@ internal sealed class TeslaFleetApiTokenCache
 			if (!string.IsNullOrEmpty (directory))
 				Directory.CreateDirectory (directory!);
 
-			File.WriteAllText (_filePath, JsonConvert.SerializeObject (root, Formatting.Indented));
+			File.WriteAllText (_filePath, JsonHelper.Serialize (root, true));
 			}
 		catch (Exception exc) when (exc is IOException or UnauthorizedAccessException)
 			{
@@ -160,7 +164,7 @@ internal sealed class TeslaFleetApiTokenCache
 
 			// Persisting tokens at the default per-user location is best-effort; a failure here must not
 			// disrupt an active connection.
-			_log.Warn ($"Unable to write Tesla FleetAPI token cache '{_filePath}': {exc.Message}");
+			LibraryLog.UnableToWriteTeslaFleetAPITokenCache (_log, _filePath, exc.Message);
 			}
 		}
 
@@ -201,16 +205,28 @@ internal sealed class FleetApiTokenCacheEntry
 		}
 
 	/// <summary>Gets the cached Tesla FleetAPI application Client ID, or <see langword="null"/> when absent.</summary>
-	public string? ClientId { get; }
+	public string? ClientId
+		{
+		get;
+		}
 
 	/// <summary>Gets the cached Tesla FleetAPI access token, or <see langword="null"/> when absent.</summary>
-	public string? AccessToken { get; }
+	public string? AccessToken
+		{
+		get;
+		}
 
 	/// <summary>Gets the cached Tesla FleetAPI refresh token, or <see langword="null"/> when absent.</summary>
-	public string? RefreshToken { get; }
+	public string? RefreshToken
+		{
+		get;
+		}
 
 	/// <summary>Gets the cached Tesla energy site identifier, or <see langword="null"/> when absent.</summary>
-	public string? SiteId { get; }
+	public string? SiteId
+		{
+		get;
+		}
 
 	/// <summary>Gets a value indicating whether any token is present in this entry.</summary>
 	public bool HasToken => !string.IsNullOrWhiteSpace (AccessToken) || !string.IsNullOrWhiteSpace (RefreshToken);
@@ -220,22 +236,22 @@ internal sealed class FleetApiTokenCacheEntry
 internal sealed record FleetApiTokenCacheFileEntry
 	{
 	/// <summary>The Tesla FleetAPI application Client ID.</summary>
-	[JsonProperty ("client_id")]
+	[JsonPropertyName ("client_id")]
 	public string? ClientId { get; init; }
 
 	/// <summary>The access token, protected at rest when <see cref="Protected"/> is <see langword="true"/>.</summary>
-	[JsonProperty ("access_token")]
+	[JsonPropertyName ("access_token")]
 	public string? AccessToken { get; init; }
 
 	/// <summary>The refresh token, protected at rest when <see cref="Protected"/> is <see langword="true"/>.</summary>
-	[JsonProperty ("refresh_token")]
+	[JsonPropertyName ("refresh_token")]
 	public string? RefreshToken { get; init; }
 
 	/// <summary>Indicates whether <see cref="AccessToken"/> and <see cref="RefreshToken"/> were DPAPI-protected when written.</summary>
-	[JsonProperty ("protected")]
+	[JsonPropertyName ("protected")]
 	public bool Protected { get; init; }
 
 	/// <summary>The remembered Tesla energy site identifier, when one has been selected.</summary>
-	[JsonProperty ("site_id")]
+	[JsonPropertyName ("site_id")]
 	public string? SiteId { get; init; }
 	}

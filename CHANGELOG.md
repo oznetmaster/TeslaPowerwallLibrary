@@ -4,6 +4,20 @@ All notable changes are documented here. This project follows [Semantic Versioni
 
 This changelog records shipped features, fixes, compatibility and runtime dependency changes. See [development and validation history](DEVELOPMENT-HISTORY.md) for tests, CI, build tooling and work not yet released.
 
+## [2.0.0] - 2026-09-22
+
+### Changed
+
+- Replace Newtonsoft.Json with System.Text.Json attribute mappings. Dynamic result values now use ordinary .NET dictionaries, lists and scalar values. Consumers deserializing library models with Newtonsoft or casting results to Newtonsoft types must migrate; existing raw JSON string APIs remain available.
+- Replace log4net with caller-owned Microsoft.Extensions.Logging.ILogger through PowerwallOptions.Logger. The application controls logging category, scopes and providers; the library does not dispose the logger.
+- Update local applications and tools to the new serialization and logging APIs. See [migration notes](MIGRATION-SystemTextJson.md).
+
+### Fixed
+
+- Send only requested fields for Cloud/Fleet operation changes; preserve numeric zero reserve and avoid empty writes. Invalidate the backend configuration cache after attempted changes, including partial failures.
+- Preserve unscaled reserve values when filling local gateway configuration writes, and reject invalid or unavailable settings.
+- Support dictionary-key serialization in merged assemblies used on Crestron processors.
+
 ## [1.2.5] - 2026-09-15
 
 ### Fixed

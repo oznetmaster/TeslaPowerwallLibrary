@@ -52,7 +52,7 @@ try
 		}
 	using var diagnostics = new AuthenticationDiagnostics ();
 	using var deadline = new CancellationTokenSource (TimeSpan.FromSeconds (90));
-	await TestPreparation.PrepareAsync (store, deadline.Token);
+	await TestPreparation.PrepareAsync (store, deadline.Token, logger: diagnostics);
 	store.MarkPrepared ();
 	Console.WriteLine ("Private live inputs: " + Path.Combine (store.InputsDirectory, "LiveTestSettings.json"));
 	int result = 0;

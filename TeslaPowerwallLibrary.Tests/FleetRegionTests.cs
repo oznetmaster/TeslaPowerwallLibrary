@@ -4,7 +4,7 @@
 using System.Net;
 using System.Net.Http;
 
-using Newtonsoft.Json.Linq;
+
 
 using TeslaPowerwallLibrary.FleetApi;
 
@@ -60,9 +60,19 @@ public sealed class FleetRegionTests
 			Assert.That (request.Method, Is.EqualTo (HttpMethod.Get));
 			Assert.That (request.Headers.Authorization!.Parameter, Is.EqualTo ("synthetic-access"));
 			var body = request.RequestUri.AbsolutePath.EndsWith ("/region", StringComparison.Ordinal)
-				? new JObject { ["response"] = new JObject { ["region"] = region, ["fleet_api_base_url"] = baseUrl } }
-				: new JObject { ["response"] = new JArray () };
-			return Task.FromResult (new HttpResponseMessage (HttpStatusCode.OK) { Content = new StringContent (body.ToString ()) });
+				? (object)new
+					{
+					response = new
+						{
+						region,
+						fleet_api_base_url = baseUrl
+						}
+					}
+				: new
+					{
+					response = Array.Empty<object> ()
+					};
+			return Task.FromResult (new HttpResponseMessage (HttpStatusCode.OK) { Content = new StringContent (JsonHelper.Serialize (body)) });
 			}
 		}
 	}

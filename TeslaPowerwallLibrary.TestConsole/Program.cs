@@ -430,7 +430,7 @@ static async Task<int> RunInteractiveAsync (ParseResult parseResult, Cancellatio
 	Powerwall powerwall;
 	try
 		{
-		powerwall = new Powerwall (resolved.Options);
+		powerwall = new Powerwall (resolved.Options with { Logger = VerboseLogging.Logger });
 		}
 	catch (Exception exc) when (exc is PowerwallInvalidConfigurationException or ArgumentException)
 		{
@@ -486,7 +486,7 @@ static async Task<int> RunWithConnectionAsync (
 	Powerwall powerwall;
 	try
 		{
-		powerwall = new Powerwall (resolved.Options);
+		powerwall = new Powerwall (resolved.Options with { Logger = VerboseLogging.Logger });
 		}
 	catch (PowerwallInvalidConfigurationException exc)
 		{

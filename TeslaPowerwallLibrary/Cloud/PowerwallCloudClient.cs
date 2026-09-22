@@ -1,12 +1,15 @@
+using TeslaPowerwallLibrary.Models;
 // Copyright © 2026 Neil Colvin.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics;
 
-using log4net;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 
 namespace TeslaPowerwallLibrary.Cloud;
 
@@ -28,7 +31,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	private const int SITE_CONFIG_TTL_SECONDS = 59;
 	private const double RESERVE_SCALE_BUFFER = 5.0 / 0.95;
 
-	private static readonly ILog _log = LogManager.GetLogger (typeof (PowerwallCloudClient));
+	private readonly ILogger _log;
 
 	private readonly Stopwatch _clock = Stopwatch.StartNew ();
 	private readonly Dictionary<string, object> _cloudCache = [];
@@ -69,8 +72,33 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		string? siteId = null,
 		string authPath = "",
 		bool noCloudTokenPersistence = false)
+		: this (email, cacheExpireSeconds, timeout, accessToken, refreshToken, siteId, authPath, noCloudTokenPersistence, null)
+		{
+		}
+
+	/// <summary>Creates a client using a caller-owned logger. The client never disposes the logger.</summary>
+	/// <param name="email">See the corresponding parameter of the default-logging constructor.</param>
+	/// <param name="cacheExpireSeconds">See the corresponding parameter of the default-logging constructor.</param>
+	/// <param name="timeout">See the corresponding parameter of the default-logging constructor.</param>
+	/// <param name="accessToken">See the corresponding parameter of the default-logging constructor.</param>
+	/// <param name="refreshToken">See the corresponding parameter of the default-logging constructor.</param>
+	/// <param name="siteId">See the corresponding parameter of the default-logging constructor.</param>
+	/// <param name="authPath">See the corresponding parameter of the default-logging constructor.</param>
+	/// <param name="noCloudTokenPersistence">See the corresponding parameter of the default-logging constructor.</param>
+	/// <param name="logger">Logger carrying the caller's category and scopes; null disables logging.</param>
+	public PowerwallCloudClient (
+		string email,
+		int cacheExpireSeconds,
+		TimeSpan timeout,
+		string? accessToken,
+		string? refreshToken,
+		string? siteId,
+		string authPath,
+		bool noCloudTokenPersistence,
+		ILogger? logger)
 		: base (email)
 		{
+		_log = logger ?? NullLogger.Instance;
 		CacheExpireSeconds = cacheExpireSeconds;
 		Timeout = timeout;
 		SiteId = siteId;
@@ -78,23 +106,38 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		NoCloudTokenPersistence = noCloudTokenPersistence;
 		_accessToken = accessToken;
 		_refreshToken = refreshToken;
-		_tokenCache = noCloudTokenPersistence ? null : new TeslaCloudTokenCache (AuthPath, email);
+		_tokenCache = noCloudTokenPersistence ? null : new TeslaCloudTokenCache (AuthPath, email, _log);
 		}
 
 	/// <summary>Gets the configured site identifier, when one was supplied.</summary>
-	public string? SiteId { get; private set; }
+	public string? SiteId
+		{
+		get; private set;
+		}
 
 	/// <summary>Gets the number of seconds before cached responses expire.</summary>
-	public int CacheExpireSeconds { get; }
+	public int CacheExpireSeconds
+		{
+		get;
+		}
 
 	/// <summary>Gets the per-request HTTP timeout.</summary>
-	public TimeSpan Timeout { get; }
+	public TimeSpan Timeout
+		{
+		get;
+		}
 
 	/// <summary>Gets the path to cloud authentication and site cache files.</summary>
-	public string AuthPath { get; }
+	public string AuthPath
+		{
+		get;
+		}
 
 	/// <summary>Gets a value indicating whether the library-owned token cache is disabled for this instance.</summary>
-	public bool NoCloudTokenPersistence { get; }
+	public bool NoCloudTokenPersistence
+		{
+		get;
+		}
 
 	/// <summary>
 	/// Raised after the underlying Tesla connection refreshes its OAuth tokens. Firing depends on whether an
@@ -117,7 +160,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	/// <inheritdoc/>
 	public override async Task AuthenticateAsync (CancellationToken cancellationToken = default)
 		{
-		_log.Debug ("Tesla cloud mode enabled");
+		LibraryLog.TeslaCloudModeEnabled (_log);
 
 		// Load any library-persisted tokens/site for this email. Explicitly supplied values (a first-time
 		// login or a caller override) take precedence over the cache; otherwise reuse what we persisted on a
@@ -130,7 +173,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		var refreshToken = string.IsNullOrWhiteSpace (_refreshToken) ? cached.RefreshToken : _refreshToken;
 		SiteId ??= cached.SiteId;
 
-		_connection = new TeslaCloudConnection (accessToken, refreshToken, Timeout);
+		_connection = new TeslaCloudConnection (accessToken, refreshToken, Timeout, _log);
 		_connection.TokensRefreshed += OnConnectionTokensRefreshed;
 		if (!_connection.HasToken)
 			{
@@ -174,7 +217,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		// the caller already receives the current tokens via TokensRefreshed on any subsequent rotation.
 		_tokenCache?.SaveTokens (_connection.AccessToken, _connection.RefreshToken);
 		_tokenCache?.SaveSite (_resolvedSiteId);
-		_log.Debug ($"Connected to Tesla cloud - using site {_resolvedSiteId} for {Email}");
+		LibraryLog.ConnectedToTeslaCloudUsingSiteFor (_log, _resolvedSiteId, Email);
 		}
 
 	/// <inheritdoc/>
@@ -222,14 +265,14 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		EnsureConnected ();
 		if (string.IsNullOrWhiteSpace (siteId))
 			{
-			_log.Error ("Invalid siteid - value is null or empty.");
+			LibraryLog.InvalidSiteidValueIsNullOrEmpty (_log);
 			return false;
 			}
 
 		List<EnergyProduct>? sites = await FetchEnergySitesAsync (cancellationToken).ConfigureAwait (false);
 		if (sites is null || sites.Count == 0)
 			{
-			_log.Error ($"No sites found for {Email}.");
+			LibraryLog.NoSitesFoundFor (_log, Email);
 			return false;
 			}
 
@@ -243,11 +286,11 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 			ClearCloudCache ();
 			_tokenCache?.SaveSite (siteId);
 			var siteName = site.SiteName ?? "Unknown";
-			_log.Debug ($"Changed site to {siteId} ({siteName}) for {Email}");
+			LibraryLog.ChangedSiteToFor (_log, siteId, siteName, Email);
 			return true;
 			}
 
-		_log.Error ($"Site {siteId} not found for {Email}.");
+		LibraryLog.SiteNotFoundFor (_log, siteId, Email);
 		return false;
 		}
 
@@ -263,8 +306,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		EnsureConnected ();
 
 		// Upstream inverts the flag: enabling grid charging clears "disallow_charge_from_grid_with_solar_installed".
-		var settings = new JObject { ["disallow_charge_from_grid_with_solar_installed"] = !enabled };
-		JObject? response = await _connection!.SetGridImportExportAsync (_resolvedSiteId!, settings, cancellationToken).ConfigureAwait (false);
+		var settings = new GridImportExportRequest { DisallowChargeFromGridWithSolarInstalled = !enabled };
+		ApiResponse<object>? response = await _connection!.SetGridImportExportAsync (_resolvedSiteId!, settings, cancellationToken).ConfigureAwait (false);
 		InvalidateCloudCache ("SITE_CONFIG");
 		return Serialize (response);
 		}
@@ -279,8 +322,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		{
 		EnsureConnected ();
 
-		var settings = new JObject { ["customer_preferred_export_rule"] = mode };
-		JObject? response = await _connection!.SetGridImportExportAsync (_resolvedSiteId!, settings, cancellationToken).ConfigureAwait (false);
+		var settings = new GridImportExportRequest { CustomerPreferredExportRule = mode };
+		ApiResponse<object>? response = await _connection!.SetGridImportExportAsync (_resolvedSiteId!, settings, cancellationToken).ConfigureAwait (false);
 		InvalidateCloudCache ("SITE_CONFIG");
 		return Serialize (response);
 		}
@@ -341,7 +384,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		{
 		EnsureConnected ();
 
-		JObject? response = await _connection!.SetStormModeAsync (_resolvedSiteId!, enabled, cancellationToken).ConfigureAwait (false);
+		ApiResponse<object>? response = await _connection!.SetStormModeAsync (_resolvedSiteId!, enabled, cancellationToken).ConfigureAwait (false);
 		InvalidateCloudCache ("SITE_CONFIG");
 		return Serialize (response);
 		}
@@ -387,8 +430,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		EnsureConnected ();
 		try
 			{
-			JObject? response = await _connection!.GetHistoryAsync (_resolvedSiteId!, kind, period, timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
-			return Serialize (response?["response"] ?? response);
+			string? response = await _connection!.GetHistoryAsync (_resolvedSiteId!, kind, period, timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
+			return JsonHelper.UnwrapPayload (response);
 			}
 		catch (PowerwallCloudEndpointRemovedException exc)
 			{
@@ -420,8 +463,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		CancellationToken cancellationToken = default)
 		{
 		EnsureConnected ();
-		JObject? response = await _connection!.GetCalendarHistoryAsync (_resolvedSiteId!, kind, period, timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
-		return Serialize (response?["response"] ?? response);
+		string? response = await _connection!.GetCalendarHistoryAsync (_resolvedSiteId!, kind, period, timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
+		return JsonHelper.UnwrapPayload (response);
 		}
 
 	/// <inheritdoc/>
@@ -438,7 +481,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	public override Task<byte[]?> PollRawAsync (string api, bool force = false, bool recursive = false, CancellationToken cancellationToken = default)
 		{
 		// Cloud mode has no protobuf vitals path; mirror upstream by returning no binary payload.
-		_log.Debug ($"Raw poll is not supported in cloud mode for {api}");
+		LibraryLog.RawPollIsNotSupportedInCloudModeFor (_log, api);
 		return Task.FromResult<byte[]?> (null);
 		}
 
@@ -456,24 +499,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	public override async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>>?> VitalsAsync (CancellationToken cancellationToken = default)
 		{
 		EnsureConnected ();
-		JToken? vitals = await GetVitalsAsync (force: false, cancellationToken).ConfigureAwait (false);
-		if (vitals is not JObject devices)
-			return null;
-
-		var result = new Dictionary<string, IReadOnlyDictionary<string, object?>> (StringComparer.Ordinal);
-		foreach (JProperty device in devices.Properties ())
-			{
-			if (device.Value is not JObject telemetry)
-				continue;
-
-			var values = new Dictionary<string, object?> (StringComparer.Ordinal);
-			foreach (JProperty attribute in telemetry.Properties ())
-				values[attribute.Name] = attribute.Value.Type == JTokenType.Null ? null : attribute.Value.ToObject<object?> ();
-
-			result[device.Name] = values;
-			}
-
-		return result;
+		return await GetVitalsAsync (force: false, cancellationToken).ConfigureAwait (false);
 		}
 
 	/// <inheritdoc/>
@@ -492,75 +518,72 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 
 	private async Task<string?> MapPollAsync (string api, bool force, CancellationToken cancellationToken)
 		{
-		_log.Debug ($" -- cloud: Request for {api}");
-
-		JToken? data = api switch
+		LibraryLog.RequestFor (_log, api);
+		string? mock = api switch
 			{
-			"/api/devices/vitals" => GetApiDevicesVitals (),
-			"/api/meters/aggregates" => await GetApiMetersAggregatesAsync (force, cancellationToken).ConfigureAwait (false),
-			"/api/operation" => await GetApiOperationAsync (force, cancellationToken).ConfigureAwait (false),
-			"/api/site_info" => await GetApiSiteInfoAsync (force, cancellationToken).ConfigureAwait (false),
-			"/api/site_info/site_name" => await GetApiSiteInfoSiteNameAsync (force, cancellationToken).ConfigureAwait (false),
-			"/api/status" => await GetApiStatusAsync (force, cancellationToken).ConfigureAwait (false),
-			"/api/system_status" => await GetApiSystemStatusAsync (force, cancellationToken).ConfigureAwait (false),
-			"/api/system_status/grid_status" => await GetApiSystemStatusGridStatusAsync (force, cancellationToken).ConfigureAwait (false),
-			"/api/system_status/soe" => await GetApiSystemStatusSoeAsync (force, cancellationToken).ConfigureAwait (false),
-			"/vitals" => await GetVitalsAsync (force, cancellationToken).ConfigureAwait (false),
-			"/api/login/Basic" => MockObject ("api_login_basic", static () => new JObject { ["status"] = "ok" }),
-			"/api/logout" => MockObject ("api_logout", static () => new JObject { ["status"] = "ok" }),
-			"/api/auth/toggle/supported" => MockObject ("get_api_auth_toggle_supported", static () => new JObject { ["toggle_auth_supported"] = true }),
-			"/api/customer" => MockObject ("get_api_customer", static () => new JObject { ["registered"] = true }),
-			"/api/customer/registration" => MockParse ("get_api_customer_registration", """{"privacy_notice":null,"limited_warranty":null,"grid_services":null,"marketing":null,"registered":true,"timed_out_registration":false}"""),
-			"/api/installer" => MockParse ("get_api_installer", CloudMockData.INSTALLER),
-			"/api/meters" => MockParse ("get_api_meters", CloudMockData.METERS),
-			"/api/meters/readings" => MockValue ("get_api_unimplemented_timeout", "TIMEOUT!"),
-			"/api/meters/site" => MockParse ("get_api_meters_site", CloudMockData.METERS_SITE),
-			"/api/meters/solar" => null,
-			"/api/networks" => MockValue ("get_api_unimplemented_timeout", "TIMEOUT!"),
-			"/api/powerwalls" => MockParse ("get_api_powerwalls", CloudMockData.POWERWALLS),
-			"/api/site_info/grid_codes" => MockValue ("get_api_unimplemented_timeout", "TIMEOUT!"),
-			"/api/sitemaster" => MockObject ("get_api_sitemaster", static () => new JObject
-				{
-				["status"] = "StatusUp",
-				["running"] = true,
-				["connected_to_tesla"] = true,
-				["power_supply_mode"] = false,
-				["can_reboot"] = "Yes"
-				}),
-			"/api/solar_powerwall" => MockObject ("get_api_solar_powerwall", static () => new JObject ()),
-			"/api/solars" => MockParse ("get_api_solars", """[{"brand":"Tesla","model":"Solar Inverter 7.6","power_rating_watts":7600}]"""),
-			"/api/solars/brands" => MockParse ("get_api_solars_brands", CloudMockData.SOLARS_BRANDS),
-			"/api/synchrometer/ct_voltage_references" => MockParse ("get_api_synchrometer_ct_voltage_references", """{"ct1":"Phase1","ct2":"Phase2","ct3":"Phase1"}"""),
-			"/api/system/update/status" => MockParse ("get_api_system_update_status", """{"state":"/update_succeeded","info":{"status":["nonactionable"]},"current_time":1702756114429,"last_status_time":1702753309227,"version":"23.28.2 27626f98","offline_updating":false,"offline_update_error":"","estimated_bytes_per_second":null}"""),
-			"/api/system_status/grid_faults" => MockParse ("get_api_system_status_grid_faults", "[]"),
-			"/api/troubleshooting/problems" => MockParse ("get_api_troubleshooting_problems", """{"problems":[]}"""),
-			_ => new JObject { ["ERROR"] = $"Unknown API: {api}" }
-			};
-
+				"/api/customer/registration" => """{"privacy_notice":null,"limited_warranty":null,"grid_services":null,"marketing":null,"registered":true,"timed_out_registration":false}""",
+				"/api/installer" => CloudMockData.INSTALLER,
+				"/api/meters" => CloudMockData.METERS,
+				"/api/meters/site" => CloudMockData.METERS_SITE,
+				"/api/powerwalls" => CloudMockData.POWERWALLS,
+				"/api/solars" => """[{"brand":"Tesla","model":"Solar Inverter 7.6","power_rating_watts":7600}]""",
+				"/api/solars/brands" => CloudMockData.SOLARS_BRANDS,
+				"/api/synchrometer/ct_voltage_references" => """{"ct1":"Phase1","ct2":"Phase2","ct3":"Phase1"}""",
+				"/api/system/update/status" => """{"state":"/update_succeeded","info":{"status":["nonactionable"]},"current_time":1702756114429,"last_status_time":1702753309227,"version":"23.28.2 27626f98","offline_updating":false,"offline_update_error":"","estimated_bytes_per_second":null}""",
+				"/api/system_status/grid_faults" => "[]",
+				"/api/troubleshooting/problems" => """{"problems":[]}""",
+				"/api/login/Basic" => """{"status":"ok"}""",
+				"/api/logout" => """{"status":"ok"}""",
+				"/api/auth/toggle/supported" => """{"toggle_auth_supported":true}""",
+				"/api/customer" => """{"registered":true}""",
+				"/api/sitemaster" => """{"status":"StatusUp","running":true,"connected_to_tesla":true,"power_supply_mode":false,"can_reboot":"Yes"}""",
+				"/api/solar_powerwall" => """{}""",
+				"/api/meters/readings" => """"TIMEOUT!"""",
+				"/api/networks" => """"TIMEOUT!"""",
+				"/api/site_info/grid_codes" => """"TIMEOUT!"""",
+				_ => null
+				};
+		if (mock is not null)
+			{
+			LibraryLog.APIUsesSimulatedData (_log, api);
+			return mock;
+			}
+		object? data = api switch
+			{
+				"/api/meters/aggregates" => await GetApiMetersAggregatesAsync (force, cancellationToken).ConfigureAwait (false),
+				"/api/operation" => await GetApiOperationAsync (force, cancellationToken).ConfigureAwait (false),
+				"/api/site_info" => await GetApiSiteInfoAsync (force, cancellationToken).ConfigureAwait (false),
+				"/api/site_info/site_name" => await GetApiSiteInfoSiteNameAsync (force, cancellationToken).ConfigureAwait (false),
+				"/api/status" => await GetApiStatusAsync (force, cancellationToken).ConfigureAwait (false),
+				"/api/system_status" => await GetApiSystemStatusAsync (force, cancellationToken).ConfigureAwait (false),
+				"/api/system_status/grid_status" => await GetApiSystemStatusGridStatusAsync (force, cancellationToken).ConfigureAwait (false),
+				"/api/system_status/soe" => await GetApiSystemStatusSoeAsync (force, cancellationToken).ConfigureAwait (false),
+				"/vitals" => await GetVitalsAsync (force, cancellationToken).ConfigureAwait (false),
+				"/api/devices/vitals" or "/api/meters/solar" => null,
+				_ => new UnknownApiResponse { ERROR = $"Unknown API: {api}" }
+				};
 		return Serialize (data);
 		}
 
 	private async Task<string?> MapPostAsync (string api, object? payload, string? din, CancellationToken cancellationToken)
 		{
-		_log.Debug ($" -- cloud: Request for {api}");
+		LibraryLog.CloudRequestFor (_log, api);
 
 		if (api != "/api/operation")
-			return Serialize (new JObject { ["ERROR"] = $"Unknown API: {api}" });
+			return Serialize (new UnknownApiResponse { ERROR = $"Unknown API: {api}" });
 
-		JObject? result = await PostApiOperationAsync (payload, din, cancellationToken).ConfigureAwait (false);
+		OperationWriteResult? result = await PostApiOperationAsync (payload, din, cancellationToken).ConfigureAwait (false);
 		if (result is not null)
+			{
 			InvalidateCache (api);
+			InvalidateCloudCache ("SITE_CONFIG");
+			}
 
 		return Serialize (result);
 		}
 
-	private static JToken? GetApiDevicesVitals ()
-		{
-		_log.Warn ("Protobuf payload - not implemented for /api/devices/vitals - use /vitals instead");
-		return null;
-		}
 
-	private async Task<JToken?> GetApiSystemStatusSoeAsync (bool force, CancellationToken cancellationToken)
+	private async Task<object?> GetApiSystemStatusSoeAsync (bool force, CancellationToken cancellationToken)
 		{
 		SiteSummaryResponse? battery = await GetBatteryAsync (force, cancellationToken).ConfigureAwait (false);
 		if (battery is null)
@@ -568,33 +591,26 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 
 		var percentageCharged = battery.PercentageCharged ?? 0;
 		var soe = (percentageCharged + RESERVE_SCALE_BUFFER) * 0.95;
-		return new JObject { ["percentage"] = soe };
+		return new StateOfEnergy { Percentage = soe };
 		}
 
-	private async Task<JToken?> GetApiStatusAsync (bool force, CancellationToken cancellationToken)
+	private async Task<object?> GetApiStatusAsync (bool force, CancellationToken cancellationToken)
 		{
 		SiteConfigResponse? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
 		if (config is null)
 			return null;
 
-		return new JObject
+		return new MappedGatewayStatus
 			{
-			["din"] = config.Id,
-			["start_time"] = config.InstallationDate,
-			["up_time_seconds"] = null,
-			["is_new"] = false,
-			["version"] = config.Version,
-			["git_hash"] = "27626f98a66cad5c665bbe1d4d788cdb3e94fd34",
-			["commission_count"] = 0,
-			["device_type"] = config.Components?.Gateway,
-			["teg_type"] = "unknown",
-			["sync_type"] = "v2.1",
-			["cellular_disabled"] = false,
-			["can_reboot"] = true
+			Din = config.Id,
+			StartTime = config.InstallationDate,
+			Version = config.Version,
+			DeviceType = config.Components?.Gateway
 			};
+
 		}
 
-	private async Task<JToken?> GetApiSystemStatusGridStatusAsync (bool force, CancellationToken cancellationToken)
+	private async Task<object?> GetApiSystemStatusGridStatusAsync (bool force, CancellationToken cancellationToken)
 		{
 		SitePowerResponse? power = await GetSitePowerAsync (force, cancellationToken).ConfigureAwait (false);
 		if (power is null)
@@ -604,27 +620,21 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 			? "SystemGridConnected"
 			: "SystemIslandedActive";
 
-		return new JObject
-			{
-			["grid_status"] = gridStatus,
-			["grid_services_active"] = power.GridServicesActive
-			};
+		return new GridStatusResponse { GridStatus = gridStatus, GridServicesActive = power.GridServicesActive };
+
 		}
 
-	private async Task<JToken?> GetApiSiteInfoSiteNameAsync (bool force, CancellationToken cancellationToken)
+	private async Task<object?> GetApiSiteInfoSiteNameAsync (bool force, CancellationToken cancellationToken)
 		{
 		SiteConfigResponse? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
 		if (config is null)
 			return null;
 
-		return new JObject
-			{
-			["site_name"] = config.SiteName,
-			["timezone"] = config.InstallationTimeZone
-			};
+		return new SiteName { Name = config.SiteName, Timezone = config.InstallationTimeZone };
+
 		}
 
-	private async Task<JToken?> GetApiSiteInfoAsync (bool force, CancellationToken cancellationToken)
+	private async Task<object?> GetApiSiteInfoAsync (bool force, CancellationToken cancellationToken)
 		{
 		SiteConfigResponse? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
 		if (config is null)
@@ -633,31 +643,22 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		var nameplatePower = config.NameplatePower / 1000.0;
 		var nameplateEnergy = config.NameplateEnergy / 1000.0;
 
-		return new JObject
+		return new MappedSiteInfo
 			{
-			["max_system_energy_kWh"] = nameplateEnergy,
-			["max_system_power_kW"] = nameplatePower,
-			["site_name"] = config.SiteName,
-			["timezone"] = config.InstallationTimeZone,
-			["max_site_meter_power_kW"] = config.MaxSiteMeterPowerAc,
-			["min_site_meter_power_kW"] = config.MinSiteMeterPowerAc,
-			["nominal_system_energy_kWh"] = nameplateEnergy,
-			["nominal_system_power_kW"] = nameplatePower,
-			["panel_max_current"] = null,
-			["grid_code"] = new JObject
-				{
-				["grid_code"] = null,
-				["grid_voltage_setting"] = null,
-				["grid_freq_setting"] = null,
-				["grid_phase_setting"] = null,
-				["country"] = null,
-				["state"] = null,
-				["utility"] = config.TariffContent?.Utility
-				}
+			MaxSystemEnergyKWh = nameplateEnergy,
+			MaxSystemPowerKW = nameplatePower,
+			SiteName = config.SiteName,
+			Timezone = config.InstallationTimeZone,
+			MaxSiteMeterPowerKW = config.MaxSiteMeterPowerAc,
+			MinSiteMeterPowerKW = config.MinSiteMeterPowerAc,
+			NominalSystemEnergyKWh = nameplateEnergy,
+			NominalSystemPowerKW = nameplatePower,
+			GridCode = new MappedGridCode { Utility = config.TariffContent?.Utility }
 			};
+
 		}
 
-	private async Task<JToken?> GetVitalsAsync (bool force, CancellationToken cancellationToken)
+	private async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>>?> GetVitalsAsync (bool force, CancellationToken cancellationToken)
 		{
 		SiteConfigResponse? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
 		SitePowerResponse? power = await GetSitePowerAsync (force, cancellationToken).ConfigureAwait (false);
@@ -679,75 +680,48 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 
 		var alert = power.IslandStatus switch
 			{
-			"on_grid" => "SystemConnectedToGrid",
-			"off_grid_intentional" => "ScheduledIslandContactorOpen",
-			"off_grid" => "UnscheduledIslandContactorOpen",
-			_ => power.GridStatus is "Active" or "Unknown" ? "SystemConnectedToGrid" : ""
-			};
+				"on_grid" => "SystemConnectedToGrid",
+				"off_grid_intentional" => "ScheduledIslandContactorOpen",
+				"off_grid" => "UnscheduledIslandContactorOpen",
+				_ => power.GridStatus is "Active" or "Unknown" ? "SystemConnectedToGrid" : ""
+				};
 
 		var deviceKey = $"STSTSM--{partNumber}--{serialNumber}";
-		return new JObject
+		return new Dictionary<string, IReadOnlyDictionary<string, object?>>
 			{
-			[deviceKey] = new JObject
+			[deviceKey] = new Dictionary<string, object?>
 				{
 				["partNumber"] = partNumber,
 				["serialNumber"] = serialNumber,
 				["manufacturer"] = "Simulated",
 				["firmwareVersion"] = config.Version,
 				["lastCommunicationTime"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds (),
-				["teslaEnergyEcuAttributes"] = new JObject { ["ecuType"] = 207 },
+				["teslaEnergyEcuAttributes"] = new Dictionary<string, object?> { ["ecuType"] = 207 },
 				["STSTSM-Location"] = "Simulated",
-				["alerts"] = new JArray { alert }
+				["alerts"] = new string[] { alert }
 				}
 			};
 		}
 
-	private async Task<JToken?> GetApiMetersAggregatesAsync (bool force, CancellationToken cancellationToken)
+	private async Task<object?> GetApiMetersAggregatesAsync (bool force, CancellationToken cancellationToken)
 		{
 		SiteConfigResponse? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
 		SitePowerResponse? power = await GetSitePowerAsync (force, cancellationToken).ConfigureAwait (false);
 		if (config is null || power is null)
 			return null;
 
-		JToken? timestamp = power.Timestamp;
-		var batteryCount = config.BatteryCount;
-
-		int solarInverters;
-		if (config.Components?.Inverters is { } inverters)
-			solarInverters = inverters.Count;
-		else if (config.Components?.Solar is { } solar && solar.Type != JTokenType.Null)
-			solarInverters = 1;
-		else
-			solarInverters = 0;
-
-		var data = JObject.Parse (CloudMockData.METERS_AGGREGATES_TEMPLATE);
-		MergeInto ((JObject) data["site"]!, new JObject
+		var solarInverters = config.Components?.Inverters?.Count ?? (config.Components?.Solar is null ? 0 : 1);
+		var data = new MappedMeterAggregates
 			{
-			["last_communication_time"] = timestamp,
-			["instant_power"] = power.GridPower
-			});
-		MergeInto ((JObject) data["battery"]!, new JObject
-			{
-			["last_communication_time"] = timestamp,
-			["instant_power"] = power.BatteryPower,
-			["num_meters_aggregated"] = batteryCount
-			});
-		MergeInto ((JObject) data["load"]!, new JObject
-			{
-			["last_communication_time"] = timestamp,
-			["instant_power"] = power.LoadPower
-			});
-		MergeInto ((JObject) data["solar"]!, new JObject
-			{
-			["last_communication_time"] = timestamp,
-			["instant_power"] = power.SolarPower,
-			["num_meters_aggregated"] = solarInverters
-			});
-
+			Site = new MappedMeterReading { LastCommunicationTime = power.Timestamp, InstantPower = power.GridPower, InstantReactivePower = 0, InstantApparentPower = 0, Frequency = 0, EnergyExported = 0, EnergyImported = 0, InstantAverageVoltage = 0, InstantAverageCurrent = 0, IACurrent = 0, IBCurrent = 0, ICCurrent = 0, LastPhaseVoltageCommunicationTime = "0001-01-01T00:00:00Z", LastPhasePowerCommunicationTime = "0001-01-01T00:00:00Z", LastPhaseEnergyCommunicationTime = "0001-01-01T00:00:00Z", Timeout = 1500000000, NumMetersAggregated = 1, InstantTotalCurrent = null },
+			Battery = new MappedMeterReading { LastCommunicationTime = power.Timestamp, InstantPower = power.BatteryPower, InstantReactivePower = 0, InstantApparentPower = 0, Frequency = 0, EnergyExported = 0, EnergyImported = 0, InstantAverageVoltage = 0, InstantAverageCurrent = 0, IACurrent = 0, IBCurrent = 0, ICCurrent = 0, LastPhaseVoltageCommunicationTime = "0001-01-01T00:00:00Z", LastPhasePowerCommunicationTime = "0001-01-01T00:00:00Z", LastPhaseEnergyCommunicationTime = "0001-01-01T00:00:00Z", Timeout = 1500000000, NumMetersAggregated = config.BatteryCount, InstantTotalCurrent = 0 },
+			Load = new MappedMeterReading { LastCommunicationTime = power.Timestamp, InstantPower = power.LoadPower, InstantReactivePower = 0, InstantApparentPower = 0, Frequency = 0, EnergyExported = 0, EnergyImported = 0, InstantAverageVoltage = 0, InstantAverageCurrent = 0, IACurrent = 0, IBCurrent = 0, ICCurrent = 0, LastPhaseVoltageCommunicationTime = "0001-01-01T00:00:00Z", LastPhasePowerCommunicationTime = "0001-01-01T00:00:00Z", LastPhaseEnergyCommunicationTime = "0001-01-01T00:00:00Z", Timeout = 1500000000, InstantTotalCurrent = 0 },
+			Solar = new MappedMeterReading { LastCommunicationTime = power.Timestamp, InstantPower = power.SolarPower, InstantReactivePower = 0, InstantApparentPower = 0, Frequency = 0, EnergyExported = 0, EnergyImported = 0, InstantAverageVoltage = 0, InstantAverageCurrent = 0, IACurrent = 0, IBCurrent = 0, ICCurrent = 0, LastPhaseVoltageCommunicationTime = "0001-01-01T00:00:00Z", LastPhasePowerCommunicationTime = "0001-01-01T00:00:00Z", LastPhaseEnergyCommunicationTime = "0001-01-01T00:00:00Z", Timeout = 1000000000, NumMetersAggregated = solarInverters, InstantTotalCurrent = 0 },
+			};
 		return data;
 		}
 
-	private async Task<JToken?> GetApiOperationAsync (bool force, CancellationToken cancellationToken)
+	private async Task<object?> GetApiOperationAsync (bool force, CancellationToken cancellationToken)
 		{
 		SiteConfigResponse? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
 		if (config is null)
@@ -755,14 +729,11 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 
 		var backupReservePercent = config.BackupReservePercent ?? 0;
 		var backup = (backupReservePercent + RESERVE_SCALE_BUFFER) * 0.95;
-		return new JObject
-			{
-			["real_mode"] = config.DefaultRealMode,
-			["backup_reserve_percent"] = backup
-			};
+		return new OperationResponse { RealMode = config.DefaultRealMode, BackupReservePercent = backup };
+
 		}
 
-	private async Task<JToken?> GetApiSystemStatusAsync (bool force, CancellationToken cancellationToken)
+	private async Task<object?> GetApiSystemStatusAsync (bool force, CancellationToken cancellationToken)
 		{
 		SitePowerResponse? power = await GetSitePowerAsync (force, cancellationToken).ConfigureAwait (false);
 		SiteConfigResponse? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
@@ -785,78 +756,57 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 				: "SystemIslandedActive";
 			}
 
-		var data = JObject.Parse (CloudMockData.SYSTEM_STATUS_TEMPLATE);
-		MergeInto (data, new JObject
+		var data = new MappedSystemStatus
 			{
-			["nominal_full_pack_energy"] = battery.TotalPackEnergy,
-			["nominal_energy_remaining"] = battery.EnergyLeft,
-			["max_charge_power"] = nameplatePower,
-			["max_discharge_power"] = nameplatePower,
-			["max_apparent_power"] = nameplatePower,
-			["grid_services_power"] = power.GridServicesPower,
-			["system_island_state"] = gridStatus,
-			["available_blocks"] = batteryCount,
-			["solar_real_power_limit"] = power.SolarPower,
-			["blocks_controlled"] = batteryCount
-			});
+			NominalFullPackEnergy = battery.TotalPackEnergy,
+			NominalEnergyRemaining = battery.EnergyLeft,
+			MaxChargePower = nameplatePower,
+			MaxDischargePower = nameplatePower,
+			MaxApparentPower = nameplatePower,
+			GridServicesPower = power.GridServicesPower,
+			SystemIslandState = gridStatus,
+			AvailableBlocks = batteryCount,
+			SolarRealPowerLimit = power.SolarPower,
+			BlocksControlled = batteryCount
+			};
 
 		return data;
 		}
 
-	private async Task<JObject?> PostApiOperationAsync (object? payload, string? din, CancellationToken cancellationToken)
+	private async Task<OperationWriteResult?> PostApiOperationAsync (object? payload, string? din, CancellationToken cancellationToken)
 		{
-		JObject payloadObject = payload is null ? new JObject () : JObject.FromObject (payload);
-		JToken? reserveToken = payloadObject["backup_reserve_percent"];
-		var hasReserve = reserveToken is not null && reserveToken.Type != JTokenType.Null && reserveToken.Type != JTokenType.Boolean;
-		var realMode = payloadObject.Value<string> ("real_mode");
-
-		if (!hasReserve && string.IsNullOrEmpty (realMode))
-			{
-			throw new PowerwallCloudInvalidPayloadException (
-				"/api/operation payload missing required parameters. Either 'backup_reserve_percent' or 'real_mode', or both, must be present.");
-			}
-
-		if (string.IsNullOrWhiteSpace (din))
-			_log.Warn ("No valid DIN provided, will adjust the configured site battery.");
-
-		var reservePercent = (int) Math.Round (payloadObject.Value<double?> ("backup_reserve_percent") ?? 0);
-
+		OperationRequest? operation;
 		try
 			{
-			JObject? levelResult = hasReserve
-				? await _connection!.SetBackupReserveAsync (_resolvedSiteId!, reservePercent, cancellationToken).ConfigureAwait (false)
-				: null;
-			JObject? modeResult = realMode is null
-				? null
-				: await _connection!.SetOperationModeAsync (_resolvedSiteId!, realMode, cancellationToken).ConfigureAwait (false);
-
-			var result = new JObject ();
-			if (hasReserve)
-				{
-				result["set_backup_reserve_percent"] = new JObject
-					{
-					["backup_reserve_percent"] = reservePercent,
-					["din"] = din,
-					["result"] = ExtractCommandResult (levelResult)
-					};
-				}
-
-			if (realMode is not null)
-				{
-				result["set_operation"] = new JObject
-					{
-					["real_mode"] = realMode,
-					["din"] = din,
-					["result"] = ExtractCommandResult (modeResult)
-					};
-				}
-
-			return result;
+			operation = payload as OperationRequest ?? JsonHelper.Deserialize<OperationRequest> (JsonHelper.Serialize (payload));
 			}
-		catch (Exception exc) when (exc is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+		catch (JsonException exc) { throw new PowerwallCloudInvalidPayloadException ("Invalid /api/operation payload.", exc); }
+		if (operation is null || (operation.BackupReservePercent is null && string.IsNullOrWhiteSpace (operation.RealMode)))
+			throw new PowerwallCloudInvalidPayloadException ("/api/operation requires a reserve percentage or operation mode.");
+		if (operation.BackupReservePercent is double level && (double.IsNaN (level) || double.IsInfinity (level) || level < 0 || level > 100))
+			throw new InvalidBatteryReserveLevelException ("Level can be in range of 0 to 100 only.");
+		if (operation.RealMode is not null && string.IsNullOrWhiteSpace (operation.RealMode))
+			throw new PowerwallCloudInvalidPayloadException ("Operation mode must not be empty.");
+
+		int reserve = (int)Math.Round (operation.BackupReservePercent ?? 0);
+		ReserveWriteResult? reserveResult = null;
+		ModeWriteResult? modeResult = null;
+		// Once a write is attempted, cached settings cannot be trusted, including partial failures.
+		try
 			{
-			return new JObject { ["error"] = exc.Message };
+			if (operation.BackupReservePercent is not null)
+				{
+				var response = await _connection!.SetBackupReserveAsync (_resolvedSiteId!, reserve, cancellationToken).ConfigureAwait (false);
+				reserveResult = new ReserveWriteResult { BackupReservePercent = reserve, Din = din, Result = response?.Response ?? "BatteryNotFound" };
+				}
+			if (operation.RealMode is not null)
+				{
+				var response = await _connection!.SetOperationModeAsync (_resolvedSiteId!, operation.RealMode, cancellationToken).ConfigureAwait (false);
+				modeResult = new ModeWriteResult { RealMode = operation.RealMode, Din = din, Result = response?.Response ?? "BatteryNotFound" };
+				}
+			return new OperationWriteResult { Reserve = reserveResult, Mode = modeResult };
 			}
+		finally { InvalidateCloudCache ("SITE_CONFIG"); }
 		}
 
 	private Task<SiteConfigResponse?> GetSiteConfigAsync (bool force, CancellationToken cancellationToken) =>
@@ -902,7 +852,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		{
 		if (!force && IsCloudCacheValid (name, ttlSeconds) && _cloudCache.TryGetValue (name, out var cached))
 			{
-			_log.Debug ($" -- cloud: Returning cached {name} data");
+			LibraryLog.CloudReturningCachedData (_log, name);
 			return cached as T;
 			}
 
@@ -911,7 +861,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 			{
 			_cloudCache[name] = response;
 			_cloudCacheTimes[name] = NowSeconds;
-			_log.Debug ($" -- cloud: Retrieved {name} data");
+			LibraryLog.CloudRetrievedData (_log, name);
 			}
 
 		return response;
@@ -953,7 +903,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 				return SiteId;
 			}
 
-		_log.Warn ($"Site {SiteId} not found for {Email} - defaulting to first site.");
+		LibraryLog.SiteNotFoundForDefaultingToFirstSite (_log, SiteId, Email);
 		return GetSiteId (sites[0]);
 		}
 
@@ -966,44 +916,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 			throw new PowerwallCloudTeslaNotConnectedException ("Not connected to the Tesla cloud. Call AuthenticateAsync before invoking data methods.");
 		}
 
-	private static JObject MockObject (string name, Func<JObject> factory)
-		{
-		LogMockUsage (name);
-		return factory ();
-		}
-
-	private static JToken MockParse (string name, string json)
-		{
-		LogMockUsage (name);
-		return JToken.Parse (json);
-		}
-
-	private static JValue MockValue (string name, string value)
-		{
-		LogMockUsage (name);
-		return new JValue (value);
-		}
-
-	private static void LogMockUsage (string name) =>
-		_log.Debug ($"This API [{name}] is using mock data in cloud mode.");
-
-	private static JToken ExtractCommandResult (JObject? response)
-		{
-		if (response is null)
-			return "BatteryNotFound";
-
-		// Tesla command responses wrap the outcome in a response envelope.
-		return response["response"] ?? response;
-		}
-
-	private static void MergeInto (JObject target, JObject updates)
-		{
-		foreach (JProperty property in updates.Properties ())
-			target[property.Name] = property.Value;
-		}
-
-	private static string? Serialize (JToken? token) =>
-		token is null ? null : token.ToString (Formatting.None);
+	private static string? Serialize (object? value) => value is null ? null : JsonHelper.Serialize (value);
 
 	private void OnConnectionTokensRefreshed (object? sender, ConnectionTokensRefreshedEventArgs e)
 		{

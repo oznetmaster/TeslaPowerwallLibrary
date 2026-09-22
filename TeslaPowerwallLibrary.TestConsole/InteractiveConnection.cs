@@ -99,7 +99,7 @@ internal sealed class InteractiveConnection : IDisposable
 		Powerwall newConnection;
 		try
 			{
-			newConnection = new Powerwall (candidate);
+			newConnection = new Powerwall (candidate with { Logger = VerboseLogging.Logger });
 			}
 		catch (Exception exc) when (exc is PowerwallInvalidConfigurationException or ArgumentException)
 			{

@@ -1,13 +1,16 @@
+using TeslaPowerwallLibrary.Models;
 // Copyright © 2026 Neil Colvin.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System.Globalization;
 using System.Text;
 
-using log4net;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 
 using TeslaPowerwallLibrary.Cloud;
 
@@ -33,7 +36,7 @@ internal sealed class FleetApiConnection : IDisposable
 	private const string SSO_BASE_URL = "https://fleet-auth.prd.vn.cloud.tesla.com/";
 	private const string TOKEN_ENDPOINT = "oauth2/v3/token";
 
-	private static readonly ILog _log = LogManager.GetLogger (typeof (FleetApiConnection));
+	private readonly ILogger _log;
 
 	private readonly HttpClient _httpClient;
 	private readonly string _clientId;
@@ -56,13 +59,15 @@ internal sealed class FleetApiConnection : IDisposable
 	/// <param name="refreshToken">Tesla FleetAPI OAuth refresh token used to renew the access token.</param>
 	/// <param name="baseUrl">The regional FleetAPI base URL (see <see cref="FleetApiRegions"/>).</param>
 	/// <param name="timeout">Per-request HTTP timeout.</param>
-	public FleetApiConnection (string clientId, string? accessToken, string? refreshToken, string baseUrl, TimeSpan timeout)
-		: this (clientId, accessToken, refreshToken, baseUrl, timeout, new HttpClientHandler ())
+	/// <param name="logger">Caller-owned logger; null disables logging.</param>
+	public FleetApiConnection (string clientId, string? accessToken, string? refreshToken, string baseUrl, TimeSpan timeout, ILogger? logger = null)
+		: this (clientId, accessToken, refreshToken, baseUrl, timeout, new HttpClientHandler (), logger)
 		{
 		}
 
-	internal FleetApiConnection (string clientId, string? accessToken, string? refreshToken, string baseUrl, TimeSpan timeout, HttpMessageHandler handler)
+	internal FleetApiConnection (string clientId, string? accessToken, string? refreshToken, string baseUrl, TimeSpan timeout, HttpMessageHandler handler, ILogger? logger = null)
 		{
+		_log = logger ?? NullLogger.Instance;
 		_clientId = clientId;
 		_baseUrl = baseUrl.TrimEnd ('/');
 		_accessToken = string.IsNullOrWhiteSpace (accessToken) ? null : accessToken;
@@ -118,7 +123,7 @@ internal sealed class FleetApiConnection : IDisposable
 			}
 		catch (Exception exc) when (exc is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
 			{
-			_log.Error ($"Unable to refresh Tesla FleetAPI token: {exc.Message}");
+			LibraryLog.UnableToRefreshTeslaFleetAPIToken (_log, exc.Message);
 			return false;
 			}
 
@@ -131,16 +136,16 @@ internal sealed class FleetApiConnection : IDisposable
 #endif
 			if (!response.IsSuccessStatusCode)
 				{
-				_log.Error ($"Tesla FleetAPI token refresh failed (HTTP {(int)response.StatusCode}).");
+				LibraryLog.TeslaFleetAPITokenRefreshFailedHTTP (_log, (int)response.StatusCode);
 				return false;
 				}
 
 			try
 				{
-				var tokens = JsonConvert.DeserializeObject<TeslaCloudTokenResponse> (payload);
+				var tokens = JsonHelper.Deserialize<TeslaCloudTokenResponse> (payload);
 				if (tokens is null || string.IsNullOrWhiteSpace (tokens.AccessToken))
 					{
-					_log.Error ("Tesla FleetAPI token refresh response did not contain an access token.");
+					LibraryLog.TeslaFleetAPITokenRefreshResponseDidNotContainAn (_log);
 					return false;
 					}
 
@@ -149,7 +154,7 @@ internal sealed class FleetApiConnection : IDisposable
 				if (!string.IsNullOrWhiteSpace (tokens.RefreshToken))
 					_refreshToken = tokens.RefreshToken;
 
-				_log.Debug ("Tesla FleetAPI access token refreshed.");
+				LibraryLog.TeslaFleetAPIAccessTokenRefreshed (_log);
 
 				var refreshTokenChanged = !string.Equals (priorRefreshToken, _refreshToken, StringComparison.Ordinal);
 				TokensRefreshed?.Invoke (this, new ConnectionTokensRefreshedEventArgs (_accessToken, _refreshToken, refreshTokenChanged));
@@ -158,7 +163,7 @@ internal sealed class FleetApiConnection : IDisposable
 				}
 			catch (JsonException exc)
 				{
-				_log.Error ($"Unable to parse Tesla FleetAPI token refresh response: {exc.Message}");
+				LibraryLog.UnableToParseTeslaFleetAPITokenRefreshResponse (_log, exc.Message);
 				return false;
 				}
 			}
@@ -168,12 +173,12 @@ internal sealed class FleetApiConnection : IDisposable
 		{
 		if (_regionResolved)
 			return true;
-		JToken? response = await SendApiAsync (HttpMethod.Get, "api/1/users/region", null, null, cancellationToken).ConfigureAwait (false);
+		string? response = await SendApiAsync (HttpMethod.Get, "api/1/users/region", null, null, cancellationToken).ConfigureAwait (false);
 		FleetAccountRegion? region = ToTypedResponse<FleetAccountRegion> (response);
 		string? baseUrl = FleetApiRegions.ValidateDiscoveredUrl (region?.Region, region?.BaseUrl);
 		if (baseUrl is null)
 			{
-			_log.Error ("Tesla FleetAPI account region could not be resolved to a recognized endpoint.");
+			LibraryLog.TeslaFleetAPIAccountRegionCouldNotBeResolvedTo (_log);
 			return false;
 			}
 		_baseUrl = baseUrl;
@@ -186,7 +191,7 @@ internal sealed class FleetApiConnection : IDisposable
 	/// <returns>The product list from the <c>response</c> envelope, or <see langword="null"/> when unavailable.</returns>
 	public async Task<List<EnergyProduct>?> GetProductsAsync (CancellationToken cancellationToken = default)
 		{
-		JToken? response = await SendApiAsync (HttpMethod.Get, "api/1/products", null, null, cancellationToken).ConfigureAwait (false);
+		string? response = await SendApiAsync (HttpMethod.Get, "api/1/products", null, null, cancellationToken).ConfigureAwait (false);
 		return ToTypedResponse<List<EnergyProduct>> (response);
 		}
 
@@ -232,7 +237,7 @@ internal sealed class FleetApiConnection : IDisposable
 	/// <param name="endDate">Inclusive RFC 3339 end timestamp.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The full response envelope, or <see langword="null"/> when unavailable.</returns>
-	public Task<JObject?> GetHistoryAsync (
+	public Task<string?> GetHistoryAsync (
 		string siteId,
 		string? kind = null,
 		string? period = null,
@@ -251,7 +256,7 @@ internal sealed class FleetApiConnection : IDisposable
 	/// <param name="endDate">Inclusive RFC 3339 end timestamp.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The full response envelope, or <see langword="null"/> when unavailable.</returns>
-	public Task<JObject?> GetCalendarHistoryAsync (
+	public Task<string?> GetCalendarHistoryAsync (
 		string siteId,
 		string? kind = null,
 		string? period = null,
@@ -283,11 +288,11 @@ internal sealed class FleetApiConnection : IDisposable
 	/// <param name="percent">The reserve percentage to apply (0 - 100).</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The full response envelope, or <see langword="null"/> when the call fails.</returns>
-	public async Task<JObject?> SetBackupReserveAsync (string siteId, int percent, CancellationToken cancellationToken = default)
+	public async Task<ApiResponse<object>?> SetBackupReserveAsync (string siteId, int percent, CancellationToken cancellationToken = default)
 		{
-		var body = new JObject { ["backup_reserve_percent"] = percent };
+		var body = new BackupReserveRequest { BackupReservePercent = percent };
 		var uri = $"api/1/energy_sites/{siteId}/backup";
-		return await SendApiAsync (HttpMethod.Post, uri, body, null, cancellationToken).ConfigureAwait (false) as JObject;
+		return JsonHelper.DeserializeOrNull<ApiResponse<object>> (await SendApiAsync (HttpMethod.Post, uri, body, null, cancellationToken).ConfigureAwait (false));
 		}
 
 	/// <summary>Sets the battery operation mode for the specified site.</summary>
@@ -295,11 +300,11 @@ internal sealed class FleetApiConnection : IDisposable
 	/// <param name="mode">The operation mode (for example <c>self_consumption</c>, <c>backup</c>, or <c>autonomous</c>).</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The full response envelope, or <see langword="null"/> when the call fails.</returns>
-	public async Task<JObject?> SetOperationModeAsync (string siteId, string mode, CancellationToken cancellationToken = default)
+	public async Task<ApiResponse<object>?> SetOperationModeAsync (string siteId, string mode, CancellationToken cancellationToken = default)
 		{
-		var body = new JObject { ["default_real_mode"] = mode };
+		var body = new OperationModeRequest { DefaultRealMode = mode };
 		var uri = $"api/1/energy_sites/{siteId}/operation";
-		return await SendApiAsync (HttpMethod.Post, uri, body, null, cancellationToken).ConfigureAwait (false) as JObject;
+		return JsonHelper.DeserializeOrNull<ApiResponse<object>> (await SendApiAsync (HttpMethod.Post, uri, body, null, cancellationToken).ConfigureAwait (false));
 		}
 
 	/// <summary>Updates the grid import/export configuration (grid charging and export rules) for the specified site.</summary>
@@ -307,68 +312,63 @@ internal sealed class FleetApiConnection : IDisposable
 	/// <param name="settings">The grid import/export settings to apply (for example <c>disallow_charge_from_grid_with_solar_installed</c> or <c>customer_preferred_export_rule</c>).</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The full response envelope, or <see langword="null"/> when the call fails.</returns>
-	public async Task<JObject?> SetGridImportExportAsync (string siteId, JObject settings, CancellationToken cancellationToken = default)
+	public async Task<ApiResponse<object>?> SetGridImportExportAsync (string siteId, GridImportExportRequest settings, CancellationToken cancellationToken = default)
 		{
 		var uri = $"api/1/energy_sites/{siteId}/grid_import_export";
-		return await SendApiAsync (HttpMethod.Post, uri, settings, null, cancellationToken).ConfigureAwait (false) as JObject;
+		return JsonHelper.DeserializeOrNull<ApiResponse<object>> (await SendApiAsync (HttpMethod.Post, uri, settings, null, cancellationToken).ConfigureAwait (false));
 		}
 
 	/// <summary>Retrieves the account summary (<c>response</c> body) from <c>/api/1/users/me</c>.</summary>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The account summary object, or <see langword="null"/> when unavailable.</returns>
-	public async Task<JObject?> GetProfileAsync (CancellationToken cancellationToken = default)
+	public async Task<string?> GetProfileAsync (CancellationToken cancellationToken = default)
 		{
-		JToken? response = await SendApiAsync (HttpMethod.Get, "api/1/users/me", null, null, cancellationToken).ConfigureAwait (false);
-		return (response as JObject)?["response"] as JObject;
+		string? response = await SendApiAsync (HttpMethod.Get, "api/1/users/me", null, null, cancellationToken).ConfigureAwait (false);
+		return JsonHelper.UnwrapPayload (response);
 		}
 
 	/// <summary>Retrieves the account region and Fleet API base URL (<c>response</c> body) from <c>/api/1/users/region</c>.</summary>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The region info object, or <see langword="null"/> when unavailable.</returns>
-	public async Task<JObject?> GetRegionAsync (CancellationToken cancellationToken = default)
+	public async Task<string?> GetRegionAsync (CancellationToken cancellationToken = default)
 		{
-		JToken? response = await SendApiAsync (HttpMethod.Get, "api/1/users/region", null, null, cancellationToken).ConfigureAwait (false);
-		return (response as JObject)?["response"] as JObject;
+		string? response = await SendApiAsync (HttpMethod.Get, "api/1/users/region", null, null, cancellationToken).ConfigureAwait (false);
+		return JsonHelper.UnwrapPayload (response);
 		}
 
-	private async Task<JObject?> GetSiteEndpointAsync (string siteId, string segment, IReadOnlyDictionary<string, string>? query, CancellationToken cancellationToken)
+	private async Task<string?> GetSiteEndpointAsync (string siteId, string segment, IReadOnlyDictionary<string, string>? query, CancellationToken cancellationToken)
 		{
 		var uri = $"api/1/energy_sites/{siteId}/{segment}";
-		return await SendApiAsync (HttpMethod.Get, uri, null, query, cancellationToken).ConfigureAwait (false) as JObject;
+		return await SendApiAsync (HttpMethod.Get, uri, null, query, cancellationToken).ConfigureAwait (false);
 		}
 
 	private async Task<T?> GetSiteEndpointAsync<T> (string siteId, string segment, IReadOnlyDictionary<string, string>? query, CancellationToken cancellationToken)
 		where T : class
 		{
 		var uri = $"api/1/energy_sites/{siteId}/{segment}";
-		JToken? response = await SendApiAsync (HttpMethod.Get, uri, null, query, cancellationToken).ConfigureAwait (false);
+		string? response = await SendApiAsync (HttpMethod.Get, uri, null, query, cancellationToken).ConfigureAwait (false);
 		return ToTypedResponse<T> (response);
 		}
 
-	// Unwraps the Fleet-API-style "response" envelope and maps it onto T, logging and swallowing a
-	// malformed/unexpected shape rather than throwing (matching the tolerant style of the rest of this class).
-	private static T? ToTypedResponse<T> (JToken? root)
-		where T : class
+	private T? ToTypedResponse<T> (string? payload) where T : class
 		{
-		JToken? body = (root as JObject)?["response"];
-		if (body is null || body.Type == JTokenType.Null)
+		if (string.IsNullOrWhiteSpace (payload))
 			return null;
-
 		try
 			{
-			return body.ToObject<T> ();
+			return JsonHelper.Deserialize<ApiResponse<T>> (payload!)?.Response;
 			}
-		catch (JsonException exc)
+		catch (JsonException)
 			{
-			_log.Error ($"Unable to map Tesla FleetAPI response to {typeof (T).Name}: {exc.Message}");
+			LibraryLog.UnableToMapAPIResponseTo (_log, typeof (T).Name);
 			return null;
 			}
 		}
 
-	private async Task<JToken?> SendApiAsync (
+	private async Task<string?> SendApiAsync (
 		HttpMethod method,
 		string uri,
-		JObject? jsonBody,
+		object? jsonBody,
 		IReadOnlyDictionary<string, string>? query,
 		CancellationToken cancellationToken,
 		bool allowRetry = true)
@@ -385,18 +385,18 @@ internal sealed class FleetApiConnection : IDisposable
 				request.Headers.TryAddWithoutValidation ("Authorization", $"Bearer {_accessToken}");
 
 			if (jsonBody is not null)
-				request.Content = new StringContent (jsonBody.ToString (Formatting.None), Encoding.UTF8, "application/json");
+				request.Content = new StringContent (JsonHelper.Serialize (jsonBody), Encoding.UTF8, "application/json");
 
 			response = await _httpClient.SendAsync (request, cancellationToken).ConfigureAwait (false);
 			}
 		catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
 			{
-			_log.Error ($"Timeout waiting for Tesla FleetAPI {uri}");
+			LibraryLog.TimeoutWaitingForTeslaFleetAPI (_log, uri);
 			return null;
 			}
 		catch (HttpRequestException exc)
 			{
-			_log.Error ($"Unable to connect to Tesla FleetAPI {uri} - {exc.Message}");
+			LibraryLog.UnableToConnectToTeslaFleetAPI (_log, uri, exc.Message);
 			return null;
 			}
 
@@ -404,11 +404,11 @@ internal sealed class FleetApiConnection : IDisposable
 			{
 			if ((int)response.StatusCode is 401 or 403 && allowRetry)
 				{
-				_log.Debug ("Tesla FleetAPI session expired - attempting token refresh");
+				LibraryLog.TeslaFleetAPISessionExpiredAttemptingTokenRefresh (_log);
 				if (await RefreshAccessTokenAsync (cancellationToken).ConfigureAwait (false))
 					return await SendApiAsync (method, uri, jsonBody, query, cancellationToken, allowRetry: false).ConfigureAwait (false);
 
-				_log.Error ($"Tesla FleetAPI {uri} unauthorized and token refresh failed - supply a valid refresh token");
+				LibraryLog.TeslaFleetAPIUnauthorizedAndTokenRefreshFailedSupplyA (_log, uri);
 				return null;
 				}
 
@@ -417,47 +417,24 @@ internal sealed class FleetApiConnection : IDisposable
 				{
 				if ((int)response.StatusCode == 410)
 					{
-					_log.Error ($"Tesla FleetAPI {uri} returned HTTP 410 (Gone) - endpoint permanently removed");
+					LibraryLog.TeslaFleetAPIReturnedHTTPGoneEndpointPermanentlyRemoved (_log, uri);
 					throw new PowerwallFleetApiEndpointRemovedException (ExtractServerError (payload)
 						?? $"The Tesla FleetAPI endpoint '{uri}' has been permanently removed (HTTP 410 Gone).");
 					}
 
-				_log.Error ($"Tesla FleetAPI {uri} returned HTTP {(int)response.StatusCode}");
+				LibraryLog.TeslaFleetAPIReturnedHTTP (_log, uri, (int)response.StatusCode);
 				return null;
 				}
 
 			if (string.IsNullOrWhiteSpace (payload))
 				return null;
 
-			try
-				{
-				return JToken.Parse (payload);
-				}
-			catch (JsonException exc)
-				{
-				_log.Error ($"Unable to parse Tesla FleetAPI {uri} response: {exc.Message}");
-				return null;
-				}
+			return payload;
 			}
 		}
 
-	// Pulls the human-readable "error" text out of a Tesla API failure body, when present.
-	private static string? ExtractServerError (string? payload)
-		{
-		if (string.IsNullOrWhiteSpace (payload))
-			return null;
-
-		try
-			{
-			return JToken.Parse (payload!) is JObject obj
-				? obj.Value<string> ("error")
-				: null;
-			}
-		catch (JsonException)
-			{
-			return null;
-			}
-		}
+	private static string? ExtractServerError (string? payload) =>
+		  JsonHelper.DeserializeOrNull<ApiError> (payload)?.Error;
 
 	/// <summary>Releases the underlying <see cref="HttpClient"/>.</summary>
 	public void Dispose () => _httpClient.Dispose ();

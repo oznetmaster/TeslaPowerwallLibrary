@@ -4,7 +4,8 @@
 using System.Globalization;
 using System.IO;
 
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using TeslaPowerwallLibrary.Cloud;
 using TeslaPowerwallLibrary.Models;
@@ -227,7 +228,12 @@ internal static class PowerwallActions
 		var charging = await powerwall.GetGridChargingAsync (cancellationToken: cancellationToken).ConfigureAwait (false);
 		var export = await powerwall.GetGridExportAsync (cancellationToken: cancellationToken).ConfigureAwait (false);
 		ConsoleHelpers.WriteHeading ("Grid Configuration");
-		ConsoleHelpers.WriteField ("Grid charging", charging switch { true => "enabled", false => "disabled", null => "n/a" });
+		ConsoleHelpers.WriteField ("Grid charging", charging switch
+			{
+				true => "enabled",
+				false => "disabled",
+				null => "n/a"
+				});
 		ConsoleHelpers.WriteField ("Grid export", export ?? "n/a");
 		}
 
@@ -270,7 +276,12 @@ internal static class PowerwallActions
 		{
 		var enabled = await powerwall.GetStormWatchAsync (cancellationToken: cancellationToken).ConfigureAwait (false);
 		ConsoleHelpers.WriteHeading ("Storm Watch");
-		ConsoleHelpers.WriteField ("Storm Watch", enabled switch { true => "enabled", false => "disabled", null => "n/a" });
+		ConsoleHelpers.WriteField ("Storm Watch", enabled switch
+			{
+				true => "enabled",
+				false => "disabled",
+				null => "n/a"
+				});
 		}
 
 	/// <summary>Enables or disables Storm Watch and prints the result (cloud mode only).</summary>
@@ -333,7 +344,10 @@ internal static class PowerwallActions
 		}
 
 	/// <summary>Gets the calendar-history kinds with strongly typed <see cref="Powerwall"/> convenience methods.</summary>
-	public static IReadOnlyList<string> TypedHistoryKinds { get; } =
+	public static IReadOnlyList<string> TypedHistoryKinds
+		{
+		get;
+		} =
 		["energy", "power", "soe", "self_consumption", "backup"];
 
 	/// <summary>
@@ -397,14 +411,14 @@ internal static class PowerwallActions
 	private static HistoryPeriod ParsePeriod (string? period) =>
 		period switch
 			{
-			null => HistoryPeriod.Day,
-			"day" => HistoryPeriod.Day,
-			"week" => HistoryPeriod.Week,
-			"month" => HistoryPeriod.Month,
-			"year" => HistoryPeriod.Year,
-			"lifetime" => HistoryPeriod.Lifetime,
-			_ => throw new ArgumentException ($"Invalid history period '{period}'. Allowed values: {string.Join (", ", Powerwall.HistoryPeriods)}.", nameof (period))
-			};
+				null => HistoryPeriod.Day,
+				"day" => HistoryPeriod.Day,
+				"week" => HistoryPeriod.Week,
+				"month" => HistoryPeriod.Month,
+				"year" => HistoryPeriod.Year,
+				"lifetime" => HistoryPeriod.Lifetime,
+				_ => throw new ArgumentException ($"Invalid history period '{period}'. Allowed values: {string.Join (", ", Powerwall.HistoryPeriods)}.", nameof (period))
+				};
 
 	private static void WritePoints<T> (IReadOnlyList<T> points, Func<T, DateTimeOffset> getTimestamp, Func<T, string> formatValues)
 		{
@@ -490,8 +504,8 @@ internal static class PowerwallActions
 
 		try
 			{
-			var parsed = JsonConvert.DeserializeObject (json!);
-			return parsed is null ? json! : JsonConvert.SerializeObject (parsed, Formatting.Indented);
+			var parsed = JsonSerializer.Deserialize<object> (json!);
+			return parsed is null ? json! : JsonSerializer.Serialize (parsed, new JsonSerializerOptions { WriteIndented = true });
 			}
 		catch (JsonException)
 			{

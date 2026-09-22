@@ -48,13 +48,13 @@ internal static class FleetApiRegions
 
 internal sealed class FleetAccountRegion
 	{
-	[Newtonsoft.Json.JsonProperty ("region")]
+	[System.Text.Json.Serialization.JsonPropertyName ("region")]
 	public string? Region
 		{
 		get; set;
 		}
 
-	[Newtonsoft.Json.JsonProperty ("fleet_api_base_url")]
+	[System.Text.Json.Serialization.JsonPropertyName ("fleet_api_base_url")]
 	public string? BaseUrl
 		{
 		get; set;

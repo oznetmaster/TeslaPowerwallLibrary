@@ -6,9 +6,11 @@ using System.IO;
 using System.Net.Http.Headers;
 using System.Text;
 
-using log4net;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using TeslaPowerwallLibrary.Models;
 
@@ -21,7 +23,7 @@ namespace TeslaPowerwallLibrary.Local;
 /// </summary>
 public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 	{
-	private static readonly ILog _log = LogManager.GetLogger (typeof (PowerwallLocalClient));
+	private readonly ILogger _log;
 
 	private readonly string _host;
 	private readonly string _password;
@@ -61,8 +63,33 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 		int cacheExpireSeconds,
 		string authMode,
 		string cacheFile)
+		: this (host, password, email, timezone, timeout, cacheExpireSeconds, authMode, cacheFile, null)
+		{
+		}
+
+	/// <summary>Creates a client using a caller-owned logger. The client never disposes the logger.</summary>
+	/// <param name="host">See the corresponding parameter of the default-logging constructor.</param>
+	/// <param name="password">See the corresponding parameter of the default-logging constructor.</param>
+	/// <param name="email">See the corresponding parameter of the default-logging constructor.</param>
+	/// <param name="timezone">See the corresponding parameter of the default-logging constructor.</param>
+	/// <param name="timeout">See the corresponding parameter of the default-logging constructor.</param>
+	/// <param name="cacheExpireSeconds">See the corresponding parameter of the default-logging constructor.</param>
+	/// <param name="authMode">See the corresponding parameter of the default-logging constructor.</param>
+	/// <param name="cacheFile">See the corresponding parameter of the default-logging constructor.</param>
+	/// <param name="logger">Logger carrying the caller's category and scopes; null disables logging.</param>
+	public PowerwallLocalClient (
+		string host,
+		string password,
+		string email,
+		string timezone,
+		TimeSpan timeout,
+		int cacheExpireSeconds,
+		string authMode,
+		string cacheFile,
+		ILogger? logger)
 		: base (email)
 		{
+		_log = logger ?? NullLogger.Instance;
 		if (string.IsNullOrWhiteSpace (host))
 			throw new ArgumentException ("Host is required for local mode.", nameof (host));
 
@@ -80,7 +107,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 	/// <inheritdoc/>
 	public override async Task AuthenticateAsync (CancellationToken cancellationToken = default)
 		{
-		_log.Debug ("Tesla local mode enabled");
+		LibraryLog.TeslaLocalModeEnabled (_log);
 
 		_cookies = new CookieContainer ();
 		var handler = new HttpClientHandler
@@ -115,7 +142,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 				}
 			catch (Exception exc) when (exc is HttpRequestException or TaskCanceledException)
 				{
-				_log.Debug ($"Error during logout: {exc.Message}");
+				LibraryLog.ErrorDuringLogout (_log, exc.Message);
 				}
 			}
 
@@ -134,7 +161,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 
 		if (_cooldownUntil > NowSeconds)
 			{
-			_log.Debug ("Rate limit cooldown period - Pausing API calls");
+			LibraryLog.RateLimitCooldownPeriodPausingAPICalls (_log);
 			return null;
 			}
 
@@ -147,12 +174,12 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 			}
 		catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
 			{
-			_log.Error ($"Timeout waiting for Powerwall API {api} - check network connectivity to {_host}");
+			LibraryLog.TimeoutWaitingForPowerwallAPICheckNetworkConnectivityTo (_log, api, _host);
 			return null;
 			}
 		catch (HttpRequestException exc)
 			{
-			_log.Error ($"Unable to connect to Powerwall at {_host} - {exc.Message} - check that the gateway is reachable and powered on");
+			LibraryLog.UnableToConnectToPowerwallAtCheckThatThe (_log, _host, exc.Message);
 			return null;
 			}
 
@@ -169,7 +196,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 #endif
 			if (string.IsNullOrEmpty (body))
 				{
-				_log.Debug ($"Empty response from Powerwall at {url}");
+				LibraryLog.EmptyResponseFromPowerwallAt (_log, url);
 				return null;
 				}
 
@@ -189,7 +216,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 
 		if (_cooldownUntil > NowSeconds)
 			{
-			_log.Debug ("Rate limit cooldown period - Pausing API calls");
+			LibraryLog.RateLimitCooldownPeriodPausingAPICalls (_log);
 			return null;
 			}
 
@@ -202,12 +229,12 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 			}
 		catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
 			{
-			_log.Error ($"Timeout waiting for Powerwall API {api} - check network connectivity to {_host}");
+			LibraryLog.TimeoutWaitingForPowerwallAPICheckNetworkConnectivityTo (_log, api, _host);
 			return null;
 			}
 		catch (HttpRequestException exc)
 			{
-			_log.Error ($"Unable to connect to Powerwall at {_host} - {exc.Message} - check that the gateway is reachable and powered on");
+			LibraryLog.UnableToConnectToPowerwallAtCheckThatThe (_log, _host, exc.Message);
 			return null;
 			}
 
@@ -238,7 +265,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 			using HttpRequestMessage request = CreateRequest (HttpMethod.Post, url);
 			if (payload is not null)
 				{
-				var json = JsonConvert.SerializeObject (payload);
+				var json = JsonHelper.Serialize (payload);
 				request.Content = new StringContent (json, Encoding.UTF8, "application/json");
 				}
 
@@ -246,12 +273,12 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 			}
 		catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
 			{
-			_log.Debug ($"ERROR Timeout waiting for Powerwall API {url}");
+			LibraryLog.ERRORTimeoutWaitingForPowerwallAPI (_log, url);
 			return null;
 			}
 		catch (HttpRequestException exc)
 			{
-			_log.Debug ($"ERROR Unable to connect to Powerwall at {url}: {exc.Message}");
+			LibraryLog.ERRORUnableToConnectToPowerwallAt (_log, url, exc.Message);
 			return null;
 			}
 
@@ -329,12 +356,12 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 	private async Task GetSessionAsync (CancellationToken cancellationToken)
 		{
 		var url = $"https://{_host}/api/login/Basic";
-		var loginPayload = new
+		var loginPayload = new LocalLoginRequest
 			{
-			username = "customer",
-			password = _password,
-			email = Email,
-			clientInfo = new { timezone = _timezone }
+			Username = "customer",
+			Password = _password,
+			Email = Email,
+			ClientInfo = new LocalClientInfo { Timezone = _timezone }
 			};
 
 		HttpResponseMessage response;
@@ -342,14 +369,14 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 			{
 			using var request = new HttpRequestMessage (HttpMethod.Post, url)
 				{
-				Content = new StringContent (JsonConvert.SerializeObject (loginPayload), Encoding.UTF8, "application/json")
+				Content = new StringContent (JsonHelper.Serialize (loginPayload), Encoding.UTF8, "application/json")
 				};
 			response = await _httpClient!.SendAsync (request, cancellationToken).ConfigureAwait (false);
 			}
 		catch (Exception exc) when (exc is HttpRequestException or TaskCanceledException)
 			{
 			var err = $"Unable to connect to Powerwall at https://{_host}: {exc.Message}";
-			_log.Error ($"{err} - check that the gateway is reachable on the network");
+			LibraryLog.CheckThatTheGatewayIsReachableOnTheNetwork (_log, err);
 			throw new PowerwallConnectionException (err, exc);
 			}
 
@@ -362,15 +389,15 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 #endif
 			if (!response.IsSuccessStatusCode)
 				{
-				_log.Warn ($"Login failed: HTTP {(int) response.StatusCode}");
-				throw (int) response.StatusCode is 401 or 403
+				LibraryLog.LoginFailedHTTP (_log, (int)response.StatusCode);
+				throw (int)response.StatusCode is 401 or 403
 					? new LoginException ($"Invalid Powerwall Login - check password for {_host}")
-					: new LoginException ($"Login failed for {_host} (HTTP {(int) response.StatusCode}) - check that the gateway is reachable and responding correctly");
+					: new LoginException ($"Login failed for {_host} (HTTP {(int)response.StatusCode}) - check that the gateway is reachable and responding correctly");
 				}
 
 			try
 				{
-				LocalLoginResponse? json = JsonConvert.DeserializeObject<LocalLoginResponse> (body);
+				LocalLoginResponse? json = JsonHelper.Deserialize<LocalLoginResponse> (body);
 				if (_authMode == "token")
 					{
 					Token = json?.Token;
@@ -382,7 +409,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 				}
 			catch (JsonException exc)
 				{
-				_log.Warn ($"Login failed: {exc.Message}");
+				LibraryLog.LoginFailed (_log, exc.Message);
 				throw new LoginException ($"Invalid Powerwall Login response from {_host}", exc);
 				}
 			}
@@ -395,7 +422,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 			if (!File.Exists (_cacheFile))
 				return;
 
-			LocalAuthCacheEntry? entry = JsonConvert.DeserializeObject<LocalAuthCacheEntry> (File.ReadAllText (_cacheFile));
+			LocalAuthCacheEntry? entry = JsonHelper.Deserialize<LocalAuthCacheEntry> (File.ReadAllText (_cacheFile));
 			if (entry is null)
 				return;
 
@@ -416,11 +443,11 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 				_hasAuth = true;
 				}
 
-			_log.Debug ($"loaded auth from cache file {_cacheFile} ({_authMode} authmode)");
+			LibraryLog.LoadedAuthFromCacheFileAuthmode (_log, _cacheFile, _authMode);
 			}
 		catch (Exception exc) when (exc is IOException or JsonException or UnauthorizedAccessException)
 			{
-			_log.Debug ($"no auth cache file: {exc.Message}");
+			LibraryLog.NoAuthCacheFile (_log, exc.Message);
 			}
 		}
 
@@ -432,11 +459,11 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 				? new LocalAuthCacheEntry { Authorization = _authorizationHeader }
 				: BuildCookieAuthEntry ();
 
-			File.WriteAllText (_cacheFile, JsonConvert.SerializeObject (auth));
+			File.WriteAllText (_cacheFile, JsonHelper.Serialize (auth));
 			}
 		catch (Exception exc) when (exc is IOException or UnauthorizedAccessException)
 			{
-			_log.Debug ($"unable to cache auth session - continuing: {exc.Message}");
+			LibraryLog.UnableToCacheAuthSessionContinuing (_log, exc.Message);
 			}
 		}
 
@@ -461,18 +488,18 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 
 	private async Task<(bool Handled, bool Retry)> HandleStatusAsync (string api, string url, HttpResponseMessage response, bool recursive, bool raw, CancellationToken cancellationToken)
 		{
-		var status = (int) response.StatusCode;
+		var status = (int)response.StatusCode;
 		switch (status)
 			{
 			case 404:
-				_log.Error ($"404 Powerwall API not found at {url}");
+				LibraryLog.PowerwallAPINotFoundAt (_log, url);
 				if (api == "/api/devices/vitals")
 					{
 					var version = await GetVersionIntAsync (cancellationToken).ConfigureAwait (false);
 					if (version >= 23440)
 						{
 						_vitalsApiAvailable = false;
-						_log.Error ($"Firmware {version} detected - Does not support vitals API - disabling.");
+						LibraryLog.FirmwareDetectedDoesNotSupportVitalsAPIDisabling (_log, version);
 						}
 					}
 
@@ -481,11 +508,11 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 
 			case 429:
 				_cooldownUntil = NowSeconds + 300;
-				_log.Error ($"429 Rate limited by Powerwall API at {url} - Activating 5 minute cooldown");
+				LibraryLog.RateLimitedByPowerwallAPIAtActivatingMinuteCooldown (_log, url);
 				return (true, false);
 
 			case 401 or 403:
-				_log.Debug ("Session Expired - Trying to get a new one");
+				LibraryLog.SessionExpiredTryingToGetANewOne (_log);
 				if (!recursive)
 					{
 					await GetSessionAsync (cancellationToken).ConfigureAwait (false);
@@ -493,24 +520,24 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 					}
 
 				if (status == 401)
-					_log.Error ($"Unable to establish session with Powerwall at {url} - check password");
+					LibraryLog.UnableToEstablishSessionWithPowerwallAtCheckPassword (_log, url);
 				else
-					_log.Error ($"403 Unauthorized by Powerwall API at {url} - Endpoint disabled in this firmware or user lacks permission");
+					LibraryLog.UnauthorizedByPowerwallAPIAtEndpointDisabledInThis (_log, url);
 
 				SetCacheCooldown (api, 600);
 				return (true, false);
 
 			case 503:
-				_log.Error ($"503 Service Unavailable at {url} - Activating 5 minute API cooldown");
+				LibraryLog.ServiceUnavailableAtActivatingMinuteAPICooldown (_log, url);
 				SetCacheCooldown (api, 300);
 				return (true, false);
 
 			case >= 400 and < 500:
-				_log.Error ($"Unhandled HTTP response code {status} at {url}");
+				LibraryLog.UnhandledHTTPResponseCodeAt (_log, status, url);
 				return (true, false);
 
 			case >= 500:
-				_log.Error ($"Server-side problem at Powerwall API (status code {status}) at {url}");
+				LibraryLog.ServerSideProblemAtPowerwallAPIStatusCodeAt (_log, status, url);
 				return (true, false);
 
 			default:
@@ -524,7 +551,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 			{
 			if (NowSeconds - cachedAt < _cacheExpireSeconds)
 				{
-				_log.Debug ($" -- local: Returning cached {api}");
+				LibraryLog.LocalReturningCached (_log, api);
 				return true;
 				}
 			}

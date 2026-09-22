@@ -1,7 +1,8 @@
 // Copyright © 2026 Neil Colvin.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using TeslaPowerwallLibrary.Models;
 
@@ -26,7 +27,7 @@ public sealed class ModelDeserializationTests
 			}
 			""";
 
-		var aggregates = JsonConvert.DeserializeObject<MeterAggregates> (json);
+		var aggregates = JsonHelper.Deserialize<MeterAggregates> (json);
 
 		Assert.That (aggregates, Is.Not.Null);
 		Assert.That (aggregates!.Site!.InstantPower, Is.EqualTo (-1234.5));
@@ -41,7 +42,7 @@ public sealed class ModelDeserializationTests
 		{
 		const string json = """{ "percentage": 72.5 }""";
 
-		var soe = JsonConvert.DeserializeObject<StateOfEnergy> (json);
+		var soe = JsonHelper.Deserialize<StateOfEnergy> (json);
 
 		Assert.That (soe, Is.Not.Null);
 		Assert.That (soe!.Percentage, Is.EqualTo (72.5));
@@ -52,7 +53,7 @@ public sealed class ModelDeserializationTests
 		{
 		const string json = """{ "grid_status": "SystemGridConnected", "grid_services_active": false }""";
 
-		var status = JsonConvert.DeserializeObject<GridStatusResponse> (json);
+		var status = JsonHelper.Deserialize<GridStatusResponse> (json);
 
 		Assert.That (status, Is.Not.Null);
 		Assert.That (status!.GridStatus, Is.EqualTo ("SystemGridConnected"));
@@ -64,7 +65,7 @@ public sealed class ModelDeserializationTests
 		{
 		const string json = """{ "backup_reserve_percent": 24.0, "real_mode": "self_consumption" }""";
 
-		var operation = JsonConvert.DeserializeObject<OperationResponse> (json);
+		var operation = JsonHelper.Deserialize<OperationResponse> (json);
 
 		Assert.That (operation, Is.Not.Null);
 		Assert.That (operation!.BackupReservePercent, Is.EqualTo (24.0));
@@ -83,7 +84,7 @@ public sealed class ModelDeserializationTests
 			}
 			""";
 
-		var status = JsonConvert.DeserializeObject<GatewayStatus> (json);
+		var status = JsonHelper.Deserialize<GatewayStatus> (json);
 
 		Assert.That (status, Is.Not.Null);
 		Assert.That (status!.Din, Is.EqualTo ("1234567-00-E--TG0000000000000"));
@@ -104,7 +105,7 @@ public sealed class ModelDeserializationTests
 			}
 			""";
 
-		var status = JsonConvert.DeserializeObject<SystemStatus> (json);
+		var status = JsonHelper.Deserialize<SystemStatus> (json);
 
 		Assert.That (status, Is.Not.Null);
 		Assert.That (status!.NominalFullPackEnergy, Is.EqualTo (13500.0));
@@ -120,7 +121,7 @@ public sealed class ModelDeserializationTests
 		{
 		const string json = """{ "site_name": "My Home", "timezone": "America/Los_Angeles" }""";
 
-		var siteName = JsonConvert.DeserializeObject<SiteName> (json);
+		var siteName = JsonHelper.Deserialize<SiteName> (json);
 
 		Assert.That (siteName, Is.Not.Null);
 		Assert.That (siteName!.Name, Is.EqualTo ("My Home"));
@@ -137,7 +138,7 @@ public sealed class ModelDeserializationTests
 			}
 			""";
 
-		var alerts = JsonConvert.DeserializeObject<SolarPowerwallAlertsResponse> (json);
+		var alerts = JsonHelper.Deserialize<SolarPowerwallAlertsResponse> (json);
 
 		Assert.That (alerts, Is.Not.Null);
 		Assert.That (alerts!.PvacAlerts, Is.Not.Null);

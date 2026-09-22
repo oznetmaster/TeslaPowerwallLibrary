@@ -7,55 +7,22 @@
 
 using System.Globalization;
 
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 
 namespace TeslaPowerwallLibrary.Cloud;
 
-/// <summary>
-/// Tolerantly converts a JSON string or numeric token into a <see cref="long"/>, mirroring the upstream
-/// pypowerwall behavior of accepting either representation for fields such as <c>nameplate_power</c>.
-/// Missing, null, or unparsable values convert to <c>0</c> rather than throwing.
-/// </summary>
-internal sealed class FlexibleLongConverter : JsonConverter
+internal sealed class FlexibleLongConverter : JsonConverter<long>
 	{
-	/// <inheritdoc/>
-	public override bool CanConvert (Type objectType) => objectType == typeof (long) || objectType == typeof (long?);
-
-	/// <inheritdoc/>
-	public override object? ReadJson (JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer) =>
-		reader.TokenType switch
-			{
-			JsonToken.Integer or JsonToken.Float => Convert.ToInt64 (reader.Value, CultureInfo.InvariantCulture),
-			JsonToken.String => long.TryParse ((string?) reader.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : 0L,
-			_ => 0L
+	public override long Read (ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => reader.TokenType switch
+		{
+			JsonTokenType.Number => reader.TryGetInt64 (out long integer) ? integer : Convert.ToInt64 (reader.GetDouble ()),
+			JsonTokenType.String => long.TryParse (reader.GetString (), NumberStyles.Integer, CultureInfo.InvariantCulture, out long parsed) ? parsed : 0,
+			JsonTokenType.Null => 0,
+			_ => throw new JsonException ("Expected an integer or numeric string.")
 			};
-
-	/// <inheritdoc/>
-	public override void WriteJson (JsonWriter writer, object? value, JsonSerializer serializer) => writer.WriteValue (value);
-	}
-
-/// <summary>
-/// Tolerantly converts a JSON string or numeric token into a <see cref="string"/>, mirroring the upstream
-/// pypowerwall behavior of accepting either representation for fields such as <c>energy_site_id</c>.
-/// </summary>
-internal sealed class FlexibleStringConverter : JsonConverter
-	{
-	/// <inheritdoc/>
-	public override bool CanConvert (Type objectType) => objectType == typeof (string);
-
-	/// <inheritdoc/>
-	public override object? ReadJson (JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer) =>
-		reader.TokenType switch
-			{
-			JsonToken.String => (string?) reader.Value,
-			JsonToken.Integer or JsonToken.Float => Convert.ToString (reader.Value, CultureInfo.InvariantCulture),
-			JsonToken.Null or JsonToken.Undefined => null,
-			_ => reader.Value?.ToString ()
-			};
-
-	/// <inheritdoc/>
-	public override void WriteJson (JsonWriter writer, object? value, JsonSerializer serializer) => writer.WriteValue ((string?) value);
+	public override void Write (Utf8JsonWriter writer, long value, JsonSerializerOptions options) => writer.WriteNumberValue (value);
 	}
 
 /// <summary>
@@ -64,19 +31,19 @@ internal sealed class FlexibleStringConverter : JsonConverter
 internal sealed record EnergyProduct
 	{
 	/// <summary>Tesla resource type (for example <c>battery</c> or <c>solar</c>).</summary>
-	[JsonProperty ("resource_type")]
+	[JsonPropertyName ("resource_type")]
 	public string? ResourceType { get; init; }
 
 	/// <summary>Energy site identifier; Tesla returns this as either a JSON string or number.</summary>
-	[JsonProperty ("energy_site_id"), JsonConverter (typeof (FlexibleStringConverter))]
+	[JsonPropertyName ("energy_site_id"), JsonConverter (typeof (ScalarStringConverter))]
 	public string? EnergySiteId { get; init; }
 
 	/// <summary>Fallback product identifier, used when <see cref="EnergySiteId"/> is absent.</summary>
-	[JsonProperty ("id")]
+	[JsonPropertyName ("id")]
 	public string? Id { get; init; }
 
 	/// <summary>Human-readable site name.</summary>
-	[JsonProperty ("site_name")]
+	[JsonPropertyName ("site_name")]
 	public string? SiteName { get; init; }
 	}
 
@@ -86,28 +53,34 @@ internal sealed record EnergyProduct
 internal sealed record SiteComponents
 	{
 	/// <summary>Indicates whether charging the battery from the grid is currently disallowed.</summary>
-	[JsonProperty ("disallow_charge_from_grid_with_solar_installed")]
+	[JsonPropertyName ("disallow_charge_from_grid_with_solar_installed")]
 	public bool? DisallowChargeFromGridWithSolarInstalled { get; init; }
 
 	/// <summary>Pre-PTO flag that, when set, overrides <see cref="CustomerPreferredExportRule"/> to "never".</summary>
-	[JsonProperty ("non_export_configured")]
+	[JsonPropertyName ("non_export_configured")]
 	public bool? NonExportConfigured { get; init; }
 
 	/// <summary>The configured grid export rule (<c>battery_ok</c>, <c>pv_only</c>, or <c>never</c>).</summary>
-	[JsonProperty ("customer_preferred_export_rule")]
+	[JsonPropertyName ("customer_preferred_export_rule")]
 	public string? CustomerPreferredExportRule { get; init; }
 
-	/// <summary>Raw gateway component descriptor; shape is opaque and passed through untouched.</summary>
-	[JsonProperty ("gateway")]
-	public JToken? Gateway { get; init; }
+	/// <summary>Raw gateway component descriptor; shape is optional numeric value from Tesla.</summary>
+	[JsonPropertyName ("gateway")]
+	public object? Gateway
+		{
+		get; init;
+		}
 
 	/// <summary>Solar inverter component entries, when present.</summary>
-	[JsonProperty ("inverters")]
+	[JsonPropertyName ("inverters")]
 	public IReadOnlyList<object>? Inverters { get; init; }
 
 	/// <summary>Raw solar component descriptor, used only to detect the presence of solar hardware.</summary>
-	[JsonProperty ("solar")]
-	public JToken? Solar { get; init; }
+	[JsonPropertyName ("solar")]
+	public object? Solar
+		{
+		get; init;
+		}
 	}
 
 /// <summary>
@@ -116,7 +89,7 @@ internal sealed record SiteComponents
 internal sealed record SiteUserSettings
 	{
 	/// <summary>Indicates whether Storm Watch is currently enabled.</summary>
-	[JsonProperty ("storm_mode_enabled")]
+	[JsonPropertyName ("storm_mode_enabled")]
 	public bool? StormModeEnabled { get; init; }
 	}
 
@@ -126,7 +99,7 @@ internal sealed record SiteUserSettings
 internal sealed record SiteTariffContent
 	{
 	/// <summary>Utility company name.</summary>
-	[JsonProperty ("utility")]
+	[JsonPropertyName ("utility")]
 	public string? Utility { get; init; }
 	}
 
@@ -136,63 +109,72 @@ internal sealed record SiteTariffContent
 internal sealed record SiteConfigResponse
 	{
 	/// <summary>Device identification number (DIN).</summary>
-	[JsonProperty ("id")]
+	[JsonPropertyName ("id")]
 	public string? Id { get; init; }
 
 	/// <summary>Configured site name.</summary>
-	[JsonProperty ("site_name")]
+	[JsonPropertyName ("site_name")]
 	public string? SiteName { get; init; }
 
-	/// <summary>Raw installation date/time; opaque and passed through untouched to avoid reformatting.</summary>
-	[JsonProperty ("installation_date")]
-	public JToken? InstallationDate { get; init; }
+	/// <summary>Installation date/time, preserved as its original string.</summary>
+	[JsonPropertyName ("installation_date")]
+	public string? InstallationDate
+		{
+		get; init;
+		}
 
 	/// <summary>Configured site IANA time zone name.</summary>
-	[JsonProperty ("installation_time_zone")]
+	[JsonPropertyName ("installation_time_zone")]
 	public string? InstallationTimeZone { get; init; }
 
 	/// <summary>Gateway firmware version string.</summary>
-	[JsonProperty ("version")]
+	[JsonPropertyName ("version")]
 	public string? Version { get; init; }
 
 	/// <summary>Configured backup reserve percentage (raw gateway scale).</summary>
-	[JsonProperty ("backup_reserve_percent")]
+	[JsonPropertyName ("backup_reserve_percent")]
 	public double? BackupReservePercent { get; init; }
 
 	/// <summary>Active battery operation mode (for example <c>self_consumption</c>).</summary>
-	[JsonProperty ("default_real_mode")]
+	[JsonPropertyName ("default_real_mode")]
 	public string? DefaultRealMode { get; init; }
 
 	/// <summary>Number of battery packs at the site.</summary>
-	[JsonProperty ("battery_count")]
+	[JsonPropertyName ("battery_count")]
 	public int? BatteryCount { get; init; }
 
 	/// <summary>Nameplate power rating in watts; Tesla returns this as either a JSON string or number.</summary>
-	[JsonProperty ("nameplate_power"), JsonConverter (typeof (FlexibleLongConverter))]
+	[JsonPropertyName ("nameplate_power"), JsonConverter (typeof (FlexibleLongConverter))]
 	public long NameplatePower { get; init; }
 
 	/// <summary>Nameplate energy rating in watt-hours; Tesla returns this as either a JSON string or number.</summary>
-	[JsonProperty ("nameplate_energy"), JsonConverter (typeof (FlexibleLongConverter))]
+	[JsonPropertyName ("nameplate_energy"), JsonConverter (typeof (FlexibleLongConverter))]
 	public long NameplateEnergy { get; init; }
 
-	/// <summary>Raw maximum site meter power (AC); opaque and passed through untouched.</summary>
-	[JsonProperty ("max_site_meter_power_ac")]
-	public JToken? MaxSiteMeterPowerAc { get; init; }
+	/// <summary>Raw maximum site meter power (AC); optional numeric value from Tesla.</summary>
+	[JsonPropertyName ("max_site_meter_power_ac")]
+	public double? MaxSiteMeterPowerAc
+		{
+		get; init;
+		}
 
-	/// <summary>Raw minimum site meter power (AC); opaque and passed through untouched.</summary>
-	[JsonProperty ("min_site_meter_power_ac")]
-	public JToken? MinSiteMeterPowerAc { get; init; }
+	/// <summary>Raw minimum site meter power (AC); optional numeric value from Tesla.</summary>
+	[JsonPropertyName ("min_site_meter_power_ac")]
+	public double? MinSiteMeterPowerAc
+		{
+		get; init;
+		}
 
 	/// <summary>Gateway component flags.</summary>
-	[JsonProperty ("components")]
+	[JsonPropertyName ("components")]
 	public SiteComponents? Components { get; init; }
 
 	/// <summary>User-configurable site settings.</summary>
-	[JsonProperty ("user_settings")]
+	[JsonPropertyName ("user_settings")]
 	public SiteUserSettings? UserSettings { get; init; }
 
 	/// <summary>Tariff information.</summary>
-	[JsonProperty ("tariff_content")]
+	[JsonPropertyName ("tariff_content")]
 	public SiteTariffContent? TariffContent { get; init; }
 	}
 
@@ -201,41 +183,59 @@ internal sealed record SiteConfigResponse
 /// </summary>
 internal sealed record SitePowerResponse
 	{
-	/// <summary>Raw reading timestamp; opaque and passed through untouched to avoid reformatting.</summary>
-	[JsonProperty ("timestamp")]
-	public JToken? Timestamp { get; init; }
+	/// <summary>Reading timestamp, preserved as its original string.</summary>
+	[JsonPropertyName ("timestamp")]
+	public string? Timestamp
+		{
+		get; init;
+		}
 
 	/// <summary>Island (grid connection) status (for example <c>on_grid</c>, <c>off_grid</c>, or <c>off_grid_intentional</c>).</summary>
-	[JsonProperty ("island_status")]
+	[JsonPropertyName ("island_status")]
 	public string? IslandStatus { get; init; }
 
 	/// <summary>Raw grid status string (for example <c>Active</c> or <c>Unknown</c>).</summary>
-	[JsonProperty ("grid_status")]
+	[JsonPropertyName ("grid_status")]
 	public string? GridStatus { get; init; }
 
 	/// <summary>Indicates whether grid services are currently active.</summary>
-	[JsonProperty ("grid_services_active")]
+	[JsonPropertyName ("grid_services_active")]
 	public bool? GridServicesActive { get; init; }
 
-	/// <summary>Raw grid services power; opaque and passed through untouched.</summary>
-	[JsonProperty ("grid_services_power")]
-	public JToken? GridServicesPower { get; init; }
+	/// <summary>Raw grid services power; optional numeric value from Tesla.</summary>
+	[JsonPropertyName ("grid_services_power")]
+	public double? GridServicesPower
+		{
+		get; init;
+		}
 
-	/// <summary>Raw grid (site) power; opaque and passed through untouched.</summary>
-	[JsonProperty ("grid_power")]
-	public JToken? GridPower { get; init; }
+	/// <summary>Raw grid (site) power; optional numeric value from Tesla.</summary>
+	[JsonPropertyName ("grid_power")]
+	public double? GridPower
+		{
+		get; init;
+		}
 
-	/// <summary>Raw battery power; opaque and passed through untouched.</summary>
-	[JsonProperty ("battery_power")]
-	public JToken? BatteryPower { get; init; }
+	/// <summary>Raw battery power; optional numeric value from Tesla.</summary>
+	[JsonPropertyName ("battery_power")]
+	public double? BatteryPower
+		{
+		get; init;
+		}
 
-	/// <summary>Raw home (load) power; opaque and passed through untouched.</summary>
-	[JsonProperty ("load_power")]
-	public JToken? LoadPower { get; init; }
+	/// <summary>Raw home (load) power; optional numeric value from Tesla.</summary>
+	[JsonPropertyName ("load_power")]
+	public double? LoadPower
+		{
+		get; init;
+		}
 
-	/// <summary>Raw solar generation power; opaque and passed through untouched.</summary>
-	[JsonProperty ("solar_power")]
-	public JToken? SolarPower { get; init; }
+	/// <summary>Raw solar generation power; optional numeric value from Tesla.</summary>
+	[JsonPropertyName ("solar_power")]
+	public double? SolarPower
+		{
+		get; init;
+		}
 	}
 
 /// <summary>
@@ -244,16 +244,22 @@ internal sealed record SitePowerResponse
 internal sealed record SiteSummaryResponse
 	{
 	/// <summary>Battery charge level as a percentage (raw gateway scale).</summary>
-	[JsonProperty ("percentage_charged")]
+	[JsonPropertyName ("percentage_charged")]
 	public double? PercentageCharged { get; init; }
 
-	/// <summary>Raw total pack energy; opaque and passed through untouched.</summary>
-	[JsonProperty ("total_pack_energy")]
-	public JToken? TotalPackEnergy { get; init; }
+	/// <summary>Raw total pack energy; optional numeric value from Tesla.</summary>
+	[JsonPropertyName ("total_pack_energy")]
+	public double? TotalPackEnergy
+		{
+		get; init;
+		}
 
-	/// <summary>Raw remaining energy; opaque and passed through untouched.</summary>
-	[JsonProperty ("energy_left")]
-	public JToken? EnergyLeft { get; init; }
+	/// <summary>Raw remaining energy; optional numeric value from Tesla.</summary>
+	[JsonPropertyName ("energy_left")]
+	public double? EnergyLeft
+		{
+		get; init;
+		}
 	}
 
 /// <summary>
@@ -262,7 +268,7 @@ internal sealed record SiteSummaryResponse
 internal sealed record BackupTimeRemainingResponse
 	{
 	/// <summary>Estimated backup time remaining, in hours.</summary>
-	[JsonProperty ("time_remaining_hours")]
+	[JsonPropertyName ("time_remaining_hours")]
 	public double? TimeRemainingHours { get; init; }
 	}
 
@@ -272,11 +278,11 @@ internal sealed record BackupTimeRemainingResponse
 internal sealed record TeslaCloudTokenResponse
 	{
 	/// <summary>The current OAuth access token.</summary>
-	[JsonProperty ("access_token")]
+	[JsonPropertyName ("access_token")]
 	public string? AccessToken { get; init; }
 
 	/// <summary>The current OAuth refresh token, possibly rotated.</summary>
-	[JsonProperty ("refresh_token")]
+	[JsonPropertyName ("refresh_token")]
 	public string? RefreshToken { get; init; }
 	}
 

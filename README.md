@@ -157,6 +157,32 @@ await powerwall.ConnectAsync();
 
 FleetAPI mode covers profile, energy product information, energy product commands (backup reserve, operation mode, grid charging, and grid export), energy/calendar history, and vitals; Storm Watch is intentionally not exposed in FleetAPI mode.
 
+### Application-controlled logging
+
+Set `PowerwallOptions.Logger` to a caller-owned `Microsoft.Extensions.Logging.ILogger`.
+The same logger is used by the facade, backend, transport and token cache, retaining its
+category and active scopes. The library uses only the logging abstractions package,
+configures no providers, and never disposes your logger. Omitting it disables logging.
+
+```csharp
+var logger = loggerFactory.CreateLogger("Powerwall.House");
+using var scope = logger.BeginScope("House energy connection");
+using var powerwall = new Powerwall(new PowerwallOptions
+{
+    FleetApi = true,
+    FleetApiClientId = "your-client-id",
+    FleetApiRefreshToken = "your-refresh-token",
+    NoFleetApiTokenPersistence = true,
+    Logger = logger
+});
+await powerwall.ConnectAsync();
+```
+
+Here `loggerFactory` is supplied by the host application. The local test console supplies
+its own console logger when verbose logging is enabled; the credential helper supplies a
+sanitizing logger for authentication diagnostics. See [migration notes](https://github.com/oznetmaster/TeslaPowerwallLibrary/blob/v2.0.0/MIGRATION-SystemTextJson.md)
+for serialization compatibility and consumer dependency changes.
+
 ### Obtaining a FleetAPI refresh token (`TeslaPowerwallLibrary.Login`)
 
 For repeated Fleet authorization with an already registered application, the Setup app now offers **Sign in to Tesla**. It skips partner registration, can remember application settings encrypted for your Windows account, and automatically captures the callback and exchanges its code in an embedded Tesla sign-in window. A manual browser fallback is available. Initial application registration remains a separate option.
@@ -194,7 +220,7 @@ if (login.Status == TeslaFleetApiLoginStatus.Success)
 
 ### Read energy and calendar history (cloud mode only)
 
-`GetCalendarHistoryAsync` returns the raw JSON body for any history `kind` (`power`, `soe`, `energy`, `backup`, `self_consumption`, `time_of_use_energy`, or `savings`), mirroring the upstream Python library's behavior. For the kinds with a verified, stable schema, typed convenience methods deserialize that JSON directly into strongly typed records (via Newtonsoft.Json `[JsonProperty]` mappings, no hand-written parsing) so callers do not need to do it themselves:
+`GetCalendarHistoryAsync` returns the raw JSON body for any history `kind` (`power`, `soe`, `energy`, `backup`, `self_consumption`, `time_of_use_energy`, or `savings`), mirroring the upstream Python library's behavior. For the kinds with a verified, stable schema, typed convenience methods deserialize that JSON directly into strongly typed records (via System.Text.Json `[JsonPropertyName]` mappings, no hand-written parsing) so callers do not need to do it themselves:
 
 ```csharp
 IReadOnlyList<EnergyHistoryPoint> energy = await powerwall.GetEnergyCalendarHistoryAsync(HistoryPeriod.Day);

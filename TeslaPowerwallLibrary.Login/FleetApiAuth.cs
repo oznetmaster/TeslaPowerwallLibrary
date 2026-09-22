@@ -8,8 +8,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 
 namespace TeslaPowerwallLibrary.Login;
 
@@ -79,7 +80,7 @@ internal static class FleetApiAuth
 			});
 
 		var body = await PostFormAsync (TOKEN_BASE_URL + TOKEN_URL_PATH, form, cancellationToken).ConfigureAwait (false);
-		var token = JObject.Parse (body).Value<string> ("access_token");
+		var token = JsonSerializer.Deserialize<FleetTokenResponse> (body)?.AccessToken;
 		if (string.IsNullOrWhiteSpace (token))
 			throw new FleetApiAuthException ($"No access_token in Tesla partner token response: {body}");
 
@@ -101,11 +102,11 @@ internal static class FleetApiAuth
 		string partnerToken, string audience, string domain, CancellationToken cancellationToken = default)
 		{
 		var url = $"{audience.TrimEnd ('/')}/api/1/partner_accounts";
-		var body = new JObject { ["domain"] = domain };
+		var body = new PartnerRegistrationRequest { Domain = domain };
 
 		using var request = new HttpRequestMessage (HttpMethod.Post, url)
 			{
-			Content = new StringContent (body.ToString (Formatting.None), Encoding.UTF8, "application/json")
+			Content = new StringContent (JsonSerializer.Serialize (body), Encoding.UTF8, "application/json")
 			};
 		request.Headers.TryAddWithoutValidation ("Authorization", $"Bearer {partnerToken}");
 
@@ -183,18 +184,18 @@ internal static class FleetApiAuth
 			});
 
 		var body = await PostFormAsync (TOKEN_BASE_URL + TOKEN_URL_PATH, form, cancellationToken).ConfigureAwait (false);
-		JObject root;
+		FleetTokenResponse? root;
 		try
 			{
-			root = JObject.Parse (body);
+			root = JsonSerializer.Deserialize<FleetTokenResponse> (body);
 			}
 		catch (JsonException exc)
 			{
 			throw new FleetApiAuthException ($"Unable to parse Tesla FleetAPI token response: {exc.Message}", exc);
 			}
 
-		var accessToken = root.Value<string> ("access_token");
-		var refreshToken = root.Value<string> ("refresh_token");
+		var accessToken = root?.AccessToken;
+		var refreshToken = root?.RefreshToken;
 		if (string.IsNullOrWhiteSpace (accessToken) || string.IsNullOrWhiteSpace (refreshToken))
 			throw new FleetApiAuthException ($"Tesla FleetAPI token exchange did not return both tokens: {body}");
 
@@ -250,5 +251,26 @@ internal sealed class FleetApiAuthException : Exception
 	public FleetApiAuthException (string message, Exception innerException)
 		: base (message, innerException)
 		{
+		}
+	}
+internal sealed record FleetTokenResponse
+	{
+	[JsonPropertyName ("access_token")]
+	public string? AccessToken
+		{
+		get; init;
+		}
+	[JsonPropertyName ("refresh_token")]
+	public string? RefreshToken
+		{
+		get; init;
+		}
+	}
+internal sealed record PartnerRegistrationRequest
+	{
+	[JsonPropertyName ("domain")]
+	public string? Domain
+		{
+		get; init;
 		}
 	}

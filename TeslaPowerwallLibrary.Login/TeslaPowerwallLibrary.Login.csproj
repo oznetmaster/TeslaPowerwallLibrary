@@ -18,7 +18,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4022.49" />
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+		<PackageReference Include="System.Text.Json" Version="10.0.12" />
 	</ItemGroup>
 
 	<!-- net472 ships an old System.Net.Http without HttpCompletionOption/modern SendAsync overloads used

@@ -1,9 +1,10 @@
 // Copyright © 2026 Neil Colvin.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
-using log4net;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
-using Newtonsoft.Json.Linq;
+
 
 using TeslaPowerwallLibrary.Cloud;
 using TeslaPowerwallLibrary.FleetApi;
@@ -24,18 +25,27 @@ namespace TeslaPowerwallLibrary;
 /// </remarks>
 public sealed class Powerwall : IDisposable
 	{
-	private static readonly ILog _log = LogManager.GetLogger (typeof (Powerwall));
+	private readonly ILogger _log;
 
 	/// <summary>Gets the valid <c>kind</c> values accepted by <see cref="GetHistoryAsync"/>.</summary>
-	public static IReadOnlyList<string> HistoryKinds { get; } =
+	public static IReadOnlyList<string> HistoryKinds
+		{
+		get;
+		} =
 		["power", "energy", "backup", "self_consumption"];
 
 	/// <summary>Gets the valid <c>kind</c> values accepted by <see cref="GetCalendarHistoryAsync"/>.</summary>
-	public static IReadOnlyList<string> CalendarHistoryKinds { get; } =
+	public static IReadOnlyList<string> CalendarHistoryKinds
+		{
+		get;
+		} =
 		["power", "soe", "energy", "backup", "self_consumption", "time_of_use_energy", "savings"];
 
 	/// <summary>Gets the valid <c>period</c> values accepted by the energy-history methods.</summary>
-	public static IReadOnlyList<string> HistoryPeriods { get; } =
+	public static IReadOnlyList<string> HistoryPeriods
+		{
+		get;
+		} =
 		["day", "week", "month", "year", "lifetime"];
 
 	/// <summary>Gets the default <c>period</c> applied by the energy-history methods when the caller does not specify one.</summary>
@@ -58,6 +68,7 @@ public sealed class Powerwall : IDisposable
 	/// <exception cref="PowerwallInvalidConfigurationException">Thrown when the supplied options fail validation.</exception>
 	public Powerwall (PowerwallOptions options)
 		{
+		_log = options?.Logger ?? NullLogger.Instance;
 		_options = options ?? throw new ArgumentNullException (nameof (options));
 
 		Mode = ResolveMode (options);
@@ -65,7 +76,10 @@ public sealed class Powerwall : IDisposable
 		}
 
 	/// <summary>Gets the resolved connection mode for this instance.</summary>
-	public PowerwallMode Mode { get; private set; }
+	public PowerwallMode Mode
+		{
+		get; private set;
+		}
 
 	/// <summary>
 	/// Gets the customer email associated with this connection: the account used for cloud/FleetAPI
@@ -278,14 +292,14 @@ public sealed class Powerwall : IDisposable
 					_options.Timeout,
 					_options.CacheExpireSeconds,
 					_options.AuthMode,
-					_options.CacheFile);
+					_options.CacheFile, _log);
 				try
 					{
 					await localClient.AuthenticateAsync (cancellationToken).ConfigureAwait (false);
 					}
 				catch (Exception exc) when (exc is PowerwallException)
 					{
-					_log.Warn ($"Failed to connect using Local mode: {exc.Message}");
+					LibraryLog.FailedToConnectUsingLocalMode (_log, exc.Message);
 					localClient.Dispose ();
 					return false;
 					}
@@ -302,7 +316,7 @@ public sealed class Powerwall : IDisposable
 					_options.RefreshToken,
 					_options.SiteId,
 					_options.AuthPath,
-					_options.NoCloudTokenPersistence);
+					_options.NoCloudTokenPersistence, _log);
 
 				// Subscribe before authenticating: a refresh-token rotation can occur during the initial
 				// bootstrap refresh (when only a refresh token was supplied) or while resolving the site, and
@@ -323,7 +337,7 @@ public sealed class Powerwall : IDisposable
 					}
 				catch (Exception exc) when (exc is PowerwallException)
 					{
-					_log.Warn ($"Failed to connect using Cloud mode: {exc.Message}");
+					LibraryLog.FailedToConnectUsingCloudMode (_log, exc.Message);
 					cloudClient.TokensRefreshed -= OnCloudTokensRefreshed;
 					cloudClient.Dispose ();
 					return false;
@@ -343,7 +357,7 @@ public sealed class Powerwall : IDisposable
 					_options.SiteId,
 					_options.FleetApiRegion,
 					_options.FleetApiAuthPath,
-					_options.NoFleetApiTokenPersistence);
+					_options.NoFleetApiTokenPersistence, _log);
 
 				// Subscribed before authenticating for the same reason as the cloud case above: a
 				// refresh-token rotation can occur during the initial bootstrap refresh.
@@ -362,7 +376,7 @@ public sealed class Powerwall : IDisposable
 					}
 				catch (Exception exc) when (exc is PowerwallException)
 					{
-					_log.Warn ($"Failed to connect using FleetAPI mode: {exc.Message}");
+					LibraryLog.FailedToConnectUsingFleetAPIMode (_log, exc.Message);
 					fleetApiClient.TokensRefreshed -= OnFleetApiTokensRefreshed;
 					fleetApiClient.Dispose ();
 					return false;
@@ -372,7 +386,7 @@ public sealed class Powerwall : IDisposable
 				return true;
 
 			default:
-				_log.Error ("Unable to determine mode to connect.");
+				LibraryLog.UnableToDetermineModeToConnect (_log);
 				throw new PowerwallInvalidConfigurationException ("Unable to determine mode to connect.");
 			}
 		}
@@ -571,15 +585,15 @@ public sealed class Powerwall : IDisposable
 		GridStatusResponse? response = JsonHelper.DeserializeOrNull<GridStatusResponse> (payload);
 		return response?.GridStatus switch
 			{
-			"SystemGridConnected" => GridStatus.Up,
-			"SystemIslandedActive" => GridStatus.Down,
-			"SystemMicroGridFaulted" => GridStatus.Down,
-			"SystemWaitForUser" => GridStatus.Down,
-			"SystemTransitionToGrid" => GridStatus.Syncing,
-			"SystemTransitionToIsland" => GridStatus.Syncing,
-			"SystemIslandedReady" => GridStatus.Syncing,
-			_ => null
-			};
+				"SystemGridConnected" => GridStatus.Up,
+				"SystemIslandedActive" => GridStatus.Down,
+				"SystemMicroGridFaulted" => GridStatus.Down,
+				"SystemWaitForUser" => GridStatus.Down,
+				"SystemTransitionToGrid" => GridStatus.Syncing,
+				"SystemTransitionToIsland" => GridStatus.Syncing,
+				"SystemIslandedReady" => GridStatus.Syncing,
+				_ => null
+				};
 		}
 
 	/// <summary>
@@ -633,17 +647,24 @@ public sealed class Powerwall : IDisposable
 	/// <exception cref="InvalidBatteryReserveLevelException">Thrown when <paramref name="level"/> is outside 0 - 100.</exception>
 	public async Task<string?> SetOperationAsync (double? level = null, string? mode = null, CancellationToken cancellationToken = default)
 		{
-		if (level is < 0 or > 100)
+		if (level is double value && (double.IsNaN (value) || double.IsInfinity (value) || value < 0 || value > 100))
 			throw new InvalidBatteryReserveLevelException ("Level can be in range of 0 to 100 only.");
 
-		var effectiveLevel = level ?? await GetReserveAsync (cancellationToken: cancellationToken).ConfigureAwait (false) ?? 0;
-		var effectiveMode = mode ?? await GetModeAsync (cancellationToken: cancellationToken).ConfigureAwait (false);
+		RequireClient ();
+		if (level is null && mode is null)
+			return null;
+		if (mode is not null && string.IsNullOrWhiteSpace (mode))
+			throw new ArgumentException ("Operation mode must not be empty.", nameof (mode));
 
-		var payload = new Dictionary<string, object?>
+		// Local gateways replace the complete operation object. Cloud/Fleet issue separate commands.
+		if (Mode == PowerwallMode.Local)
 			{
-			["backup_reserve_percent"] = effectiveLevel > 0 ? effectiveLevel : (object) false,
-			["real_mode"] = effectiveMode
-			};
+			level ??= await GetReserveAsync (scale: false, cancellationToken: cancellationToken).ConfigureAwait (false);
+			mode ??= await GetModeAsync (cancellationToken: cancellationToken).ConfigureAwait (false);
+			if (level is null || mode is null)
+				return null;
+			}
+		var payload = new OperationRequest { BackupReservePercent = level, RealMode = mode };
 
 		var din = await DinAsync (cancellationToken).ConfigureAwait (false);
 		return await RequireClient ().PostAsync ("/api/operation", payload, din, cancellationToken: cancellationToken).ConfigureAwait (false);
@@ -996,18 +1017,6 @@ public sealed class Powerwall : IDisposable
 
 	private static IEnumerable<string> EnumerateAlertValues (object deviceAlerts)
 		{
-		// Vitals attribute values are loosely typed; alerts is normally a JArray of strings.
-		if (deviceAlerts is JArray array)
-			{
-			foreach (JToken item in array)
-				{
-				var value = item.Type == JTokenType.String ? item.Value<string> () : item.ToString ();
-				if (value is not null)
-					yield return value;
-				}
-
-			yield break;
-			}
 
 		if (deviceAlerts is IEnumerable<string> strings)
 			{

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 // Copyright (c) 2026 Neil Colvin.
 // Licensed under the MIT License. See TeslaPowerwallLibrary/LICENSE.
 
@@ -5,12 +6,13 @@ namespace TeslaPowerwallLibrary.TestCredentials;
 
 internal static class TestPreparation
 	{
-	internal static PowerwallOptions OptionsFor (CredentialState state)
+	internal static PowerwallOptions OptionsFor (CredentialState state, ILogger? logger = null)
 		{
 		CredentialStore.Validate (state);
 		bool fleet = state.Mode == "fleet";
 		return new PowerwallOptions
 			{
+			Logger = logger,
 			FleetApi = fleet,
 			CloudMode = !fleet,
 			FleetApiClientId = fleet ? state.ClientId : null,
@@ -27,11 +29,11 @@ internal static class TestPreparation
 		}
 
 	internal static async Task PrepareAsync (CredentialStore store, CancellationToken cancellationToken,
-		Func<PowerwallOptions, ICredentialConnection>? connectionFactory = null)
+		Func<PowerwallOptions, ICredentialConnection>? connectionFactory = null, ILogger? logger = null)
 		{
 		store.Begin ();
 		CredentialState state = store.Current!;
-		using var client = (connectionFactory ?? (options => new LibraryCredentialConnection (options))) (OptionsFor (state));
+		using var client = (connectionFactory ?? (options => new LibraryCredentialConnection (options))) (OptionsFor (state, logger));
 		// Persist synchronously before the library can proceed after a rotation notification.
 		Exception? persistenceFailure = null;
 		void Persist (string? access, string? refresh)
