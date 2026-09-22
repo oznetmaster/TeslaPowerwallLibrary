@@ -46,16 +46,20 @@ partial failure, so subsequent reads do not reuse stale pre-write settings. Tesl
 still apply commands asynchronously; cache invalidation is not an acknowledgement of
 physical completion.
 
-## Local consumers and Crestron
+## Local applications and downstream consumers
 
 The test console, credential diagnostics, dashboard settings and login code have been
-migrated. Their local builds and deterministic tests do not connect to a Powerwall.
-
-TeslaPowerwallCrestronDriver 1.1.8 has been prepared locally against library 2.0.0. Its runtime source uses the preserved typed facade APIs and has no Newtonsoft casts to migrate. Its merge now includes the resolved System.Text.Json and Microsoft logging dependencies, and its ILogger adapter routes diagnostics to the owning Crestron driver. This consumer update must be released separately; installed drivers are not changed by upgrading the library source. Its 81 offline cases and three read-only live cases passed on the development processor against both Owner and Fleet credentials.
+migrated. Downstream applications that merge dependencies must include the new
+System.Text.Json and Microsoft logging dependency closure. Applications may adapt
+ILogger to their existing logging infrastructure while retaining ownership of the
+logger's context and lifetime.
 
 The .NET test SDK can itself retain a Newtonsoft.Json dependency. That test-runner
 dependency is distinct from the library and local runtime tools.
 
-## Processor validation
+## Validation
 
-On 22 September 2026, the dedicated library processor package ran all 142 deterministic tests twice on the development processor, with no failures or skips. The same merged package suite passed twice on Windows. This exposed and fixed the scalar-string converter's dictionary-key handling after assembly merging. The processor package excludes desktop runner dependencies. Direct library live tests also passed separately against Owner and Fleet APIs on both desktop targets and the processor. The separate driver test package passed its own offline and read-only live checks against both APIs.
+All 142 deterministic tests passed on both supported targets and twice after assembly
+merging. Direct read-only library tests also passed separately against Owner and Fleet
+APIs. Explicit property-name conversion fixes dictionary-key serialization after
+assembly merging.

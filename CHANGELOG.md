@@ -16,7 +16,7 @@ This changelog records shipped features, fixes, compatibility and runtime depend
 
 - Send only requested fields for Cloud/Fleet operation changes; preserve numeric zero reserve and avoid empty writes. Invalidate the backend configuration cache after attempted changes, including partial failures.
 - Preserve unscaled reserve values when filling local gateway configuration writes, and reject invalid or unavailable settings.
-- Support dictionary-key serialization in merged assemblies used on Crestron processors.
+- Support dictionary-key serialization in merged assemblies.
 
 ## [1.2.5] - 2026-09-15
 
