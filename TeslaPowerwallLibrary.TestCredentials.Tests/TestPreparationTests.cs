@@ -43,12 +43,12 @@ public sealed class TestPreparationTests
 
 	[TestCase ("cloud")]
 	[TestCase ("fleet")]
-	public void RotationFollowedByConnectionFailure_RetainsLatestTokenAndBlocksRetry (string mode)
+	public async System.Threading.Tasks.Task RotationFollowedByConnectionFailure_RetainsLatestTokenAndBlocksRetry (string mode)
 		{
 		using (var store = new CredentialStore (_directory))
 			{
 			store.Initialize (Seed (mode));
-			Assert.ThrowsAsync<InvalidOperationException> (() => TestPreparation.PrepareAsync (store, CancellationToken.None, _ => new RotatingConnection { Succeeds = false }));
+			await Assert.ThrowsAsync<InvalidOperationException> (() => TestPreparation.PrepareAsync (store, CancellationToken.None, _ => new RotatingConnection { Succeeds = false }));
 			}
 		using var reopened = new CredentialStore (_directory);
 		Assert.That (reopened.Current!.RefreshToken, Is.EqualTo ("rotated"));
@@ -57,11 +57,11 @@ public sealed class TestPreparationTests
 		}
 
 	[Test]
-	public void WrongSite_DoesNotProduceTestInputs ()
+	public async System.Threading.Tasks.Task WrongSite_DoesNotProduceTestInputs ()
 		{
 		using var store = new CredentialStore (_directory);
 		store.Initialize (Seed ("fleet"));
-		Assert.ThrowsAsync<InvalidOperationException> (() => TestPreparation.PrepareAsync (store, CancellationToken.None, _ => new RotatingConnection { SiteId = "999" }));
+		await Assert.ThrowsAsync<InvalidOperationException> (() => TestPreparation.PrepareAsync (store, CancellationToken.None, _ => new RotatingConnection { SiteId = "999" }));
 		Assert.That (Directory.Exists (store.InputsDirectory), Is.False);
 		}
 

@@ -262,7 +262,7 @@ MIT © 2026 Neil Colvin — see [LICENSE](TeslaPowerwallLibrary/LICENSE).
 
 ## Unit tests
 
-`TeslaPowerwallLibrary.Tests` uses official NUnit 4.6.1 and NUnit3TestAdapter, targeting `net472` and `net10.0`. Run the tests in Visual Studio Test Explorer, or:
+`TeslaPowerwallLibrary.Tests` uses official NUnit 5.0.0 and NUnit3TestAdapter, targeting `net472` and `net10.0`. Run the tests in Visual Studio Test Explorer, or:
 
 ```powershell
 dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj -c Release
@@ -283,3 +283,6 @@ Fleet connections default to automatic account-region discovery through Tesla's 
 The publish/release workflows support an explicit manual override when the processor or local self-hosted GitHub Actions runner is unavailable. Select `skip_hardware_checks` and provide a single-line `hardware_skip_reason`. Use the workflow's normal source and version controls. The override applies only to that invocation and is recorded with the exact source revision in its warning and job summary; it does not create a passing hardware-test result.
 
 GitHub-hosted validation remains mandatory for the checked-out source, and the normal build, tests and packaging steps still run. Wait for the configured hosted workflows to pass, or run them on the same source revision first. None of these hosted checks needs the local runner or processor. Automatic tag/release-triggered runs retain the normal hardware checks; use a manual invocation of the updated release workflow when an offline override is needed.
+## NUnit 5 test tooling
+
+All maintained NUnit suites use the official NUnit 5.0.0 framework. Async exception assertions are awaited, and discarded-task warnings fail test builds. Processor test packages use CrestronHomeNUnit SDK 2.2.0; workflow and Android suites, where provided, use the released 2.2.0 adapter. Tests remain available in Visual Studio, VS Code and the command line. Live and manual tests still require their documented devices and permissions. This is a test-tooling update; the published product version and runtime behavior are unchanged.
