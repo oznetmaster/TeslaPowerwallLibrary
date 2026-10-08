@@ -1,8 +1,8 @@
-// Tesla tedapi API Protocol Buffer definition (tedapi.proto) 
+// Tesla tedapi API Protocol Buffer definition (tedapi.proto)
 //
 // Create tedapi_pb2.py for use in projects using the protoc compiler:
 //     protoc --python_out=. tedapi.proto
-// 
+//
 // Author: Jason A. Cox - Date: 22 Nov 2023 - Version: 1.1
 //
 // For more information see https://github.com/jasonacox/pypowerwall

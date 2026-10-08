@@ -125,7 +125,7 @@ public sealed class PowerCompatibilityTests
 				CacheFile = path, NoLocalSessionPersistence = true, AllowLocalControl = false }, handler);
 			await client.AuthenticateAsync ();
 			Assert.That (handler.Logins, Is.EqualTo (1));
-			Assert.ThrowsAsync<PowerwallNotSupportedException> (async () => await client.PostAsync ("/api/operation", new { }));
+			await Assert.ThrowsAsync<PowerwallNotSupportedException> (async () => await client.PostAsync ("/api/operation", new { }));
 			Assert.That (handler.Writes, Is.Zero);
 			Assert.That (File.ReadAllText (path), Is.EqualTo (cached));
 			}

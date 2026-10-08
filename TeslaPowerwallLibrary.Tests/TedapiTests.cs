@@ -139,7 +139,7 @@ public sealed class TedapiTests
 			});
 		using var client = new PowerwallTedapiClient (new PowerwallOptions { Host = "powerwall.test", GatewayPassword = "label", LocalProtocol = PowerwallLocalProtocol.TedapiBearer }, handler);
 		await client.AuthenticateAsync ();
-		if (rejectAgain) Assert.CatchAsync<PowerwallException> (async () => await client.GetTelemetryAsync ());
+		if (rejectAgain) await Assert.CatchAsync<PowerwallException> (async () => await client.GetTelemetryAsync ());
 		else Assert.That ((await client.GetTelemetryAsync ()).Control!.SystemStatus!.RemainingWattHours, Is.Zero);
 		Assert.That (queries, Is.EqualTo (2));
 		Assert.That (logins, Is.EqualTo (2));
@@ -239,8 +239,8 @@ public sealed class TedapiTests
 			index == 1 ? Text (DIN) : new HttpResponseMessage ((HttpStatusCode)status)));
 		using var client = Create (handler);
 		await client.AuthenticateAsync ();
-		Assert.ThrowsAsync<PowerwallConnectionException> (async () => await client.GetTelemetryAsync ());
-		Assert.ThrowsAsync<PowerwallConnectionException> (async () => await client.GetTelemetryAsync (force: true));
+		await Assert.ThrowsAsync<PowerwallConnectionException> (async () => await client.GetTelemetryAsync ());
+		await Assert.ThrowsAsync<PowerwallConnectionException> (async () => await client.GetTelemetryAsync (force: true));
 		Assert.That (handler.Count, Is.EqualTo (2));
 		}
 
@@ -264,7 +264,7 @@ public sealed class TedapiTests
 		using var handler = BasicHandler ();
 		using var client = Create (handler);
 		await client.AuthenticateAsync ();
-		Assert.ThrowsAsync<PowerwallNotSupportedException> (async () => await client.PostAsync ("/api/operation", new { real_mode = "backup" }));
+		await Assert.ThrowsAsync<PowerwallNotSupportedException> (async () => await client.PostAsync ("/api/operation", new { real_mode = "backup" }));
 		Assert.That (handler.Count, Is.EqualTo (1));
 		}
 
@@ -411,7 +411,7 @@ public sealed class TedapiTests
 				}.ToByteArray ())));
 		using var client = new PowerwallTedapiClient (Options () with { LocalQueryVersion = TedapiQueryVersion.June2026 }, handler);
 		await client.AuthenticateAsync ();
-		Assert.ThrowsAsync<PowerwallConnectionException> (async () => await client.GetTelemetryAsync ());
+		await Assert.ThrowsAsync<PowerwallConnectionException> (async () => await client.GetTelemetryAsync ());
 		Assert.That (handler.Count, Is.EqualTo (2));
 		}
 
@@ -423,7 +423,7 @@ public sealed class TedapiTests
 			: QueryResponse (index == 2 ? invalid : STATUS)));
 		using var client = Create (handler);
 		await client.AuthenticateAsync ();
-		Assert.ThrowsAsync<PowerwallConnectionException> (async () => await client.GetTelemetryAsync ());
+		await Assert.ThrowsAsync<PowerwallConnectionException> (async () => await client.GetTelemetryAsync ());
 		Assert.That ((await client.GetTelemetryAsync ()).Control, Is.Not.Null);
 		Assert.That (handler.Count, Is.EqualTo (3));
 		}
@@ -488,7 +488,7 @@ public sealed class TedapiTests
 			Assert.That (requested.Count, Is.EqualTo (2), "Snapshot reuse must retain per-follower caches.");
 			using var cancelled = new CancellationTokenSource ();
 			cancelled.Cancel ();
-			Assert.CatchAsync<OperationCanceledException> (async () => await primary.GetComponentsAsync ("part--three", cancellationToken: cancelled.Token));
+			await Assert.CatchAsync<OperationCanceledException> (async () => await primary.GetComponentsAsync ("part--three", cancellationToken: cancelled.Token));
 			Assert.That (requested.Count, Is.EqualTo (2));
 			}
 		await follower.GetComponentsAsync ("part--three");
@@ -540,7 +540,7 @@ public sealed class TedapiTests
 			{ LocalProtocol = PowerwallLocalProtocol.TedapiSigned, Password = "synthetic", LocalSigningKey = key }, handler);
 		await client.AuthenticateAsync ();
 		int requests = handler.Count;
-		Assert.ThrowsAsync<PowerwallNotSupportedException> (async () => await client.GetComponentsAsync ("part--follower"));
+		await Assert.ThrowsAsync<PowerwallNotSupportedException> (async () => await client.GetComponentsAsync ("part--follower"));
 		Assert.That (handler.Count, Is.EqualTo (requests));
 		}
 
@@ -639,7 +639,7 @@ public sealed class TedapiTests
 		await client.AuthenticateAsync ();
 		if (failure == "cancel")
 			{
-			Assert.CatchAsync<OperationCanceledException> (async () => await client.GetDeviceSnapshotAsync (cancellationToken: cancel.Token));
+			await Assert.CatchAsync<OperationCanceledException> (async () => await client.GetDeviceSnapshotAsync (cancellationToken: cancel.Token));
 			Assert.That (queried, Is.EqualTo (new[] { "part--one" }));
 			return;
 			}
@@ -721,7 +721,7 @@ public sealed class TedapiTests
 				{ Status = ++reads == 1 ? 2 : 1, Data = """{"ieee20305":{"longFormDeviceID":"synthetic"}}""" } } }.ToByteString () }.ToByteArray ())));
 		using var client = Create (handler);
 		await client.AuthenticateAsync ();
-		Assert.ThrowsAsync<PowerwallConnectionException> (async () => await client.GetIeee20305Async ());
+		await Assert.ThrowsAsync<PowerwallConnectionException> (async () => await client.GetIeee20305Async ());
 		Assert.That ((await client.GetIeee20305Async ())!.LongFormDeviceId!.Text, Is.EqualTo ("synthetic"));
 		Assert.That (reads, Is.EqualTo (2));
 		}

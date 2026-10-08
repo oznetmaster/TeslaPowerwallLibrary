@@ -40,8 +40,8 @@ public sealed class LocalReadFailoverTests
 		using var h = new Harness (_key);
 		await h.ConnectAsync ();
 		h.PrimaryFailure = failure;
-		Assert.CatchAsync (async () => await h.Primary.GetTelemetryAsync (true));
-		Assert.CatchAsync (async () => await h.Primary.GetTelemetryAsync (true));
+		await Assert.CatchAsync (async () => await h.Primary.GetTelemetryAsync (true));
+		await Assert.CatchAsync (async () => await h.Primary.GetTelemetryAsync (true));
 		Assert.That (h.FallbackReads, Is.Zero);
 		Assert.That ((await h.Primary.GetTelemetryAsync (true)).Control!.MeterAggregates![0].Watts, Is.EqualTo (20));
 		Assert.That (h.Primary.IsUsingLocalReadFallback, Is.True);
@@ -64,7 +64,7 @@ public sealed class LocalReadFailoverTests
 		h.PrimaryFailure = failure;
 		using var cancel = new CancellationTokenSource ();
 		if (failure == "cancel") cancel.Cancel ();
-		for (int i = 0; i < 3; i++) Assert.CatchAsync (async () => await h.Primary.GetTelemetryAsync (true, cancel.Token));
+		for (int i = 0; i < 3; i++) await Assert.CatchAsync (async () => await h.Primary.GetTelemetryAsync (true, cancel.Token));
 		Assert.That (h.Primary.IsUsingLocalReadFallback, Is.False);
 		Assert.That (h.FallbackReads, Is.Zero);
 		}
@@ -79,14 +79,14 @@ public sealed class LocalReadFailoverTests
 		Assert.That (h.Primary.IsUsingLocalReadFallback, Is.True);
 		await h.Primary.GetTelemetryAsync ();
 		int reads = h.FallbackReads;
-		Assert.ThrowsAsync<PowerwallConnectionException> (async () => await h.Primary.GetBackupEventsAsync ());
+		await Assert.ThrowsAsync<PowerwallConnectionException> (async () => await h.Primary.GetBackupEventsAsync ());
 		Assert.That (h.FallbackReads, Is.EqualTo (reads), "Signed-only operations must not redirect.");
 		h.LoginFailure = false;
 		h.Now = 61;
 		await h.Primary.GetTelemetryAsync (true);
 		Assert.That (h.Primary.IsUsingLocalReadFallback, Is.False);
 		await h.Primary.CloseSessionAsync ();
-		Assert.ThrowsAsync<PowerwallConnectionException> (async () => await h.Primary.GetTelemetryAsync ());
+		await Assert.ThrowsAsync<PowerwallConnectionException> (async () => await h.Primary.GetTelemetryAsync ());
 		await h.Fallback.GetTelemetryAsync (true); // Closing primary does not close caller-owned fallback.
 		}
 
@@ -99,17 +99,17 @@ public sealed class LocalReadFailoverTests
 		h.LoginFailure = false;
 		h.PrimaryDin = "part--different";
 		h.Now = 61;
-		Assert.ThrowsAsync<PowerwallInvalidConfigurationException> (async () => await h.Primary.GetTelemetryAsync (true));
+		await Assert.ThrowsAsync<PowerwallInvalidConfigurationException> (async () => await h.Primary.GetTelemetryAsync (true));
 		Assert.That (h.PrimaryReads, Is.Zero);
 		Assert.That (h.Primary.DeviceIdentificationNumber, Is.Null);
 		}
 
 	/// <summary>Two configured connections must identify the same controller before failover can be used.</summary>
 	[Test]
-	public void InitialConnection_RejectsDifferentDevice ()
+	public async Task InitialConnection_RejectsDifferentDevice ()
 		{
 		using var h = new Harness (_key) { PrimaryDin = "part--different" };
-		Assert.ThrowsAsync<PowerwallInvalidConfigurationException> (h.ConnectAsync);
+		await Assert.ThrowsAsync<PowerwallInvalidConfigurationException> (h.ConnectAsync);
 		Assert.That (h.PrimaryReads + h.FallbackReads, Is.Zero);
 		}
 
@@ -120,7 +120,7 @@ public sealed class LocalReadFailoverTests
 		using var h = new Harness (_key, false);
 		await h.ConnectAsync ();
 		h.PrimaryFailure = "network";
-		for (int i = 0; i < 4; i++) Assert.ThrowsAsync<HttpRequestException> (async () => await h.Primary.GetTelemetryAsync (true));
+		for (int i = 0; i < 4; i++) await Assert.ThrowsAsync<HttpRequestException> (async () => await h.Primary.GetTelemetryAsync (true));
 		Assert.That (h.FallbackReads, Is.Zero);
 		}
 
@@ -131,7 +131,7 @@ public sealed class LocalReadFailoverTests
 		using var h = new Harness (_key);
 		await h.ConnectAsync ();
 		h.PrimaryFailure = "network";
-		for (int i = 0; i < 2; i++) Assert.CatchAsync (async () => await h.Primary.GetTelemetryAsync (true));
+		for (int i = 0; i < 2; i++) await Assert.CatchAsync (async () => await h.Primary.GetTelemetryAsync (true));
 		await h.Primary.GetTelemetryAsync (true);
 		h.Now = 61;
 		await Task.WhenAll (Enumerable.Range (0, 5).Select (_ => h.Primary.GetTelemetryAsync (true)));
@@ -160,7 +160,7 @@ public sealed class LocalReadFailoverTests
 			}
 		await Read ();
 		h.PrimaryFailure = "network";
-		for (int i = 0; i < 2; i++) Assert.ThrowsAsync<HttpRequestException> (Read);
+		for (int i = 0; i < 2; i++) await Assert.ThrowsAsync<HttpRequestException> (Read);
 		await Read ();
 		Assert.That (h.Primary.IsUsingLocalReadFallback, Is.True);
 		int primaryReads = h.PrimaryReads;
@@ -183,15 +183,15 @@ public sealed class LocalReadFailoverTests
 		h.PrimaryFailure = "network";
 		if (!coldStart)
 			{
-			for (int i = 0; i < 2; i++) Assert.ThrowsAsync<HttpRequestException> (async () => await h.Primary.GetTelemetryAsync (true));
+			for (int i = 0; i < 2; i++) await Assert.ThrowsAsync<HttpRequestException> (async () => await h.Primary.GetTelemetryAsync (true));
 			}
 		await h.Primary.GetTelemetryAsync (true);
 		Assert.That (h.Primary.IsUsingLocalReadFallback, Is.True);
 		int alternateReads = h.FallbackReads;
 		int primaryReads = h.PrimaryReads;
-		Assert.CatchAsync (async () => await h.Primary.GoOffGridAsync ());
-		Assert.CatchAsync (async () => await h.Primary.ReconnectGridAsync ());
-		Assert.CatchAsync (async () => await h.Primary.CancelMaxBackupAsync ());
+		await Assert.CatchAsync (async () => await h.Primary.GoOffGridAsync ());
+		await Assert.CatchAsync (async () => await h.Primary.ReconnectGridAsync ());
+		await Assert.CatchAsync (async () => await h.Primary.CancelMaxBackupAsync ());
 		Assert.That (h.FallbackReads, Is.EqualTo (alternateReads));
 		Assert.That (h.PrimaryReads, Is.EqualTo (primaryReads + (coldStart ? 0 : 3)), "Cold connections reject writes; warm ones only attempt LAN once per command.");
 		}

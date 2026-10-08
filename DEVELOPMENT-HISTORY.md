@@ -2,6 +2,8 @@
 
 ## 2.1 release preparation — 8 October 2026
 
+- Integrated the upstream NUnit 5 migration before release, aligned the new companion suites and awaited asynchronous exception assertions. The complete offline suite passed again with NUnit 5.0.0: 1,072 executions across both library/console runtimes, desktop presentation and credential tooling.
+
 - Preserved the released non-nullable `PowerSnapshot` and `PowerAsync()` contract. Added nullable `PowerReadings`/`GetPowerReadingsAsync()` for the desktop, console and new consumers.
 - Preserved classic gateway constructor, control and session-persistence defaults. New TEDAPI modes remain read-only by default; companion apps explicitly select read-only, memory-only local sessions.
 - API package validation against public NuGet 2.0.0 passed for net472 and net10.0 without suppressions. AssemblyVersion stays 2.0.0.0; package/file versions become 2.1.0/2.1.0.0.

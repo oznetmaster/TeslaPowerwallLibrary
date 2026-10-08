@@ -16,7 +16,7 @@ public sealed class PollingRecoveryTests
 	{
 	/// <summary>A request timeout reports one failure, waits, and permits the following successful read.</summary>
 	[Test]
-	public void RequestTimeout_DoesNotStopScheduledReads ()
+	public async Task RequestTimeout_DoesNotStopScheduledReads ()
 		{
 		using var connection = new PowerwallConnectionService ();
 		using var cancel = new CancellationTokenSource ();
@@ -37,7 +37,7 @@ public sealed class PollingRecoveryTests
 			delays++;
 			return Task.CompletedTask;
 			}
-		Assert.CatchAsync<OperationCanceledException> (async () => await connection.PollLoopAsync (Read, Delay, cancel.Token));
+		await Assert.CatchAsync<OperationCanceledException> (async () => await connection.PollLoopAsync (Read, Delay, cancel.Token));
 		Assert.That (reads, Is.EqualTo (2));
 		Assert.That (delays, Is.EqualTo (1));
 		Assert.That (snapshots, Is.EqualTo (1));
@@ -47,7 +47,7 @@ public sealed class PollingRecoveryTests
 
 	/// <summary>Consumer cancellation stops immediately and is not reported as a network failure.</summary>
 	[Test]
-	public void ConsumerCancellation_DoesNotRetryOrReportFailure ()
+	public async Task ConsumerCancellation_DoesNotRetryOrReportFailure ()
 		{
 		using var connection = new PowerwallConnectionService ();
 		using var cancel = new CancellationTokenSource ();
@@ -60,7 +60,7 @@ public sealed class PollingRecoveryTests
 			return Task.FromCanceled<PowerFlowSnapshot> (token);
 			}
 		Task Delay (TimeSpan interval, CancellationToken token) { delays++; return Task.CompletedTask; }
-		Assert.CatchAsync<OperationCanceledException> (async () => await connection.PollLoopAsync (Read, Delay, cancel.Token));
+		await Assert.CatchAsync<OperationCanceledException> (async () => await connection.PollLoopAsync (Read, Delay, cancel.Token));
 		Assert.That (reads, Is.EqualTo (1));
 		Assert.That (delays, Is.Zero);
 		Assert.That (failures, Is.Zero);

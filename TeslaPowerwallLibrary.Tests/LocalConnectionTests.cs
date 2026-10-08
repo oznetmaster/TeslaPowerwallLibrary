@@ -140,19 +140,19 @@ public sealed class LocalConnectionTests
 		}
 
 	[Test]
-	public void LocalControl_ExplicitReadOnlyRejectsBeforeAuthentication ()
+	public async Task LocalControl_ExplicitReadOnlyRejectsBeforeAuthentication ()
 		{
 		using var handler = new Handler (_ => throw new AssertionException ("Unexpected network call"));
 		using var client = new PowerwallLocalClient (new PowerwallOptions { Host = "powerwall.test", AllowLocalControl = false, NoLocalSessionPersistence = true }, handler);
-		Assert.ThrowsAsync<PowerwallNotSupportedException> (async () => await client.PostAsync ("/api/operation", new { }));
+		await Assert.ThrowsAsync<PowerwallNotSupportedException> (async () => await client.PostAsync ("/api/operation", new { }));
 		}
 
 	[Test]
-	public void MissingLocalToken_DoesNotReportSuccessfulLogin ()
+	public async Task MissingLocalToken_DoesNotReportSuccessfulLogin ()
 		{
 		using var handler = new Handler (_ => Task.FromResult (Response ("{}")));
 		using var client = new PowerwallLocalClient (new PowerwallOptions { Host = "powerwall.test", NoLocalSessionPersistence = true, AuthMode = "token" }, handler);
-		Assert.ThrowsAsync<LoginException> (async () => await client.AuthenticateAsync ());
+		await Assert.ThrowsAsync<LoginException> (async () => await client.AuthenticateAsync ());
 		}
 
 	[Test]
@@ -190,8 +190,8 @@ public sealed class LocalConnectionTests
 		using var client = new PowerwallLocalClient (new PowerwallOptions { Host = "powerwall.test", NoLocalSessionPersistence = true, AuthMode = "token" }, handler);
 		await client.AuthenticateAsync ();
 		await client.PollAsync ("/api/system_status/soe");
-		Assert.ThrowsAsync<LoginException> (async () => await client.AuthenticateAsync ());
-		Assert.ThrowsAsync<PowerwallConnectionException> (async () => await client.PollAsync ("/api/system_status/soe"));
+		await Assert.ThrowsAsync<LoginException> (async () => await client.AuthenticateAsync ());
+		await Assert.ThrowsAsync<PowerwallConnectionException> (async () => await client.PollAsync ("/api/system_status/soe"));
 		Assert.That (reads, Is.EqualTo (1));
 		}
 
@@ -204,7 +204,7 @@ public sealed class LocalConnectionTests
 		await client.AuthenticateAsync ();
 		await client.PollAsync ("/api/system_status/soe");
 		await client.CloseSessionAsync ();
-		Assert.ThrowsAsync<PowerwallConnectionException> (async () => await client.PollAsync ("/api/system_status/soe"));
+		await Assert.ThrowsAsync<PowerwallConnectionException> (async () => await client.PollAsync ("/api/system_status/soe"));
 		}
 
 	[Test]
@@ -251,7 +251,7 @@ public sealed class LocalConnectionTests
 			});
 		using var client = new PowerwallLocalClient (new PowerwallOptions { Host = "powerwall.test", NoLocalSessionPersistence = true, AuthMode = "token" }, handler);
 		await client.AuthenticateAsync ();
-		Assert.ThrowsAsync<PowerwallConnectionException> (async () => await client.VitalsAsync ());
+		await Assert.ThrowsAsync<PowerwallConnectionException> (async () => await client.VitalsAsync ());
 		}
 
 	private static HttpResponseMessage Response (string json) => new (HttpStatusCode.OK) { Content = new StringContent (json) };

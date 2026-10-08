@@ -260,7 +260,7 @@ public sealed class EnergyHistoryCacheTests
 		await cache.GetAsync (_request, Fetch, false, default);
 		using var cancel = new CancellationTokenSource ();
 		cancel.Cancel ();
-		Assert.CatchAsync<OperationCanceledException> (async () => await cache.GetAsync (_request, Fetch, true, cancel.Token));
+		await Assert.CatchAsync<OperationCanceledException> (async () => await cache.GetAsync (_request, Fetch, true, cancel.Token));
 		var result = await cache.GetAsync (_request, Fetch, false, default);
 		Assert.That (result.FromCache, Is.True);
 		Assert.That (_fetches, Is.EqualTo (1));
