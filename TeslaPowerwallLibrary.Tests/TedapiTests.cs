@@ -660,7 +660,7 @@ public sealed class TedapiTests
 #else
 		using RSA key = RSA.Create (4096);
 #endif
-		using var resource = typeof (Powerwall).Assembly.GetManifestResourceStream ("TeslaPowerwallLibrary.Tedapi.Protocol.Queries2026.json")!;
+		using var resource = typeof (Powerwall).Assembly.GetManifestResourceStream ("TeslaPowerwallLibrary.Tedapi.Protocol.Queries2026.data")!;
 		using var definitions = JsonDocument.Parse (resource);
 		var names = new List<string> ();
 		using var handler = new ScriptedHandler (async (request, _) =>

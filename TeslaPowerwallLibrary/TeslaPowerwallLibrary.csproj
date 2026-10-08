@@ -83,8 +83,9 @@
 		<ItemGroup>
 		<PackageReference Include="Grpc.Tools" Version="2.84.0" PrivateAssets="all" />
 		<Protobuf Include="Tedapi/Protocol/*.proto" GrpcServices="None" Access="Internal" />
-		<EmbeddedResource Include="Tedapi/Protocol/Queries.json" />
-		<EmbeddedResource Include="Tedapi/Protocol/Queries2026.json" />
+		<!-- Manifest packagers may treat the first embedded .json resource as the driver manifest. -->
+		<EmbeddedResource Include="Tedapi/Protocol/Queries.json" LogicalName="TeslaPowerwallLibrary.Tedapi.Protocol.Queries.data" />
+		<EmbeddedResource Include="Tedapi/Protocol/Queries2026.json" LogicalName="TeslaPowerwallLibrary.Tedapi.Protocol.Queries2026.data" />
 		<None Remove="Tedapi/Protocol/UPSTREAM-LICENSE.txt" />
 		<None Include="Tedapi/Protocol/UPSTREAM-LICENSE.txt" Pack="true" PackagePath="licenses/pypowerwall.txt" TargetPath="licenses/pypowerwall.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
 	</ItemGroup>

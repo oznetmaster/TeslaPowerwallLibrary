@@ -33,8 +33,8 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 	private double _cooldownUntil;
 	private string? _din;
 	private string? _token;
-	private static readonly Dictionary<string, QueryDefinition> _queries = LoadQueries ("Queries.json");
-	private static readonly Dictionary<string, QueryDefinition> _queries2026 = LoadQueries ("Queries2026.json");
+	private static readonly Dictionary<string, QueryDefinition> _queries = LoadQueries ("Queries.data");
+	private static readonly Dictionary<string, QueryDefinition> _queries2026 = LoadQueries ("Queries2026.data");
 
 	/// <summary>Creates a TEDAPI client using HTTP Basic authentication on a gateway-accessible network.</summary>
 	/// <param name="gatewayPassword">Full gateway password printed on the equipment label.</param>

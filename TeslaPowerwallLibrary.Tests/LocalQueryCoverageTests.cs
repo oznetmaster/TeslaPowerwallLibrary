@@ -16,7 +16,7 @@ public sealed class LocalQueryCoverageTests
 	{
 	/// <summary>Every selected response field has a typed destination, including dynamic component families.</summary>
 	/// <param name="resource">Bundled vendor query resource.</param>
-	[TestCase ("Queries.json"), TestCase ("Queries2026.json")]
+	[TestCase ("Queries.data"), TestCase ("Queries2026.data")]
 	public void EveryBundledQueryField_HasAnAttributedDestination (string resource)
 		{
 		using var stream = typeof (Powerwall).Assembly.GetManifestResourceStream ("TeslaPowerwallLibrary.Tedapi.Protocol." + resource)!;
@@ -38,6 +38,17 @@ public sealed class LocalQueryCoverageTests
 		TestContext.Out.WriteLine ("Selected response fields checked: " + fieldCount);
 		Assert.That (excludedCredentials, Is.EqualTo (1), "Only the remote-service session credential is deliberately excluded.");
 		Assert.That (missing, Is.Empty, "Selected fields without attributed response destinations: " + string.Join (", ", missing));
+		}
+
+	/// <summary>Protocol resources cannot be mistaken for a driver manifest after assembly merging.</summary>
+	[Test]
+	public void BundledQueryResources_DoNotUseManifestFileNames ()
+		{
+		string[] resources = typeof (Powerwall).Assembly.GetManifestResourceNames ()
+			.Where (name => name.StartsWith ("TeslaPowerwallLibrary.Tedapi.Protocol.", StringComparison.Ordinal)).ToArray ();
+		Assert.That (resources, Has.Length.EqualTo (2));
+		Assert.That (resources.Any (name => name.IndexOf (".json", StringComparison.OrdinalIgnoreCase) >= 0), Is.False,
+			"Manifest packagers select embedded JSON resources as driver manifests.");
 		}
 
 	private static List<Field> ParseFields (string[] tokens, ref int position)
