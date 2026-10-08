@@ -3,6 +3,8 @@
 
 using System.CommandLine;
 using System.Globalization;
+using System.Security.Cryptography;
+using TeslaPowerwallLibrary.Tools;
 
 using TeslaPowerwallLibrary.Login;
 
@@ -20,6 +22,46 @@ internal static class CliOptions
 		Description = "Powerwall gateway host name or IP address (env: PW_HOST).",
 		Recursive = true
 		};
+
+	/// <summary>Explicit local protocol; selecting it never falls back to a cloud connection.</summary>
+	public static Option<PowerwallLocalProtocol?> LocalProtocol { get; } = new ("--local-protocol")
+		{
+		Description = "Local transport: Gateway, Tedapi (setup Wi-Fi), TedapiSigned (LAN), or TedapiBearer (installer).",
+		Recursive = true
+		};
+
+	/// <summary>Explicit vendor-signed TEDAPI query version.</summary>
+	public static Option<Tedapi.TedapiQueryVersion?> LocalQueryVersion { get; } = new ("--local-query-version")
+		{
+		Description = "TEDAPI query set: June2024 (default) or June2026. No automatic fallback.",
+		Recursive = true
+		};
+
+	/// <summary>Name of an existing signing key in the current Windows user's key store.</summary>
+	public static Option<string?> LocalKeyName { get; } = new ("--local-key")
+		{
+		Description = "Windows local signing key name (env: PW_LOCAL_KEY).",
+		Recursive = true
+		};
+
+	/// <summary>Explicitly permits local writes for this invocation; never persisted.</summary>
+	public static Option<bool> AllowLocalControl { get; } = new ("--allow-local-control")
+		{
+		Description = "Permit local setting/control commands for this invocation only.",
+		Recursive = true
+		};
+
+	/// <summary>Explicit accessible setup-network host for follower reads; not persisted.</summary>
+	public static Option<string?> LocalSetupHost { get; } = new ("--local-setup-host")
+		{ Description = "Optional setup-network host for a signed LAN session; label password comes from PW_SETUP_PASSWORD.", Recursive = true };
+
+	/// <summary>Opts this invocation into controller read failover through the explicit setup host.</summary>
+	public static Option<bool> LocalReadFailover { get; } = new ("--local-read-failover")
+		{ Description = "Allow supported reads to fail over to --local-setup-host; never redirects controls.", Recursive = true };
+
+	/// <summary>Minimum seconds before a subsequent read attempts LAN recovery.</summary>
+	public static Option<int?> LocalRetrySeconds { get; } = new ("--local-retry-seconds")
+		{ Description = "Positive LAN recovery delay after read failover (default 60 seconds). No background polling.", Recursive = true };
 
 	/// <summary>Customer password (environment variable <c>PW_PASSWORD</c>).</summary>
 	public static Option<string?> Password { get; } = new ("--password", "-p")
@@ -204,11 +246,15 @@ internal static class CliOptions
 		// when no host is configured, fall back to the persisted FleetAPI preference from the last run that
 		// resolved without a host (defaulting to Tesla Owners cloud mode); a configured host with neither
 		// explicit flag selects local mode.
+		var requestedProtocol = parseResult.GetValue (LocalProtocol);
+		var protocol = requestedProtocol ?? settings.LocalProtocol;
+		if (requestedProtocol.HasValue && (parseResult.GetValue (Cloud) || parseResult.GetValue (FleetApi)))
+			throw new ArgumentException ("Choose either an explicit local protocol or a cloud mode.");
 		var explicitCloud = parseResult.GetValue (Cloud);
 		var explicitFleetApi = parseResult.GetValue (FleetApi);
 		var preferFleetApi = settings.PreferFleetApi ?? false;
-		var fleetApiMode = explicitFleetApi || (!explicitCloud && string.IsNullOrWhiteSpace (host) && preferFleetApi);
-		var cloudMode = !fleetApiMode && (explicitCloud || string.IsNullOrWhiteSpace (host));
+		var fleetApiMode = explicitFleetApi || (!requestedProtocol.HasValue && !explicitCloud && string.IsNullOrWhiteSpace (host) && preferFleetApi);
+		var cloudMode = !fleetApiMode && (explicitCloud || (!requestedProtocol.HasValue && string.IsNullOrWhiteSpace (host)));
 
 		if (!Console.IsInputRedirected && !cloudMode && !fleetApiMode)
 			{
@@ -273,6 +319,11 @@ internal static class CliOptions
 		var options = new PowerwallOptions
 			{
 			Host = host?.Trim () ?? string.Empty,
+			LocalProtocol = cloudMode || fleetApiMode ? PowerwallLocalProtocol.Gateway : protocol,
+			LocalQueryVersion = parseResult.GetValue (LocalQueryVersion) ?? settings.LocalQueryVersion,
+			GatewayPassword = protocol is (PowerwallLocalProtocol.Tedapi or PowerwallLocalProtocol.TedapiBearer) ? password ?? string.Empty : string.Empty,
+			AllowLocalControl = parseResult.GetValue (AllowLocalControl),
+			NoLocalSessionPersistence = true,
 			Password = password ?? string.Empty,
 			Email = resolvedEmail,
 			Timezone = string.IsNullOrWhiteSpace (timezone) ? Constants.DEFAULT_TIMEZONE : timezone!.Trim (),
@@ -290,10 +341,25 @@ internal static class CliOptions
 			FleetApiRegion = NormalizeFleetApiRegion (fleetApiRegion)
 			};
 
+		// Validate invocation-only alternate settings before saving any primary connection preferences.
+		_ = LocalConsoleResources.SetupOptions (options, parseResult.GetValue (LocalSetupHost),
+			Environment.GetEnvironmentVariable ("PW_SETUP_PASSWORD"), parseResult.GetValue (LocalReadFailover),
+			parseResult.GetValue (LocalRetrySeconds) ?? 60);
+
 		if (!parseResult.GetValue (NoSave))
 			Persist (options, timeout, cacheExpire, NormalizeRegion (region), fleetApiMode);
 
-		return new ResolvedConnection (options, parseResult.GetValue (Verbose), NormalizeRegion (region), parseResult.GetValue (NoSave));
+		var keyName = Coalesce (parseResult.GetValue (LocalKeyName), Environment.GetEnvironmentVariable ("PW_LOCAL_KEY"), settings.LocalSigningKeyName)
+			?? LocalSigningKeyStore.DefaultKeyName;
+		if (!parseResult.GetValue (NoSave))
+			{
+			var saved = SettingsStore.Load ();
+			saved.LocalSigningKeyName = keyName;
+			if (!cloudMode && !fleetApiMode)
+				saved.LocalProtocol = protocol;
+			SettingsStore.Save (saved);
+			}
+		return new ResolvedConnection (options, parseResult.GetValue (Verbose), NormalizeRegion (region), parseResult.GetValue (NoSave), keyName);
 		}
 
 	// Prompts the user to launch the Tesla browser login and returns the captured tokens, or null
@@ -567,6 +633,9 @@ internal static class CliOptions
 			{
 			Host = string.IsNullOrWhiteSpace (options.Host) ? null : options.Host,
 			ProtectedPassword = CredentialProtector.Protect (options.Password),
+			LocalProtocol = options.CloudMode ? SettingsStore.Load ().LocalProtocol : options.LocalProtocol,
+			LocalQueryVersion = options.LocalQueryVersion,
+			LocalSigningKeyName = SettingsStore.Load ().LocalSigningKeyName,
 			Email = hasCloudEmail ? options.Email : null,
 			Timezone = string.Equals (options.Timezone, Constants.DEFAULT_TIMEZONE, StringComparison.Ordinal) ? null : options.Timezone,
 			TimeoutSeconds = timeoutSeconds,
@@ -591,4 +660,5 @@ internal static class CliOptions
 /// <param name="Verbose">Whether verbose library logging was requested.</param>
 /// <param name="Region">The normalized Tesla region (<c>us</c> or <c>cn</c>) used for cloud browser login.</param>
 /// <param name="NoSave">Whether persistence of resolved settings is suppressed for the session.</param>
-internal sealed record ResolvedConnection (PowerwallOptions Options, bool Verbose, string Region, bool NoSave);
+/// <param name="LocalKeyName">Windows signing key name; resolving settings does not open a key.</param>
+internal sealed record ResolvedConnection (PowerwallOptions Options, bool Verbose, string Region, bool NoSave, string LocalKeyName);

@@ -4,6 +4,24 @@ All notable changes are documented here. This project follows [Semantic Versioni
 
 This changelog records shipped features, fixes, compatibility and runtime dependency changes. See [development and validation history](DEVELOPMENT-HISTORY.md) for tests, CI, build tooling and work not yet released.
 
+## [2.1.0] - 2026-10-08
+
+### Added
+
+- Typed local TEDAPI access over signed Powerwall 3 LAN, setup-network Basic and installer bearer transports, with explicit signing-key enrollment through Owner or Fleet.
+- Hostname/IP configuration, DNS-SD discovery, LAN address resolution, configurable response caches and opt-in local read failover.
+- Typed controller, device, battery, meter, firmware and diagnostic data, plus guarded settings, backup and grid commands.
+- `GetPowerReadingsAsync()` and nullable `PowerReadings`, preserving missing telemetry while retaining the existing `PowerAsync()` contract.
+- Desktop local connections, detailed telemetry, session control permissions, configurable refresh, hybrid local/cloud history and improved charts; matching console commands on both runtimes.
+
+### Fixed
+
+- Local session handling, cancellation, endpoint cooldowns and cache invalidation after changes.
+- Preserve the original configuration outside explicitly requested TEDAPI setting updates.
+- Distinguish missing battery-to-home energy from zero when presenting history.
+
+Existing public signatures and classic gateway defaults are retained. See [upgrading to 2.1](UPGRADING-2.1.md) and [local access](LOCAL-ACCESS.md) for compatibility and hardware limits.
+
 ## [2.0.0] - 2026-09-22
 
 ### Changed
@@ -134,7 +152,7 @@ Initial public preview release, including:
 
 - Separate `TeslaPowerwallLibrary.Login` library for Tesla cloud login.
 
-- `TeslaPowerwallLibrary.App` WPF dashboard with live energy charts and site/account management.
+- `TeslaPowerwallLibrary.App` WPF desktop app with live energy charts and site/account management.
 
 - `TeslaPowerwallLibrary.TestConsole` command-line/interactive test harness.
 

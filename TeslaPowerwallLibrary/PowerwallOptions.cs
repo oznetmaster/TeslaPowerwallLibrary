@@ -21,12 +21,75 @@ public enum PowerwallMode
 	FleetApi
 	}
 
+/// <summary>Selects the protocol used for a direct local connection. No mode falls back to a cloud API.</summary>
+public enum PowerwallLocalProtocol
+	{
+	/// <summary>Customer-authenticated gateway HTTPS API, including basic Powerwall 3 telemetry.</summary>
+	Gateway,
+	/// <summary>Gateway-password TEDAPI, normally reached through the gateway Wi-Fi network.</summary>
+	Tedapi,
+	/// <summary>Powerwall 3 LAN TEDAPI using an already registered, caller-owned RSA signing key.</summary>
+	TedapiSigned,
+	/// <summary>Installer-authenticated TEDAPI envelopes for compatible gateways, using the full equipment-label password.</summary>
+	TedapiBearer
+	}
+
 /// <summary>
 /// Configuration options used to construct a <see cref="Powerwall"/> instance. Mirrors the constructor
 /// parameters of the Python <c>Powerwall</c> class while using idiomatic .NET naming and types.
 /// </summary>
 public sealed record PowerwallOptions
 	{
+	/// <summary>Protocol for direct local access. This does not enable cloud authentication or fallback.</summary>
+	public PowerwallLocalProtocol LocalProtocol { get; init; }
+
+	/// <summary>Gets the explicit TEDAPI query set; June 2024 is the default. No automatic cross-version fallback occurs.</summary>
+	public Tedapi.TedapiQueryVersion LocalQueryVersion { get; init; } = Tedapi.TedapiQueryVersion.June2024;
+	/// <summary>Optional, already authenticated setup-network connection for follower component reads from a signed LAN client.</summary>
+	/// <remarks>The consumer owns this connection and its lifetime. It must use <see cref="PowerwallLocalProtocol.Tedapi"/>.
+	/// No network connection, authentication, cloud fallback or power-control command is started implicitly.
+	/// Controller reads use it only when <see cref="EnableLocalReadFailover"/> is enabled. Writes always use the primary signed LAN connection.</remarks>
+	[System.Text.Json.Serialization.JsonIgnore]
+	public Tedapi.PowerwallTedapiClient? LocalFollowerConnection { get; init; }
+
+	/// <summary>Enables read-only failover from signed LAN to the explicit, already authenticated <see cref="LocalFollowerConnection"/>.</summary>
+	/// <remarks>Defaults to false. Three consecutive network failures or request timeouts switch supported reads to the setup-network connection.
+	/// Initial LAN unavailability can start directly on that connection. Device identities must match. Authentication failures,
+	/// malformed responses, rate limits and caller cancellation never trigger failover. No writes are replayed or redirected.</remarks>
+	public bool EnableLocalReadFailover { get; init; }
+
+	/// <summary>Delay before a caller's next read retries LAN after failover. Defaults to 60 seconds; must be positive.</summary>
+	/// <remarks>No background timer or polling loop is created. Failed recovery attempts wait another interval.</remarks>
+	public TimeSpan LocalReadFailoverRetryInterval { get; init; } = TimeSpan.FromSeconds (60);
+
+	private bool? _noLocalSessionPersistence;
+	private bool? _allowLocalControl;
+
+	/// <summary>Disables classic gateway session persistence. Defaults to false for Gateway to preserve existing behavior, and true for TEDAPI.</summary>
+	/// <remarks>TEDAPI sessions are always memory-only. Set this explicitly to true to keep classic gateway sessions memory-only too.</remarks>
+	public bool NoLocalSessionPersistence
+		{
+		get => _noLocalSessionPersistence ?? LocalProtocol != PowerwallLocalProtocol.Gateway;
+		init => _noLocalSessionPersistence = value;
+		}
+
+	/// <summary>Permits explicit local control commands. Defaults to true for the classic Gateway protocol and false for TEDAPI.</summary>
+	/// <remarks>Classic gateway defaults preserve the released API behavior. Set false explicitly for read-only access.
+	/// TEDAPI writes require explicit true and signed LAN access. Authentication and reads never send control commands.</remarks>
+	public bool AllowLocalControl
+		{
+		get => _allowLocalControl ?? (!CloudMode && !FleetApi && LocalProtocol == PowerwallLocalProtocol.Gateway);
+		init => _allowLocalControl = value;
+		}
+
+	/// <summary>Full gateway-label password for direct TEDAPI authentication. Separate from Tesla account credentials.</summary>
+	public string GatewayPassword { get; init; } = string.Empty;
+
+	/// <summary>Registered 4096-bit RSA key for signed Powerwall 3 LAN requests. The caller owns and disposes this key.
+	/// The library never registers the key or contacts a cloud API on behalf of a local connection.</summary>
+	[System.Text.Json.Serialization.JsonIgnore]
+	public System.Security.Cryptography.RSA? LocalSigningKey { get; init; }
+
 	/// <summary>Caller-owned logger used by this connection and its clients. Defaults to no logging.
 	/// Supply a logger with the desired category and scopes to associate messages with an application or device.</summary>
 	[System.Text.Json.Serialization.JsonIgnore]

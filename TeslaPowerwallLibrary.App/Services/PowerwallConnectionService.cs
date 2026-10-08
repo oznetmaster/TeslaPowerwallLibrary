@@ -3,6 +3,10 @@
 
 using System;
 using System.Threading;
+using System.Security.Cryptography;
+using System.Net.Http;
+using System.Text.Json;
+using TeslaPowerwallLibrary.Tools;
 using System.Threading.Tasks;
 
 namespace TeslaPowerwallLibrary.App.Services;
@@ -15,7 +19,21 @@ namespace TeslaPowerwallLibrary.App.Services;
 public sealed class PowerwallConnectionService : IDisposable
 	{
 	/// <summary>Poll cadence for local gateway connections, which serve fresh data on every request.</summary>
-	private static readonly TimeSpan _localPollInterval = TimeSpan.FromSeconds (5);
+	private TimeSpan _localPollInterval = TimeSpan.FromSeconds (5);
+
+	/// <summary>Gets or sets the delay between completed local refreshes; zero means manual refresh only.</summary>
+	/// <exception cref="ArgumentOutOfRangeException">The interval is negative or a nonzero interval is less than one second.</exception>
+	public TimeSpan LocalPollInterval
+		{
+		get => _localPollInterval;
+		set
+			{
+			if (value < TimeSpan.Zero || (value > TimeSpan.Zero && value < TimeSpan.FromSeconds (1)) || value.TotalSeconds > 3600)
+				throw new ArgumentOutOfRangeException (nameof (value), "Use zero for manual refresh or 1–3600 seconds.");
+			_localPollInterval = value;
+			}
+		}
+
 
 	/// <summary>
 	/// Poll cadence for cloud-backed connections (Owners API / FleetAPI). Tesla™ only refreshes cloud data
@@ -25,8 +43,90 @@ public sealed class PowerwallConnectionService : IDisposable
 	private static readonly TimeSpan _cloudPollInterval = TimeSpan.FromMinutes (1);
 
 	private Powerwall? _powerwall;
+	private RSA? _localSigningKey;
+	private PowerwallOptions? _connectionOptions;
+	private string? _localKeyName;
+	private readonly Func<Powerwall, CancellationToken, Task<bool>> _authenticate;
+
+	/// <summary>Creates a desktop connection service using normal library authentication.</summary>
+	public PowerwallConnectionService () : this ((powerwall, token) => powerwall.ConnectAsync (token)) { }
+
+	/// <summary>Creates a service with an injectable authentication boundary for offline connection tests.</summary>
+	/// <param name="authenticate">Authenticates a candidate without changing device settings.</param>
+	internal PowerwallConnectionService (Func<Powerwall, CancellationToken, Task<bool>> authenticate) =>
+		_authenticate = authenticate ?? throw new ArgumentNullException (nameof (authenticate));
+
+	/// <summary>Gets whether the current read-only local session can be reconnected with controls enabled.</summary>
+	public bool CanEnableLocalControls => Mode == PowerwallMode.Local && !AllowsLocalControl && _connectionOptions is not null;
+
+	/// <summary>Reauthenticates the same local device with permission for explicit control commands for this session only.</summary>
+	/// <param name="cancellationToken">Cancels authentication, leaving the previous connection available.</param>
+	/// <returns>Whether the controls are enabled. This method sends no settings or power-control commands.</returns>
+	public Task<bool> EnableLocalControlsAsync (CancellationToken cancellationToken = default) => SetLocalControlsAsync (true, cancellationToken);
+
+	/// <summary>Reauthenticates the same local device with control writes disabled, without changing device settings.</summary>
+	/// <param name="cancellationToken">Cancels authentication; failure retains the previous connection and permission state.</param>
+	/// <returns>Whether the connection is now read-only.</returns>
+	public Task<bool> DisableLocalControlsAsync (CancellationToken cancellationToken = default) => SetLocalControlsAsync (false, cancellationToken);
+
+	/// <summary>Changes local refresh cadence and cache lifetime together, preserving the session's control permission.</summary>
+	/// <param name="seconds">Zero for manual refresh, or 1–3600 seconds between completed reads.</param>
+	/// <param name="cancellationToken">Cancels reauthentication; failure retains the previous interval and connection.</param>
+	/// <returns>Whether the new refresh preference took effect. No Powerwall settings are changed.</returns>
+	public async Task<bool> SetLocalPollIntervalAsync (int seconds, CancellationToken cancellationToken = default)
+		{
+		if (seconds < 0 || seconds > 3600) throw new ArgumentOutOfRangeException (nameof (seconds), "Use zero for manual refresh or 1–3600 seconds.");
+		if (Mode != PowerwallMode.Local || _connectionOptions is null) return false;
+		if (LocalPollInterval.TotalSeconds == seconds && _connectionOptions.CacheExpireSeconds == seconds) return true;
+		PowerwallOptions options = _connectionOptions with { CacheExpireSeconds = seconds };
+		string? keyName = _localKeyName;
+		bool wasPolling = _pollTask is not null;
+		bool changed = false;
+		await StopPollingAsync ().ConfigureAwait (false);
+		try
+			{
+			changed = keyName is not null
+				? await ConnectLocalAsync (options, keyName, cancellationToken).ConfigureAwait (false)
+				: await ConnectAsync (options, cancellationToken).ConfigureAwait (false);
+			if (changed) LocalPollInterval = TimeSpan.FromSeconds (seconds);
+			return changed;
+			}
+		finally
+			{
+			if ((changed || wasPolling) && LocalPollInterval > TimeSpan.Zero) StartPolling ();
+			}
+		}
+
+	private async Task<bool> SetLocalControlsAsync (bool enabled, CancellationToken cancellationToken)
+		{
+		if (Mode != PowerwallMode.Local || _connectionOptions is null) return false;
+		if (AllowsLocalControl == enabled) return true;
+		PowerwallOptions options = _connectionOptions with { AllowLocalControl = enabled };
+		string? keyName = _localKeyName;
+		bool wasPolling = _pollTask is not null;
+		await StopPollingAsync ().ConfigureAwait (false);
+		try
+			{
+			return keyName is not null
+				? await ConnectLocalAsync (options, keyName, cancellationToken).ConfigureAwait (false)
+				: await ConnectAsync (options, cancellationToken).ConfigureAwait (false);
+			}
+		finally
+			{
+			if (wasPolling) StartPolling ();
+			}
+		}
+
+	/// <summary>Gets the active local protocol, or Gateway when using cloud access.</summary>
+	public PowerwallLocalProtocol LocalProtocol { get; private set; }
+
+	/// <summary>Gets whether the current connection explicitly permits local control.</summary>
+	public bool AllowsLocalControl { get; private set; }
 	private CancellationTokenSource? _pollCts;
 	private Task? _pollTask;
+
+	/// <summary>Raised when the active connection is replaced or disconnected; previous readings are no longer current.</summary>
+	public event EventHandler? ConnectionChanged;
 
 	/// <summary>Raised on each successful poll with the latest system snapshot.</summary>
 	public event EventHandler<PowerFlowSnapshot>? SnapshotUpdated;
@@ -51,6 +151,9 @@ public sealed class PowerwallConnectionService : IDisposable
 	/// <summary>Gets the resolved connection mode, or <see cref="PowerwallMode.Unknown"/> when not connected.</summary>
 	public PowerwallMode Mode => _powerwall?.Mode ?? PowerwallMode.Unknown;
 
+	/// <summary>Gets the authenticated local hardware identifier, independent of its IP address or hostname.</summary>
+	public string? LocalDeviceId { get; private set; }
+
 	/// <summary>Gets the customer email of the active connection, or <see langword="null"/> when not connected.</summary>
 	public string? Email => _powerwall?.Email;
 
@@ -60,11 +163,28 @@ public sealed class PowerwallConnectionService : IDisposable
 	/// </summary>
 	public string? SiteLabel { get; private set; }
 
+	/// <summary>Gets the reported or previously associated site name, separately from its network address.</summary>
+	public string? SiteName { get; private set; }
+
+	/// <summary>Raised when the site name is resolved, changed or cleared.</summary>
+	public event EventHandler? SiteNameChanged;
+
+	/// <summary>Updates the display name without changing the connection or its history identity.</summary>
+	/// <param name="name">Reported name, or null to clear a previous connection's name.</param>
+	internal void SetSiteName (string? name)
+		{
+		name = string.IsNullOrWhiteSpace (name) ? null : name.Trim ();
+		if (SiteName == name) return;
+		SiteName = name;
+		SiteNameChanged?.Invoke (this, EventArgs.Empty);
+		}
+
 	/// <summary>Sets <see cref="SiteLabel"/> and raises <see cref="SiteLabelChanged"/>.</summary>
 	/// <param name="label">The label to display, or <see langword="null"/> to clear it.</param>
 	public void SetSiteLabel (string? label)
 		{
 		SiteLabel = label;
+		if (Mode != PowerwallMode.Local) SetSiteName (label);
 		SiteLabelChanged?.Invoke (this, EventArgs.Empty);
 		}
 
@@ -91,9 +211,29 @@ public sealed class PowerwallConnectionService : IDisposable
 		var candidate = new Powerwall (options);
 
 		bool connected;
+		string? deviceId = null;
+		string? siteName = null;
 		try
 			{
-			connected = await candidate.ConnectAsync (cancellationToken).ConfigureAwait (false);
+			connected = await _authenticate (candidate, cancellationToken).ConfigureAwait (false);
+			if (connected && candidate.Mode == PowerwallMode.Local)
+				{
+				deviceId = candidate.LocalDeviceIdentificationNumber ?? await candidate.DinAsync (cancellationToken).ConfigureAwait (false);
+				siteName = LocalHistoryBinding.Find (AppSettingsStore.Load (), deviceId)?.SiteName;
+				if (options.LocalProtocol != PowerwallLocalProtocol.Gateway)
+					{
+					try
+						{
+						var configuration = await candidate.GetLocalConfigurationAsync (cancellationToken: cancellationToken).ConfigureAwait (false);
+						if (!string.IsNullOrWhiteSpace (configuration.Site?.Name)) siteName = configuration.Site.Name;
+						}
+					catch (Exception exc) when (!cancellationToken.IsCancellationRequested
+						&& exc is PowerwallException or HttpRequestException or JsonException or OperationCanceledException)
+						{
+						// An unavailable optional display name must not prevent a working LAN connection.
+						}
+					}
+				}
 			}
 		catch
 			{
@@ -112,14 +252,51 @@ public sealed class PowerwallConnectionService : IDisposable
 
 		await StopPollingAsync ().ConfigureAwait (false);
 		_powerwall?.Dispose ();
+		_localSigningKey?.Dispose ();
+		_localSigningKey = null;
 		_powerwall = candidate;
+		_connectionOptions = options;
+		_localKeyName = null;
+		LocalDeviceId = deviceId;
+		LocalProtocol = options.LocalProtocol;
+		AllowsLocalControl = options.AllowLocalControl;
 		_powerwall.FleetApiTokensRefreshed += OnFleetApiTokensRefreshed;
 
-		// Local mode has no site name to resolve, so the gateway host doubles as the site label. Cloud/FleetAPI
+		// Keep the local address separate from the reported site name. Cloud/FleetAPI
 		// mode's label (the Tesla site name) is set by the caller once GetSitesAsync resolves it, and again on
 		// any later site switch from the Settings screen.
+		SetSiteName (siteName);
 		SetSiteLabel (candidate.Mode == PowerwallMode.Local ? options.Host : null);
+		ConnectionChanged?.Invoke (this, EventArgs.Empty);
 		return true;
+		}
+
+	/// <summary>Connects using a caller-selected Windows key, owned for the lifetime of the new local connection.</summary>
+	/// <param name="options">Local connection options.</param>
+	/// <param name="keyName">Existing Windows signing key name; used only for signed TEDAPI.</param>
+	/// <param name="cancellationToken">Cancels the connection attempt.</param>
+	/// <returns>Whether the candidate connection authenticated successfully.</returns>
+	public async Task<bool> ConnectLocalAsync (PowerwallOptions options, string keyName, CancellationToken cancellationToken = default)
+		{
+		if (options.CloudMode || options.FleetApi)
+			throw new ArgumentException ("Local connection options are required.", nameof (options));
+		RSA? key = options.LocalProtocol == PowerwallLocalProtocol.TedapiSigned ? LocalSigningKeyStore.Open (keyName) : null;
+		try
+			{
+			bool connected = await ConnectAsync (options with { LocalSigningKey = key }, cancellationToken).ConfigureAwait (false);
+			if (connected)
+				{
+				_localSigningKey = key;
+				_localKeyName = options.LocalProtocol == PowerwallLocalProtocol.TedapiSigned ? keyName : null;
+				_connectionOptions = options with { LocalSigningKey = null };
+				key = null;
+				}
+			return connected;
+			}
+		finally
+			{
+			key?.Dispose ();
+			}
 		}
 
 	// The library now persists FleetAPI tokens internally (mirroring cloud mode), but the app also keeps its
@@ -153,7 +330,7 @@ public sealed class PowerwallConnectionService : IDisposable
 			return;
 
 		_pollCts = new CancellationTokenSource ();
-		_pollTask = PollLoopAsync (_pollCts.Token);
+		_pollTask = PollLoopAsync (ReadSnapshotAsync, Task.Delay, _pollCts.Token);
 		}
 
 	/// <summary>Stops the background polling loop and waits for it to finish.</summary>
@@ -180,14 +357,22 @@ public sealed class PowerwallConnectionService : IDisposable
 			}
 		}
 
-	/// <summary>Reads a single fresh snapshot on demand, independent of the polling loop.</summary>
+	/// <summary>Reads a snapshot, reusing local data within the configured cache lifetime.</summary>
 	/// <param name="cancellationToken">Token used to cancel the read.</param>
 	/// <returns>The latest snapshot.</returns>
-	public async Task<PowerFlowSnapshot> ReadSnapshotAsync (CancellationToken cancellationToken = default)
+	public Task<PowerFlowSnapshot> ReadSnapshotAsync (CancellationToken cancellationToken = default) =>
+		ReadSnapshotAsync (false, cancellationToken);
+
+	private async Task<PowerFlowSnapshot> ReadSnapshotAsync (bool force, CancellationToken cancellationToken)
 		{
 		var powerwall = Powerwall;
 
-		var power = await powerwall.PowerAsync (cancellationToken).ConfigureAwait (false);
+		if (Mode == PowerwallMode.Local && LocalProtocol != PowerwallLocalProtocol.Gateway)
+			{
+			var telemetry = await powerwall.GetLocalTelemetryAsync (force, cancellationToken).ConfigureAwait (false);
+			return PowerFlowSnapshot.FromLocal (telemetry);
+			}
+		var power = await powerwall.GetPowerReadingsAsync (cancellationToken).ConfigureAwait (false);
 		var level = await powerwall.LevelAsync (scale: true, cancellationToken).ConfigureAwait (false);
 		var gridStatus = await powerwall.GridStatusAsync (cancellationToken).ConfigureAwait (false);
 		var timeRemaining = await SafeTimeRemainingAsync (powerwall, cancellationToken).ConfigureAwait (false);
@@ -202,26 +387,46 @@ public sealed class PowerwallConnectionService : IDisposable
 			timeRemaining);
 		}
 
-	private async Task PollLoopAsync (CancellationToken cancellationToken)
+	/// <summary>Requests a fresh snapshot and notifies the app; also works with automatic refresh disabled.</summary>
+	/// <param name="cancellationToken">Cancels the explicit refresh.</param>
+	/// <returns>A task that completes after publishing the snapshot.</returns>
+	public async Task RefreshAsync (CancellationToken cancellationToken = default)
 		{
-		using var timer = new PeriodicTimer (PollInterval);
+		var connection = Powerwall;
+		var snapshot = await ReadSnapshotAsync (true, cancellationToken).ConfigureAwait (false);
+		if (ReferenceEquals (connection, _powerwall))
+			SnapshotUpdated?.Invoke (this, snapshot);
+		}
+
+	/// <summary>Runs scheduled reads, recovering from per-request timeouts until the consumer cancels.</summary>
+	/// <param name="read">One measurement read.</param>
+	/// <param name="delay">Delay between completed attempts; injectable for offline scheduling tests.</param>
+	/// <param name="cancellationToken">Stops this polling session.</param>
+	/// <returns>A task completing on manual-only mode or session cancellation.</returns>
+	internal async Task PollLoopAsync (Func<CancellationToken, Task<PowerFlowSnapshot>> read,
+		Func<TimeSpan, CancellationToken, Task> delay, CancellationToken cancellationToken)
+		{
 		do
 			{
 			try
 				{
-				var snapshot = await ReadSnapshotAsync (cancellationToken).ConfigureAwait (false);
+				cancellationToken.ThrowIfCancellationRequested ();
+				var snapshot = await read (cancellationToken).ConfigureAwait (false);
 				SnapshotUpdated?.Invoke (this, snapshot);
 				}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 				{
 				throw;
 				}
-			catch (PowerwallException exc)
+			catch (Exception exc) when (exc is PowerwallException or HttpRequestException or JsonException or OperationCanceledException)
 				{
-				PollFailed?.Invoke (this, exc.Message);
+				PollFailed?.Invoke (this, exc is OperationCanceledException ? "The local or cloud reading timed out; the next scheduled read will retry." : exc.Message);
 				}
+			if (PollInterval == TimeSpan.Zero)
+				return;
+			await delay (PollInterval, cancellationToken).ConfigureAwait (false);
 			}
-		while (await timer.WaitForNextTickAsync (cancellationToken).ConfigureAwait (false));
+		while (!cancellationToken.IsCancellationRequested);
 		}
 
 	private static async Task<double?> SafeTimeRemainingAsync (Powerwall powerwall, CancellationToken cancellationToken)
@@ -251,7 +456,14 @@ public sealed class PowerwallConnectionService : IDisposable
 
 		_powerwall?.Dispose ();
 		_powerwall = null;
+		_connectionOptions = null;
+		_localKeyName = null;
+		LocalDeviceId = null;
+		_localSigningKey?.Dispose ();
+		_localSigningKey = null;
+		AllowsLocalControl = false;
 		SetSiteLabel (null);
+		ConnectionChanged?.Invoke (this, EventArgs.Empty);
 		}
 
 	/// <summary>Stops polling and releases the underlying connection.</summary>
@@ -268,5 +480,11 @@ public sealed class PowerwallConnectionService : IDisposable
 
 		_powerwall?.Dispose ();
 		_powerwall = null;
+		_connectionOptions = null;
+		_localKeyName = null;
+		LocalDeviceId = null;
+		_localSigningKey?.Dispose ();
+		_localSigningKey = null;
+		AllowsLocalControl = false;
 		}
 	}

@@ -104,7 +104,7 @@ public abstract class PowerwallClientBase
 	/// Returns the instantaneous power flows for site, solar, battery, and load.
 	/// </summary>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
-	/// <returns>A <see cref="PowerSnapshot"/>; flows that cannot be parsed default to zero.</returns>
+	/// <returns>A <see cref="PowerSnapshot"/>; unreported flows default to zero for compatibility. Use <see cref="GetPowerReadingsAsync"/> to retain missing values.</returns>
 	public virtual async Task<PowerSnapshot> PowerAsync (CancellationToken cancellationToken = default)
 		{
 		MeterAggregates? aggregates = await GetMeterAggregatesAsync (cancellationToken).ConfigureAwait (false);
@@ -114,6 +114,23 @@ public abstract class PowerwallClientBase
 			Solar = aggregates?.Solar?.InstantPower ?? 0.0,
 			Battery = aggregates?.Battery?.InstantPower ?? 0.0,
 			Load = aggregates?.Load?.InstantPower ?? 0.0
+			};
+		}
+
+	/// <summary>
+	/// Returns the instantaneous power flows for site, solar, battery, and load.
+	/// </summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>A <see cref="PowerReadings"/>; unreported flows remain null.</returns>
+	public virtual async Task<PowerReadings> GetPowerReadingsAsync (CancellationToken cancellationToken = default)
+		{
+		MeterAggregates? aggregates = await GetMeterAggregatesAsync (cancellationToken).ConfigureAwait (false);
+		return new PowerReadings
+			{
+			Site = aggregates?.Site?.InstantPower,
+			Solar = aggregates?.Solar?.InstantPower,
+			Battery = aggregates?.Battery?.InstantPower,
+			Load = aggregates?.Load?.InstantPower
 			};
 		}
 

@@ -10,23 +10,33 @@ using System.Text.Json.Serialization;
 
 namespace TeslaPowerwallLibrary.Local;
 
+/// <summary>Customer login sent directly to the local gateway, never to the Tesla cloud.</summary>
 internal sealed record LocalLoginRequest
 	{
+	/// <summary>Always false: authentication must not turn off the site manager.</summary>
+	[JsonPropertyName ("force_sm_off")]
+	#pragma warning disable CA1822 // JSON requires an instance property; the safety value must stay immutable.
+	public bool ForceSiteManagerOff => false;
+#pragma warning restore CA1822
+	/// <summary>Local account role.</summary>
 	[JsonPropertyName ("username")]
 	public string? Username
 		{
 		get; init;
 		}
+	/// <summary>Gateway customer password.</summary>
 	[JsonPropertyName ("password")]
 	public string? Password
 		{
 		get; init;
 		}
+	/// <summary>Local login account label.</summary>
 	[JsonPropertyName ("email")]
 	public string? Email
 		{
 		get; init;
 		}
+	/// <summary>Client time-zone information.</summary>
 	[JsonPropertyName ("clientInfo")]
 	public LocalClientInfo? ClientInfo
 		{
@@ -34,8 +44,10 @@ internal sealed record LocalLoginRequest
 		}
 	}
 
+/// <summary>Local login client metadata.</summary>
 internal sealed record LocalClientInfo
 	{
+	/// <summary>Configured site time zone.</summary>
 	[JsonPropertyName ("timezone")]
 	public string? Timezone
 		{

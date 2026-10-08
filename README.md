@@ -1,9 +1,11 @@
 # TeslaPowerwallLibrary
 
+**Version 2.1.0** adds local TEDAPI support. Existing 2.0 callers retain their public API and classic gateway defaults. See [upgrading to 2.1](UPGRADING-2.1.md).
+
 For shipped changes, see the [changelog](CHANGELOG.md). Test, CI and build history is recorded separately in [development and validation history](DEVELOPMENT-HISTORY.md).
 
 
-A .NET client library for the Tesla™ Powerwall™ Energy Gateway, providing direct local-network access and Tesla Owners (cloud) API access to status, power flow, energy history, and control operations.
+A .NET client library for the Tesla™ Powerwall™ Energy Gateway, providing classic gateway and TEDAPI local access alongside Tesla Owner and Fleet cloud APIs to status, power flow, energy history, and control operations.
 
 Tesla and Powerwall are trademarks of Tesla, Inc. This project is an independent, unofficial .NET library and is not affiliated with or endorsed by Tesla.
 
@@ -18,10 +20,12 @@ Tesla and Powerwall are trademarks of Tesla, Inc. This project is an independent
 
 ## Overview
 
-`TeslaPowerwallLibrary` provides a strongly typed, async-first .NET wrapper around the Tesla Energy Gateway's local API and the Tesla Owners cloud API. It supports:
+`TeslaPowerwallLibrary` provides a strongly typed, async-first .NET wrapper around the classic gateway, local TEDAPI, Tesla Owner and Tesla Fleet APIs. It supports:
 
-- Local network access to the Powerwall gateway (status, power flow, grid status, system status, and energy/calendar history)
-- Tesla Owners (cloud) API access, including interactive OAuth login and automatic token persistence
+- Local gateway and TEDAPI telemetry, diagnostics and explicit controls; calendar history uses Owner or Fleet
+- Signed Powerwall 3 LAN access, separate cloud-assisted key enrollment, and hostname/IP configuration with optional discovery
+- Nullable power readings that distinguish unreported values from measured zeroes
+- Tesla Owners (cloud) API access, with OAuth credentials acquired through the companion login tools and optional token persistence
 - Control operations such as backup reserve level, operating mode, grid charging, grid export, and Storm Watch (cloud only)
 - Response caching with configurable expiry to reduce load on the gateway
 - Multi-target support for .NET Framework 4.7.2 and .NET 10
@@ -30,14 +34,18 @@ This .NET library is an independent implementation; behavioral and compatibility
 
 ### Connection modes
 
-| Mode | Status | Notes |
+| Connection | Main advantage | Main limitation |
 | --- | --- | --- |
-| Local | ✅ Implemented | Direct HTTPS/JSON access to the gateway using the customer password. Targets the Gateway 2 / Powerwall+ local REST API (see hardware note below). |
-| Cloud | ✅ Implemented | Tesla Owners API access using interactive OAuth login and cached tokens. Works regardless of gateway generation. |
-| FleetAPI | ✅ Implemented | Token-based access to the Tesla Fleet API using a caller-supplied Client ID and refresh token. Covers profile, energy product information, energy product commands (reserve, mode, grid charging, grid export), energy/calendar history, and vitals. Storm Watch is not exposed. No interactive login; the library persists tokens internally just like cloud mode (`FleetApiAuthPath`/`NoFleetApiTokenPersistence`). |
-| TEDAPI | 🚧 Not yet implemented | Scaffolded protobuf-based local link-local access for a future milestone; currently throws a not-implemented exception. |
+| Owner cloud (`CloudMode`) | Remote site access, calendar history and Storm Watch control. | Internet and Tesla OAuth credentials required; readings reflect cloud updates. |
+| Fleet cloud (`FleetApi`) | Remote site access and calendar history through a registered Fleet application. | Requires application setup and user authorization; this library does not expose Fleet Storm Watch. |
+| Classic local (`Gateway`) | Direct customer-authenticated reads without cloud credentials or a signing key. | Available readings and controls depend on hardware and firmware; basic Powerwall 3 reads do not provide full TEDAPI diagnostics. |
+| Local TEDAPI | Fresh device telemetry and detailed diagnostics without cloud access during operation. | Requires a compatible local transport and credentials; it does not provide the cloud calendar-history archive. |
 
-> **Gateway hardware compatibility:** Local mode's plain HTTPS/JSON REST API (`/api/login/Basic` plus endpoints such as `/api/system_status/soe` and `/api/meters/aggregates`) is the original Gateway 2 / Powerwall+ local interface and is well established on that hardware. On Powerwall 3, Tesla replaced this local REST API with TEDAPI (protobuf-encoded, RSA-signed); the plain REST endpoints return `403 Unable to GET to resource` on a Powerwall 3 gateway. Powerwall 3 owners need TEDAPI support (not yet implemented — see the table above) for local access; Cloud mode works today regardless of gateway generation.
+To obtain Owner or Fleet credentials, follow [Using the Setup app](https://oznetmaster.github.io/TeslaPowerwallLibrary/articles/login.html#using-the-setup-app). The standalone Windows tool is provided in the GitHub release assets.
+
+See [choosing a connection](LOCAL-ACCESS.md#choosing-a-connection) for credentials, advantages and limitations of each local transport, data freshness, and combining local readings with cloud history.
+
+> **Gateway hardware compatibility:** Available endpoints depend on hardware and firmware. Basic customer-authenticated power, charge and grid readings and signed TEDAPI LAN reads have been exercised on a Powerwall 3. An unavailable endpoint or omitted reading remains unavailable. See [local access and validation limits](LOCAL-ACCESS.md).
 
 ## Installation
 
@@ -57,14 +65,23 @@ using TeslaPowerwallLibrary;
 var options = new PowerwallOptions
 {
 	 Host = "10.0.1.99",
-	 Password = "your-customer-password"
+	 Password = "your-customer-password",
+	 AllowLocalControl = false,
+	 NoLocalSessionPersistence = true
 };
 
 using var powerwall = new Powerwall(options);
 await powerwall.ConnectAsync();
 
-var status = await powerwall.StatusAsync();
+var readings = await powerwall.GetPowerReadingsAsync();
+// Each power value is in watts; null means unavailable, not zero.
 ```
+
+### Connect to Powerwall 3 over signed LAN
+
+Select `PowerwallLocalProtocol.TedapiSigned` and supply the local customer password plus a previously verified, caller-owned RSA-4096 key. See the [local-access guide](LOCAL-ACCESS.md) for a complete example, enrollment through an existing Owner or Fleet account, discovery and query selection. Key enrollment is a separate authorization operation; normal local connections do not use the cloud.
+
+The library reads only when called. `CacheExpireSeconds` controls response reuse, not a polling loop. The consumer chooses when to read. `GetPowerReadingsAsync()` preserves missing flows as null; `PowerAsync()` retains its released zero-default contract for existing callers.
 
 ### Connect using the Tesla Owners cloud API
 
@@ -112,7 +129,7 @@ await powerwall.ConnectAsync();
 
 ### Connect using Tesla FleetAPI
 
-FleetAPI mode is token-based: supply a `FleetApiClientId` (registered at [developer.tesla.com](https://developer.tesla.com/)) and, on the first run, a `FleetApiRefreshToken` obtained separately via the Tesla FleetAPI OAuth flow. There is no interactive browser login for this mode, but the library persists the (possibly rotated) client id, tokens, and selected site internally, keyed by `Email`, the same way it does for cloud mode — later runs can omit `FleetApiRefreshToken` entirely. `FleetApiAccessToken` is optional even on a first connect: when omitted (or stale), the library silently derives a new one from the refresh token. When a non-empty `FleetApiAuthPath` is supplied, that location is authoritative — no fallback is attempted, and an inaccessible path throws `PowerwallFleetApiTokenCacheStorageException` instead of silently continuing without persistence:
+FleetAPI mode is token-based: supply a `FleetApiClientId` (registered at [developer.tesla.com](https://developer.tesla.com/)) and, on the first run, a `FleetApiRefreshToken` obtained separately via the Tesla FleetAPI OAuth flow. The core library accepts tokens; the companion Setup app provides interactive Fleet sign-in (see [Using the Setup app](https://oznetmaster.github.io/TeslaPowerwallLibrary/articles/login.html#using-the-setup-app)). The library persists the (possibly rotated) client id, tokens, and selected site internally, keyed by `Email`, the same way it does for cloud mode — later runs can omit `FleetApiRefreshToken` entirely. `FleetApiAccessToken` is optional even on a first connect: when omitted (or stale), the library silently derives a new one from the refresh token. When a non-empty `FleetApiAuthPath` is supplied, that location is authoritative — no fallback is attempted, and an inaccessible path throws `PowerwallFleetApiTokenCacheStorageException` instead of silently continuing without persistence:
 
 ```csharp
 using TeslaPowerwallLibrary;
@@ -185,11 +202,13 @@ for serialization compatibility and consumer dependency changes.
 
 ### Obtaining a FleetAPI refresh token (`TeslaPowerwallLibrary.Login`)
 
+For the provided Windows tool, follow [Using the Setup app](https://oznetmaster.github.io/TeslaPowerwallLibrary/articles/login.html#using-the-setup-app). The code below is for applications integrating the login helper directly.
+
 For repeated Fleet authorization with an already registered application, the Setup app now offers **Sign in to Tesla**. It skips partner registration, can remember application settings encrypted for your Windows account, and automatically captures the callback and exchanges its code in an embedded Tesla sign-in window. A manual browser fallback is available. Initial application registration remains a separate option.
 
-For credentials issued specifically to tests, see [dedicated test credentials](TeslaPowerwallLibrary.TestCredentials/README.md). Owner and Fleet profiles maintain their own refresh-token rotation; local test integration is reserved for the upcoming local access work. The helper is included in the 1.2.5 GitHub release; see its guide for usage and limitations.
+For credentials issued specifically to tests, see [dedicated test credentials](TeslaPowerwallLibrary.TestCredentials/README.md). Owner and Fleet profiles maintain their own refresh-token rotation; local hardware fixtures use separately configured, encrypted local credentials. The helper is included in the GitHub release assets; see its guide for usage and limitations.
 
-The initial `FleetApiRefreshToken` isn't hand-entered from Tesla's docs — it comes from completing Tesla's FleetAPI OAuth setup once. `TeslaPowerwallLibrary.Login` exposes this as a small set of stateless, non-interactive steps adapted from upstream `pypowerwall`'s `fleetapi.setup()` wizard, via the static `TeslaFleetApiLogin` class. The library performs no browser automation and stores nothing itself — the caller supplies its own registered Client ID/Secret, domain, and redirect URI (from [developer.tesla.com](https://developer.tesla.com/)), opens the authorize URL itself, and captures the resulting authorization code:
+The initial `FleetApiRefreshToken` isn't hand-entered from Tesla's docs — it comes from completing Tesla's FleetAPI OAuth setup once. `TeslaPowerwallLibrary.Login` exposes this as a small set of stateless, non-interactive steps using upstream `pypowerwall`'s `fleetapi.setup()` wizard as a protocol reference, via the static `TeslaFleetApiLogin` class. The library performs no browser automation and stores nothing itself — the caller supplies its own registered Client ID/Secret, domain, and redirect URI (from [developer.tesla.com](https://developer.tesla.com/)), opens the authorize URL itself, and captures the resulting authorization code:
 
 ```csharp
 using TeslaPowerwallLibrary.Login;
@@ -218,7 +237,7 @@ if (login.Status == TeslaFleetApiLoginStatus.Success)
 
 `audience` is the regional FleetAPI base URL matching `PowerwallOptions.FleetApiRegion` (`https://fleet-api.prd.na.vn.cloud.tesla.com`, `.eu.`, or `.cn.`). The test console's interactive `login fleetapisetup` command drives this same flow end-to-end, prompting for the Client ID/Secret, domain, and redirect URI, then connecting with the resulting refresh token. When running the console interactively in FleetAPI mode (`--fleet-api`) with no cached or supplied refresh token, it now offers to run this same setup wizard automatically, mirroring how cloud mode offers the browser login.
 
-### Read energy and calendar history (cloud mode only)
+### Read energy and calendar history (Owner or Fleet)
 
 `GetCalendarHistoryAsync` returns the raw JSON body for any history `kind` (`power`, `soe`, `energy`, `backup`, `self_consumption`, `time_of_use_energy`, or `savings`), mirroring the upstream Python library's behavior. For the kinds with a verified, stable schema, typed convenience methods deserialize that JSON directly into strongly typed records (via System.Text.Json `[JsonPropertyName]` mappings, no hand-written parsing) so callers do not need to do it themselves:
 
@@ -238,22 +257,30 @@ Each record exposes Tesla's raw fields plus a few computed convenience propertie
 
 - `TeslaPowerwallLibrary` — the main library project published to NuGet
 - `TeslaPowerwallLibrary.Login` — shared Tesla cloud OAuth login library (interactive WebView2-based browser login), used by both the app and the test console; not published to NuGet, distributed as a DLL attached to each [GitHub release](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases) — see the [Tesla cloud login guide](https://oznetmaster.github.io/TeslaPowerwallLibrary/articles/login.html)
-- `TeslaPowerwallLibrary.App` — a WPF dashboard application with live energy charts, system status, and site/account management
+- `TeslaPowerwallLibrary.App` — a WPF desktop app with live energy charts, system status, and site/account management
 - `TeslaPowerwallLibrary.TestConsole` — a command-line and interactive test harness covering the library's read and control operations
 - `TeslaPowerwallLibrary.Setup` — a small standalone WPF app wrapping `TeslaPowerwallLibrary.Login` that performs Tesla cloud login or the FleetAPI setup/registration wizard (partner token, partner registration, PEM verification, authorize, and code exchange) and displays the resulting tokens
-- `TeslaPowerwallLibrary.Tests` — NUnit-based deterministic unit test coverage
+- `TeslaPowerwallLibrary.Tests`, `.App.Tests` and `.TestConsole.Tests` — NUnit tests for the library, desktop presentation and console
 
 ## Documentation
 
-Public documentation for this repository is available on GitHub Pages:
-
-- https://oznetmaster.github.io/TeslaPowerwallLibrary/
+- [API documentation](https://oznetmaster.github.io/TeslaPowerwallLibrary/)
+- [Obtain Owner or Fleet credentials with the Setup app](https://oznetmaster.github.io/TeslaPowerwallLibrary/articles/login.html#using-the-setup-app)
+- [Local protocols, setup, capabilities and validation boundaries](LOCAL-ACCESS.md)
+- [Compatibility and upgrading to 2.1](UPGRADING-2.1.md)
+- [Tests, adapter dependencies and live-test separation](TeslaPowerwallLibrary.Tests/README.md)
 
 See [CHANGELOG.md](CHANGELOG.md) for release history and [RELEASE-NOTES.md](RELEASE-NOTES.md) for this release.
 
+## Desktop app and console
+
+Release assets include the .NET 10 Windows desktop app and the console for net472 and .NET 10 for Windows. The desktop app supports local telemetry, detailed diagnostics, per-session control permission and a configurable refresh interval (zero selects manual refresh). The console reads on demand and shares its local command catalogue between interactive and one-shot use.
+
+For local connections, the desktop app can combine recorded LAN samples with earlier history from a saved Owner or Fleet account associated with the same site. LAN samples replace overlapping cloud samples. Completed history is cached locally; the application, not the library, owns collection and storage. See [desktop app and console setup](LOCAL-ACCESS.md#desktop-app-and-console).
+
 ## Acknowledgements
 
-Behavioral and compatibility reference work in this project draws on the upstream [pypowerwall](https://pypi.org/project/pypowerwall/) project by Jason A. Cox and its public documentation. The Tesla OAuth 2.0 PKCE login flow also references [tesla_auth](https://github.com/adriankumpf/tesla_auth) (Rust) by Adrian Kumpf.
+Behavioral and compatibility reference work in this project draws on the upstream [pypowerwall](https://pypi.org/project/pypowerwall/) project by Jason A. Cox and its public documentation. Bundled TEDAPI protocol definitions and signed query resources retain the [upstream MIT notice](TeslaPowerwallLibrary/Tedapi/Protocol/UPSTREAM-LICENSE.txt), also included in the NuGet package. The Tesla OAuth 2.0 PKCE login flow also references [tesla_auth](https://github.com/adriankumpf/tesla_auth) (Rust) by Adrian Kumpf.
 
 ## License
 
@@ -262,13 +289,13 @@ MIT © 2026 Neil Colvin — see [LICENSE](TeslaPowerwallLibrary/LICENSE).
 
 ## Unit tests
 
-`TeslaPowerwallLibrary.Tests` uses official NUnit 5.0.0 and NUnit3TestAdapter, targeting `net472` and `net10.0`. Run the tests in Visual Studio Test Explorer, or:
+Offline tests use NUnit 5.0.0, NUnit3TestAdapter 6.3.0, Microsoft.NET.Test.Sdk 18.7.0 and NUnit.Analyzers 4.14.0. Library tests run on net472 and net10.0; console tests run on net472 and net10.0-windows; WPF presentation tests run on net10.0-windows. Use Visual Studio Test Explorer or the commands in the [test guide](TeslaPowerwallLibrary.Tests/README.md).
 
 ```powershell
-dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj -c Release
+dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj -c Release --filter "TestCategory!=Live" -p:GenerateDocfxDocumentation=false
 ```
 
-The suite covers facade guards, mode selection, token-cache behavior, model deserialization, history parsing, host validation and public enum contracts. It does not operate a Powerwall or require live credentials. The MSTest-to-NUnit migration keeps the fixtures in this repository and does not require a new library or NuGet release.
+Offline tests need neither credentials nor a Powerwall. Live tests are explicit and separate; control tests require per-operation authorization. To check backward compatibility, package validation compares the new 2.1.0 assemblies for both target frameworks with the previous 2.0.0 release. No API differences are suppressed.
 
 ## Continuous integration tests
 

@@ -41,9 +41,14 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 	private readonly PowerwallConnectionService _connection;
 
 	/// <summary>Initializes a new instance of the <see cref="ShellViewModel"/> class.</summary>
-	public ShellViewModel ()
+	public ShellViewModel () : this (new PowerwallConnectionService ()) { }
+
+	/// <summary>Creates the application shell around a supplied connection.</summary>
+	/// <param name="connection">Connection owned and disposed by this shell.</param>
+	internal ShellViewModel (PowerwallConnectionService connection)
 		{
-		_connection = new PowerwallConnectionService ();
+		_connection = connection;
+		_connection.SiteNameChanged += OnSiteNameChanged;
 
 		Connect = new ConnectViewModel (_connection);
 		Home = new HomeViewModel (_connection);
@@ -56,6 +61,20 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
 		_current = Connect;
 		_currentScreen = AppScreen.Connect;
+		}
+
+	/// <summary>Gets the site name shown in the sidebar, without substituting a hardware hostname.</summary>
+	public string? SiteName => _connection.SiteName;
+
+	/// <summary>Gets a window title identifying the selected site when its name is known.</summary>
+	public string WindowTitle => SiteName is null ? "Tesla™ Powerwall™" : "Tesla™ Powerwall™ — " + SiteName;
+
+	private void OnSiteNameChanged (object? sender, EventArgs e)
+		{
+		void Notify () { OnPropertyChanged (nameof (SiteName)); OnPropertyChanged (nameof (WindowTitle)); }
+		var dispatcher = global::System.Windows.Application.Current?.Dispatcher;
+		if (dispatcher is null || dispatcher.CheckAccess ()) Notify ();
+		else dispatcher.Invoke (Notify);
 		}
 
 	/// <summary>Gets the connect screen view-model.</summary>
@@ -111,6 +130,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 			_ => Current
 			};
 		CurrentScreen = screen;
+		Energy.IsActive = screen == AppScreen.Energy;
 
 		// Kick off a one-shot load for screens that read on demand (Home updates via the polling loop).
 		switch (screen)
@@ -150,8 +170,10 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 	/// <summary>Releases the connection and associated resources.</summary>
 	public void Dispose ()
 		{
+		_connection.SiteNameChanged -= OnSiteNameChanged;
 		Connect.Connected -= OnConnected;
 		Settings.SwitchAccountRequested -= OnSwitchAccountRequested;
+		Energy.Dispose ();
 		_connection.Dispose ();
 		}
 	}

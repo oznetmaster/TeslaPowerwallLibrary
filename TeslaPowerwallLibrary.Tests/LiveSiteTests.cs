@@ -7,7 +7,7 @@ namespace TeslaPowerwallLibrary.Tests;
 
 // Read-only access-token session: refresh credentials remain with the credential helper.
 [TestFixture, Category("Live"), NonParallelizable, FixtureLifeCycle(LifeCycle.SingleInstance)]
-public sealed class LiveSiteTests
+public sealed partial class LiveSiteTests
 {
     private Powerwall? _client;
     private LiveSettings? _settings;
@@ -35,7 +35,7 @@ public sealed class LiveSiteTests
         }
         if (!flag.Equals("true", StringComparison.OrdinalIgnoreCase) && _settings?.Enabled != true)
             Assert.Ignore("Live library tests require private settings and explicit enablement.");
-        if (string.IsNullOrWhiteSpace(_settings?.AccessToken) || string.IsNullOrWhiteSpace(_settings.SiteId)
+        if (_settings is null || string.IsNullOrWhiteSpace(_settings.AccessToken) || string.IsNullOrWhiteSpace(_settings.SiteId)
             || !_settings.SiteId.All(char.IsDigit) || _settings.Mode is not ("fleet" or "cloud")
             || (_settings.Mode == "fleet" && (string.IsNullOrWhiteSpace(_settings.ClientId)
                 || _settings.Region is not ("auto" or "na" or "eu" or "cn"))))
@@ -73,9 +73,9 @@ public sealed class LiveSiteTests
     [Test]
     public async Task RealSite_ReadsTypedPowerAndBattery()
     {
-        var power = await _client!.PowerAsync(_deadline!.Token);
+        var power = await _client!.GetPowerReadingsAsync(_deadline!.Token);
         Assert.That(new[] { power.Site, power.Solar, power.Battery, power.Load }
-            .All(value => !double.IsNaN(value) && !double.IsInfinity(value)), Is.True);
+            .All(value => value is double reading && !double.IsNaN(reading) && !double.IsInfinity(reading)), Is.True);
         Assert.That(await _client.LevelAsync(cancellationToken: _deadline.Token), Is.InRange(0d, 100d));
     }
 

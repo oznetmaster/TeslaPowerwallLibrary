@@ -2,6 +2,8 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using TeslaPowerwallLibrary.Cloud;
+using System.Security.Cryptography;
+using TeslaPowerwallLibrary.Tools;
 
 namespace TeslaPowerwallLibrary.TestConsole;
 
@@ -14,18 +16,24 @@ internal sealed class InteractiveConnection : IDisposable
 	{
 	private readonly string _region;
 	private readonly bool _noSave;
+	private readonly PowerwallLocalProtocol _localProtocol;
+	private readonly string _localKeyName;
+	private RSA? _ownedLocalKey;
 
 	/// <summary>Initializes a new session around an already-connected <see cref="Powerwall"/>.</summary>
 	/// <param name="powerwall">The connected Powerwall instance.</param>
 	/// <param name="options">The options used to establish <paramref name="powerwall"/>.</param>
 	/// <param name="region">The normalized Tesla region used for cloud browser login.</param>
 	/// <param name="noSave">When <see langword="true"/>, switching accounts does not persist the new settings.</param>
-	public InteractiveConnection (Powerwall powerwall, PowerwallOptions options, string region, bool noSave)
+	/// <param name="localKeyName">Explicit or resolved local signing key name retained when switching modes.</param>
+	public InteractiveConnection (Powerwall powerwall, PowerwallOptions options, string region, bool noSave, string localKeyName)
 		{
 		Powerwall = powerwall ?? throw new ArgumentNullException (nameof (powerwall));
 		Options = options ?? throw new ArgumentNullException (nameof (options));
 		_region = string.IsNullOrWhiteSpace (region) ? "us" : region;
 		_noSave = noSave;
+		_localKeyName = localKeyName;
+		_localProtocol = options.CloudMode || options.FleetApi ? SettingsStore.Load ().LocalProtocol : options.LocalProtocol;
 		}
 
 	/// <summary>Gets the currently connected Powerwall™ for the session.</summary>
@@ -66,7 +74,7 @@ internal sealed class InteractiveConnection : IDisposable
 		if (string.IsNullOrWhiteSpace (host))
 			throw new ArgumentException ("A host is required for a local connection.", nameof (host));
 
-		return ReconnectAsync (BuildLocalOptions (Options, host, password), cancellationToken);
+		return ReconnectAsync (BuildLocalOptions (Options, host, password) with { LocalProtocol = _localProtocol }, cancellationToken);
 		}
 
 	/// <summary>
@@ -96,6 +104,19 @@ internal sealed class InteractiveConnection : IDisposable
 	// preserves the current connection. Disposes the previous connection only after a successful reconnect.
 	private async Task<bool> ReconnectAsync (PowerwallOptions candidate, CancellationToken cancellationToken)
 		{
+		if (candidate.LocalProtocol == PowerwallLocalProtocol.TedapiSigned && candidate.LocalSigningKey is null)
+			{
+			try
+				{
+				_ownedLocalKey ??= LocalSigningKeyStore.Open (_localKeyName);
+				candidate = candidate with { LocalSigningKey = _ownedLocalKey };
+				}
+			catch (Exception exc) when (exc is ArgumentException or InvalidOperationException or CryptographicException)
+				{
+				ConsoleHelpers.WriteError (exc.Message);
+				return false;
+				}
+			}
 		Powerwall newConnection;
 		try
 			{
@@ -159,6 +180,8 @@ internal sealed class InteractiveConnection : IDisposable
 		current with
 			{
 			CloudMode = true,
+			FleetApi = false,
+			LocalProtocol = PowerwallLocalProtocol.Gateway,
 			AccessToken = tokens.AccessToken,
 			RefreshToken = tokens.RefreshToken,
 			Email = string.IsNullOrWhiteSpace (tokens.Email) ? current.Email : tokens.Email,
@@ -172,8 +195,10 @@ internal sealed class InteractiveConnection : IDisposable
 		current with
 			{
 			CloudMode = false,
+			FleetApi = false,
 			Host = host,
-			Password = password
+			Password = password,
+			GatewayPassword = password
 			};
 
 	// Produces options that activate FleetAPI mode with the supplied credentials, changing only the FleetAPI
@@ -184,6 +209,7 @@ internal sealed class InteractiveConnection : IDisposable
 			{
 			CloudMode = true,
 			FleetApi = true,
+			LocalProtocol = PowerwallLocalProtocol.Gateway,
 			FleetApiClientId = clientId,
 			FleetApiRefreshToken = refreshToken,
 			FleetApiAccessToken = null,
@@ -192,5 +218,10 @@ internal sealed class InteractiveConnection : IDisposable
 			};
 
 	/// <summary>Disposes the current connection.</summary>
-	public void Dispose () => Powerwall.Dispose ();
+	public void Dispose ()
+		{
+		Powerwall.Dispose ();
+		_ownedLocalKey?.Dispose ();
+		_ownedLocalKey = null;
+		}
 	}

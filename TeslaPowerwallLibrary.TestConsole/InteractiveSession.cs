@@ -46,6 +46,10 @@ internal static class InteractiveSession
 				{
 				ConsoleHelpers.WriteError ($"Error: {exc.Message}");
 				}
+			catch (System.Net.Http.HttpRequestException exc)
+				{
+				ConsoleHelpers.WriteError ($"Connection error: {exc.Message}");
+				}
 			catch (ArgumentException exc)
 				{
 				ConsoleHelpers.WriteError ($"Error: {exc.Message}");
@@ -61,6 +65,7 @@ internal static class InteractiveSession
 
 	private static async Task<bool> DispatchAsync (InteractiveConnection session, string command, string? argument, CancellationToken cancellationToken)
 		{
+		if (await LocalConsoleCommands.TryInteractiveAsync (session, command, argument, cancellationToken).ConfigureAwait (false)) return true;
 		var powerwall = session.Powerwall;
 		switch (command)
 			{
@@ -279,7 +284,7 @@ internal static class InteractiveSession
 					return;
 					}
 
-				if (await session.SwitchFleetApiAsync (options.FleetApiClientId, options.FleetApiRefreshToken, options.FleetApiRegion, cancellationToken).ConfigureAwait (false))
+				if (await session.SwitchFleetApiAsync (options.FleetApiClientId!, options.FleetApiRefreshToken!, options.FleetApiRegion, cancellationToken).ConfigureAwait (false))
 					ConsoleHelpers.WriteSuccess ("Switched to Tesla FleetAPI.");
 				return;
 
@@ -459,6 +464,12 @@ internal static class InteractiveSession
 		Console.WriteLine ("  timeremaining     Estimated backup time remaining");
 		Console.WriteLine ("  system            Full system status with battery blocks");
 		Console.WriteLine ("  summary           Combined dashboard of the above");
+		Console.WriteLine ("  local-telemetry | local-detailed | local-components | local-devices | local-diagnostics | local-meters | local-system | local-meter-aggregates | local-native-meters | local-configuration   Read typed TEDAPI data once");
+		Console.WriteLine ("  local-components [device-din]   Read controller or configured follower components");
+		Console.WriteLine ("  local-backup-events | local-connection | local-discover   Read local state or discover hosts");
+		Console.WriteLine ("  local-settings --reserve <0-100> --mode <mode> --grid-charging <true|false> --grid-export <rule>   Apply only supplied settings");
+		Console.WriteLine ("  local-backup-start <minutes> | local-backup-cancel | local-off-grid | local-reconnect-grid");
+		Console.WriteLine ("    Local controls require a signed session started with --allow-local-control. Use <command> --help for details.");
 		Console.WriteLine ("  setreserve <n>    Set backup reserve level (0-100)");
 		Console.WriteLine ("  setmode <mode>    Set mode (self_consumption|backup|autonomous)");
 		Console.WriteLine ("  sites             List Tesla™ energy sites (cloud or FleetAPI mode)");

@@ -1,4 +1,4 @@
-# Tesla cloud login (TeslaPowerwallLibrary.Login)
+# Owner and Fleet credentials: Setup app and login library
 
 `TeslaPowerwallLibrary.Login` is a small, Windows-only helper library that performs an interactive Tesla™
 OAuth 2.0 (PKCE) browser login and returns the resulting cloud tokens. It is a separate assembly from the
@@ -26,7 +26,29 @@ This library is used internally by the repository's `TeslaPowerwallLibrary.App`,
 and `TeslaPowerwallLibrary.TestConsole` projects; it is documented here for anyone who wants to reuse it in
 their own application.
 
-## Usage
+## Using the Setup app
+
+The standalone Windows Setup app obtains credentials without writing login code. These instructions describe the tools included in release 2.1.
+
+1. Open the [GitHub release assets](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases) and download `TeslaPowerwallSetup-net10.0-windows.zip` for the release you are using.
+2. Extract the entire archive into a folder and run `TeslaPowerwallSetup.exe`, keeping its accompanying files together. The framework-dependent app needs the .NET 10 Windows Desktop Runtime and Microsoft Edge WebView2 Runtime.
+3. Select **Cloud (Owners API)** or **FleetAPI** and follow the appropriate steps below.
+
+### Owner credentials
+
+1. Select the **Cloud (Owners API)** tab. Choose **United States / International (auth.tesla.com)** for international accounts, including the UK, or **China (auth.tesla.cn)** for a China account.
+2. Click **Start Login**, then complete Tesla sign-in and any verification requested in the sign-in window.
+3. After successful authentication, the Setup app displays **Account**, **Refresh Token (RT)** and **Access Token (AT)**. Copy the account email and refresh token into your application's credential configuration. Supplying the access token is optional; the library can obtain one from the refresh token.
+
+For direct library use, set `CloudMode = true`, `Email` to the returned account email and `RefreshToken` to the returned refresh token. Set `AccessToken` only if supplying it. The Setup app does not save the issued tokens; persistence and subsequent token rotation belong to the consuming application or its configured library token cache.
+
+### Initial Fleet application setup
+
+Fleet authorization requires a registered Tesla Developer application. Have its client ID, client secret, domain and registered HTTPS redirect URI available, with the application's public PEM key hosted at `https://<domain>/.well-known/appspecific/com.tesla.3p.public-key.pem`. The Setup tool verifies the hosted key; it does not create the developer application or host the key for you.
+
+Select **FleetAPI**, enter those application settings and choose the registration region. For a new partner registration, click **Initial Setup: Verify & Register Partner Account**. The tool verifies the hosted PEM, obtains a partner token and registers the partner account, then opens Tesla sign-in. Complete sign-in and consent to obtain the user tokens. For an application already registered in that region, use **Sign in to Tesla** as described below.
+
+The Fleet application's public key and partner registration are separate from the RSA key used for signed Powerwall 3 local access. Obtaining cloud credentials does not enroll a local signing key.
 
 ### Repeated Fleet authorization in the Setup application
 
@@ -34,9 +56,13 @@ For an already registered Fleet application, choose **Sign in to Tesla**, supply
 
 Optionally enable **Remember application settings**. The Setup app encrypts those settings for the current Windows user and restores them at the next launch. Unchecking the option deletes the saved application settings. This does not save issued access or refresh tokens.
 
-After Tesla sign-in and consent, the tokens appear in Setup without copying a URL between websites. The app cancels navigation to the registered callback website. If embedded sign-in is unavailable, expand **Manual browser option (if needed)**, use an external browser and paste the **complete redirected URL**. The Setup app checks the callback address and authorization state before exchanging its code. A bare code is no longer accepted by this UI, and a submitted code is not silently retried after an uncertain result. These Setup improvements are currently unreleased.
+After Tesla sign-in and consent, the tokens appear in Setup without copying a URL between websites. The app cancels navigation to the registered callback website. If embedded sign-in is unavailable, expand **Manual browser option (if needed)**, use an external browser and paste the **complete redirected URL**. The Setup app checks the callback address and authorization state before exchanging its code. A bare code is no longer accepted by this UI, and a submitted code is not silently retried after an uncertain result. These steps describe the Setup app included in 2.1.
 
-Use separate authorizations for independently running applications and tests. Sharing the same refresh token between independent clients can leave one client holding an obsolete token after the other refreshes it. The new Windows `TeslaPowerwallLibrary.TestCredentials` helper maintains dedicated Owner and Fleet test profiles, with encrypted rotation storage and exclusive ownership during a test session; see its README in the source repository. Local testing will use its own connection-specific authentication when that integration is available.
+Use separate authorizations for independently running applications and tests. Sharing the same refresh token between independent clients can leave one client holding an obsolete token after the other refreshes it. The new Windows `TeslaPowerwallLibrary.TestCredentials` helper maintains dedicated Owner and Fleet test profiles, with encrypted rotation storage and exclusive ownership during a test session; see its README in the source repository. Local hardware tests use separate, protected local credentials.
+
+After successful Fleet authorization, copy the refresh token from the results. For direct library use, set `FleetApi = true`, `Email` to the authorized account email, `FleetApiClientId` to the application's client ID and `FleetApiRefreshToken` to the returned refresh token. `FleetApiAccessToken` is optional. The client secret is used by Setup during authorization; it is not a `PowerwallOptions` credential. See [Owner or Fleet connections](intro.md#owner-or-fleet) for use in the client.
+
+## Login library usage
 
 ### Calling the Owner API login library
 
@@ -85,7 +111,7 @@ account email Tesla returned in the id_token — capture it along with the token
 would have to be known ahead of time by some other means for the library to find the cached tokens again on
 a later run. The caller is responsible for persisting the returned tokens; `TeslaCloudLogin` performs no
 persistence of its own. All three values can then be supplied to `PowerwallOptions` for Cloud mode — see
-[Connect using the Tesla Owners cloud API](intro.md#connect-using-the-tesla-owners-cloud-api).
+[Connect using the Tesla Owners cloud API](intro.md#owner-or-fleet).
 
 ## API reference
 

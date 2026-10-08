@@ -23,8 +23,53 @@
 		<ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
 			<StackPanel>
 
+				<Border Style="{StaticResource Card}" Visibility="{Binding IsCloudMode, Converter={StaticResource BoolToVisibility}}">
+					<StackPanel>
+						<TextBlock Text="Set up signed local access" FontWeight="SemiBold" FontSize="15" />
+						<TextBlock Text="One-time enrollment uses this connected account and selected site. Subsequent local connections work without cloud access."
+								   TextWrapping="Wrap" Style="{StaticResource MutedText}" Margin="0,8,0,10" />
+						<TextBlock Text="Windows signing key name" Style="{StaticResource MutedText}" />
+						<TextBox Text="{Binding LocalSigningKeyName, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,10"
+								 IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+						<WrapPanel IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}">
+							<Button Content="Prepare key" Command="{Binding CreateLocalKeyCommand}" Margin="0,0,8,8" />
+							<Button Content="Register key…" Command="{Binding RegisterLocalKeyCommand}" Margin="0,0,8,8" />
+							<Button Content="Check verification" Command="{Binding CheckLocalKeyCommand}" Margin="0,0,0,8" />
+						</WrapPanel>
+						<TextBlock Text="{Binding LocalKeyStatus}" TextWrapping="Wrap" Style="{StaticResource MutedText}" />
+					</StackPanel>
+				</Border>
+
+				<Border Style="{StaticResource Card}" Visibility="{Binding IsLocalMode, Converter={StaticResource BoolToVisibility}}">
+					<StackPanel>
+						<TextBlock Text="Local connection" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,12" />
+						<TextBlock Text="Configured hostname or address" Style="{StaticResource MutedText}" />
+						<TextBlock Text="{Binding LocalHostname}" TextWrapping="Wrap" Margin="0,4,0,12" />
+						<StackPanel Visibility="{Binding ShowResolvedAddress, Converter={StaticResource BoolToVisibility}}">
+							<TextBlock Text="Resolved IP address" Style="{StaticResource MutedText}" />
+							<TextBlock Text="{Binding LocalIpAddresses}" TextWrapping="Wrap" Margin="0,4,0,0" />
+						</StackPanel>
+						<TextBlock Text="Refresh interval in seconds (0 = manual)" Style="{StaticResource MutedText}" Margin="0,16,0,4" />
+						<StackPanel Orientation="Horizontal" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}">
+							<TextBox x:Name="PollIntervalInput" Width="100" Text="{Binding LocalPollSecondsText, UpdateSourceTrigger=PropertyChanged}" />
+							<Button Content="Apply refresh interval" Command="{Binding ApplyLocalPollIntervalCommand}" Margin="12,0,0,0" />
+						</StackPanel>
+						<TextBlock Text="{Binding LocalPollingStatus}" Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,8,0,0" />
+					</StackPanel>
+				</Border>
+
+				<Border Style="{StaticResource Card}" Visibility="{Binding IsLocalMode, Converter={StaticResource BoolToVisibility}}">
+					<StackPanel>
+						<TextBlock Text="Local controls" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,8" />
+						<TextBlock Text="{Binding LocalControlStatus}" TextWrapping="Wrap" Style="{StaticResource MutedText}" />
+						<Button x:Name="EnableControlsButton" Content="{Binding LocalControlButtonText}" Command="{Binding ToggleLocalControlsCommand}"
+							HorizontalAlignment="Left" Margin="0,12,0,0"
+							IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+					</StackPanel>
+				</Border>
+
 				<!-- Operation -->
-				<Border Style="{StaticResource Card}">
+				<Border Style="{StaticResource Card}" IsEnabled="{Binding CanChangeSettings}">
 					<StackPanel>
 						<TextBlock Text="Operation" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,12" />
 
@@ -34,14 +79,18 @@
 								<ColumnDefinition Width="*" />
 								<ColumnDefinition Width="Auto" />
 							</Grid.ColumnDefinitions>
-							<Slider Grid.Column="0" Minimum="0" Maximum="100"
-									Value="{Binding ReservePercent}" VerticalAlignment="Center" />
-							<TextBlock Grid.Column="1" Text="{Binding ReserveText}" Width="48"
+							<Slider x:Name="ReserveInput" Style="{StaticResource ProgressSlider}" Grid.Column="0" Minimum="0" Maximum="100"
+								VerticalAlignment="Center" SmallChange="1" LargeChange="5"
+								TickFrequency="1" IsSnapToTickEnabled="True" AutoToolTipPlacement="TopLeft" AutoToolTipPrecision="0"
+								AutomationProperties.Name="Backup reserve percentage"
+								Value="{Binding ReserveSliderPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+								Visibility="{Binding HasReservePercent, Converter={StaticResource BoolToVisibility}}" />
+							<TextBlock Grid.Column="1" Text="{Binding ReserveText}" Width="100"
 										TextAlignment="Right" VerticalAlignment="Center" />
 						</Grid>
 
 						<TextBlock Text="Mode" Style="{StaticResource MutedText}" />
-						<ComboBox ItemsSource="{Binding Modes}" SelectedItem="{Binding SelectedMode}"
+						<ComboBox x:Name="ModeInput" ItemsSource="{Binding Modes}" SelectedItem="{Binding SelectedMode}"
 								  Margin="0,4,0,12" Width="240" HorizontalAlignment="Left" />
 
 						<Button Content="Apply operation" Command="{Binding ApplyOperationCommand}"
@@ -50,15 +99,15 @@
 					</StackPanel>
 				</Border>
 
-				<!-- Grid (cloud only) -->
-				<Border Style="{StaticResource Card}"
-						Visibility="{Binding IsCloudMode, Converter={StaticResource BoolToVisibility}}">
+				<!-- Grid preferences -->
+				<Border Style="{StaticResource Card}" IsEnabled="{Binding CanChangeSettings}"
+						Visibility="{Binding HasGridSettings, Converter={StaticResource BoolToVisibility}}">
 					<StackPanel>
 						<TextBlock Text="Grid" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,12" />
 
 						<StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-							<CheckBox Content="Allow charging from grid" Foreground="{StaticResource TextBrush}"
-									  IsChecked="{Binding GridChargingEnabled}" VerticalAlignment="Center" />
+							<CheckBox x:Name="GridChargingInput" Content="Allow charging from grid" Foreground="{StaticResource TextBrush}"
+									  IsThreeState="True" IsChecked="{Binding GridChargingEnabled}" VerticalAlignment="Center" />
 							<Button Content="Apply" Command="{Binding ApplyGridChargingCommand}" Margin="16,0,0,0"
 									IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
 						</StackPanel>
@@ -74,10 +123,31 @@
 						<StackPanel Orientation="Horizontal" Margin="0,12,0,0"
 									Visibility="{Binding IsStormWatchAvailable, Converter={StaticResource BoolToVisibility}}">
 							<CheckBox Content="Storm Watch" Foreground="{StaticResource TextBrush}"
-									  IsChecked="{Binding StormWatchEnabled}" VerticalAlignment="Center" />
+									  IsThreeState="True" IsChecked="{Binding StormWatchEnabled}" VerticalAlignment="Center" />
 							<Button Content="Apply" Command="{Binding ApplyStormWatchCommand}" Margin="16,0,0,0"
 									IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
 						</StackPanel>
+					</StackPanel>
+				</Border>
+
+				<Border Style="{StaticResource Card}" Visibility="{Binding IsSignedLocal, Converter={StaticResource BoolToVisibility}}">
+					<StackPanel>
+						<TextBlock Text="Local backup and grid control" FontWeight="SemiBold" FontSize="15" />
+						<Button Content="Read backup events" Command="{Binding ReadLocalBackupCommand}" Margin="0,10,0,6"
+								HorizontalAlignment="Left" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+						<TextBlock Text="{Binding BackupStatus}" TextWrapping="Wrap" Style="{StaticResource MutedText}" />
+						<StackPanel IsEnabled="{Binding CanChangeSettings}" Margin="0,12,0,0">
+							<TextBlock Text="Maximum backup duration (minutes)" Style="{StaticResource MutedText}" />
+							<TextBox Text="{Binding BackupMinutes, ValidatesOnExceptions=True}" Width="100" HorizontalAlignment="Left" Margin="0,4,0,8" />
+							<WrapPanel IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}">
+								<Button Content="Start maximum backup…" Command="{Binding StartLocalBackupCommand}" Margin="0,0,8,8" />
+								<Button Content="Cancel manual backup…" Command="{Binding CancelLocalBackupCommand}" Margin="0,0,8,8" />
+								<Button Content="Go off-grid…" Command="{Binding GoOffGridCommand}" Margin="0,0,8,8" />
+								<Button Content="Reconnect grid…" Command="{Binding ReconnectGridCommand}" Margin="0,0,0,8" />
+							</WrapPanel>
+						</StackPanel>
+						<TextBlock Text="Enable local controls above before making changes. Each backup/grid action asks for confirmation."
+								   Style="{StaticResource MutedText}" TextWrapping="Wrap" />
 					</StackPanel>
 				</Border>
 

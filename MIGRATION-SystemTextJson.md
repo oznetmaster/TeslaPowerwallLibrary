@@ -48,7 +48,7 @@ physical completion.
 
 ## Local applications and downstream consumers
 
-The test console, credential diagnostics, dashboard settings and login code have been
+The test console, credential diagnostics, desktop app settings and login code have been
 migrated. Downstream applications that merge dependencies must include the new
 System.Text.Json and Microsoft logging dependency closure. Applications may adapt
 ILogger to their existing logging infrastructure while retaining ownership of the

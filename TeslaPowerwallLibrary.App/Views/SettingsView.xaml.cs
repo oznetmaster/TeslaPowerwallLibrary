@@ -1,6 +1,7 @@
 // Copyright © 2026 Neil Colvin.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
+using System.Windows;
 using System.Windows.Controls;
 
 namespace TeslaPowerwallLibrary.App.Views;
@@ -9,8 +10,13 @@ namespace TeslaPowerwallLibrary.App.Views;
 public partial class SettingsView : UserControl
 	{
 	/// <summary>Initializes a new instance of the <see cref="SettingsView"/> class.</summary>
-	public SettingsView ()
+	public SettingsView () : this (null) { }
+
+	/// <summary>Creates the view with optional host resources for isolated WPF tests.</summary>
+	/// <param name="resources">Host theme and converters, or null to use application resources.</param>
+	internal SettingsView (ResourceDictionary? resources)
 		{
+		if (resources is not null) Resources = resources;
 		InitializeComponent ();
 		}
 	}

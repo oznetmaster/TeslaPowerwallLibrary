@@ -57,3 +57,41 @@ jobs:
           name: unit-tests-${{ matrix.suite.name }}-${{ matrix.framework }}
           path: TestResults/*.trx
           if-no-files-found: warn
+
+  companion-tests:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: console-net472
+            project: TeslaPowerwallLibrary.TestConsole.Tests/TeslaPowerwallLibrary.TestConsole.Tests.csproj
+            framework: net472
+          - suite: console-net10
+            project: TeslaPowerwallLibrary.TestConsole.Tests/TeslaPowerwallLibrary.TestConsole.Tests.csproj
+            framework: net10.0-windows
+          - suite: desktop
+            project: TeslaPowerwallLibrary.App.Tests/TeslaPowerwallLibrary.App.Tests.csproj
+            framework: net10.0-windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Test companion application offline
+        run: dotnet test "${{ matrix.project }}" -c Release -f "${{ matrix.framework }}" -p:GenerateDocfxDocumentation=false --logger "trx;LogFileName=tests.trx" --results-directory TestResults
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tests-${{ matrix.suite }}
+          path: TestResults/*.trx
+
+  package-compatibility:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Pack and compare public API with the released baseline
+        run: dotnet pack TeslaPowerwallLibrary/TeslaPowerwallLibrary.csproj -c Release -p:GenerateDocfxDocumentation=false --output artifacts/nuget

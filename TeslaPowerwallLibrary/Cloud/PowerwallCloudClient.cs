@@ -11,6 +11,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 
+using TeslaPowerwallLibrary.Tedapi;
+
 namespace TeslaPowerwallLibrary.Cloud;
 
 /// <summary>
@@ -25,7 +27,7 @@ namespace TeslaPowerwallLibrary.Cloud;
 /// silently (re)derived from the refresh token. This client refreshes an expired access token but does not
 /// perform interactive browser login; obtain the initial refresh token with an external setup tool.
 /// </remarks>
-public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClient, IDisposable
+public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClient, ILocalKeyEnrollmentClient, IDisposable
 	{
 	private const int COUNTER_MAX = 64;
 	private const int SITE_CONFIG_TTL_SECONDS = 59;
@@ -910,6 +912,12 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	private static string GetSiteId (EnergyProduct site) =>
 		site.EnergySiteId ?? site.Id ?? string.Empty;
 
+	/// <inheritdoc/>
+	Task<LocalKeyRegistration> ILocalKeyEnrollmentClient.LocalKeyAsync (byte[] publicKey, string? description, CancellationToken cancellationToken)
+		{
+		EnsureConnected ();
+		return _connection!.LocalKeyAsync (_resolvedSiteId!, publicKey, description, cancellationToken);
+		}
 	private void EnsureConnected ()
 		{
 		if (_connection is null || _resolvedSiteId is null)

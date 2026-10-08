@@ -3,6 +3,7 @@
 
 using System;
 using System.IO;
+using System.Collections.Generic;
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -12,11 +13,35 @@ namespace TeslaPowerwallLibrary.App.Services;
 /// <summary>
 /// Persisted connection settings for the desktop app. The local password is stored encrypted with DPAPI and
 /// the file lives under <c>%LocalAppData%</c>, outside the repository, so it is never committable. Cloud
-/// tokens and the selected site are not stored here: the library owns and persists them internally (keyed by
-/// email), so the app only remembers non-secret connection defaults plus the local password.
+/// Owner tokens are persisted by the library. These settings also retain protected Fleet credentials,
+/// non-secret connection defaults, and confirmed hardware-to-cloud-site associations for history.
 /// </summary>
 public sealed class AppSettings
 	{
+	/// <summary>Gets or sets permanent hardware-to-site associations, independent of history credentials.</summary>
+	[JsonPropertyName ("localHistorySites")]
+	public Dictionary<string, LocalHistorySite> LocalHistorySites { get; set; } = new ();
+
+	/// <summary>Gets or sets the cloud provider used only for local-mode history (Cloud or FleetApi).</summary>
+	[JsonPropertyName ("historyMode")]
+	public string? HistoryMode { get; set; }
+
+	/// <summary>Gets or sets the explicitly associated local host for the history site.</summary>
+	[JsonPropertyName ("historyHost")]
+	public string? HistoryHost { get; set; }
+
+	/// <summary>Gets or sets the account scope associated with the history site.</summary>
+	[JsonPropertyName ("historyAccount")]
+	public string? HistoryAccount { get; set; }
+
+	/// <summary>Gets or sets the explicitly selected cloud history site identifier.</summary>
+	[JsonPropertyName ("historySiteId")]
+	public string? HistorySiteId { get; set; }
+
+	/// <summary>Gets or sets the display name of the selected cloud history site.</summary>
+	[JsonPropertyName ("historySiteName")]
+	public string? HistorySiteName { get; set; }
+
 	/// <summary>Gets or sets the last connection mode used (<c>Cloud</c> or <c>Local</c>).</summary>
 	[JsonPropertyName ("mode")]
 	public string? Mode { get; set; }
@@ -28,6 +53,22 @@ public sealed class AppSettings
 	/// <summary>Gets or sets the encrypted (DPAPI, base64) Powerwall™ password; never stored in plaintext.</summary>
 	[JsonPropertyName ("protectedPassword")]
 	public string? ProtectedPassword { get; set; }
+
+	/// <summary>Gets or sets the desktop's local refresh interval; zero means manual refresh only.</summary>
+	[JsonPropertyName ("localPollSeconds")]
+	public int LocalPollSeconds { get; set; } = 5;
+
+	/// <summary>Gets or sets the selected local transport.</summary>
+	[JsonPropertyName ("localProtocol")]
+	public PowerwallLocalProtocol LocalProtocol { get; set; }
+
+	/// <summary>Gets or sets the explicit local vendor-signed query version.</summary>
+	[JsonPropertyName ("localQueryVersion")]
+	public Tedapi.TedapiQueryVersion LocalQueryVersion { get; set; }
+
+	/// <summary>Gets or sets the existing Windows signing-key name; private key material is never stored here.</summary>
+	[JsonPropertyName ("localSigningKeyName")]
+	public string? LocalSigningKeyName { get; set; }
 
 	/// <summary>Gets or sets the customer email for cloud mode.</summary>
 	[JsonPropertyName ("email")]

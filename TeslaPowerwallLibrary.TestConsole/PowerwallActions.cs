@@ -65,7 +65,7 @@ internal static class PowerwallActions
 	/// <summary>Prints the four instantaneous power flows.</summary>
 	public static async Task PowerAsync (Powerwall powerwall, CancellationToken cancellationToken)
 		{
-		var power = await powerwall.PowerAsync (cancellationToken).ConfigureAwait (false);
+		var power = await powerwall.GetPowerReadingsAsync (cancellationToken).ConfigureAwait (false);
 		ConsoleHelpers.WriteHeading ("Power Flows");
 		ConsoleHelpers.WriteField ("Site (grid)", ConsoleHelpers.FormatWatts (power.Site));
 		ConsoleHelpers.WriteField ("Solar", ConsoleHelpers.FormatWatts (power.Solar));

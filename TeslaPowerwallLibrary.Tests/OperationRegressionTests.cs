@@ -56,6 +56,9 @@ public sealed class OperationRegressionTests
 		{
 		using var rig = new OperationRig (fleet);
 		var power = await rig.Powerwall.PowerAsync ();
+		var readings = await rig.Powerwall.GetPowerReadingsAsync ();
+		Assert.That (new[] { readings.Site, readings.Solar, readings.Battery, readings.Load },
+			Is.EqualTo (new double?[] { power.Site, power.Solar, power.Battery, power.Load }));
 		Assert.That (power.Site, Is.EqualTo (-125.5));
 		Assert.That (power.Solar, Is.EqualTo (6000));
 		Assert.That (power.Battery, Is.EqualTo (-2000));

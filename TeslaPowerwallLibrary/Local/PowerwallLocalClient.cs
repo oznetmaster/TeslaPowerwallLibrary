@@ -2,6 +2,8 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics;
+using Google.Protobuf;
+using Classic = TeslaPowerwallLibrary.Tedapi.Protocol.Classic;
 using System.IO;
 using System.Net.Http.Headers;
 using System.Text;
@@ -24,6 +26,10 @@ namespace TeslaPowerwallLibrary.Local;
 public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 	{
 	private readonly ILogger _log;
+	private readonly SemaphoreSlim _requestGate = new (1, 1);
+	private readonly HttpMessageHandler? _providedHandler;
+	private readonly bool _persistSession = true;
+	private readonly bool _allowControl = true;
 
 	private readonly string _host;
 	private readonly string _password;
@@ -93,7 +99,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 		if (string.IsNullOrWhiteSpace (host))
 			throw new ArgumentException ("Host is required for local mode.", nameof (host));
 
-		_host = host;
+		_host = LocalEndpoint.Create (host).Authority;
 		_password = password ?? string.Empty;
 		_timezone = string.IsNullOrWhiteSpace (timezone) ? Constants.DEFAULT_TIMEZONE : timezone;
 		_timeout = timeout;
@@ -102,69 +108,139 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 		_cacheFile = string.IsNullOrWhiteSpace (cacheFile) ? Constants.DEFAULT_CACHE_FILE : cacheFile;
 		}
 
+		/// <summary>Creates a local gateway client with explicit session-persistence and control settings.</summary>
+	/// <param name="options">Local connection settings; no cloud credentials are used.</param>
+	public PowerwallLocalClient (PowerwallOptions options) : this (options, null)
+		{
+		}
+
+	/// <summary>Creates a local gateway client with a deterministic test transport.</summary>
+	/// <param name="options">Local connection settings.</param>
+	/// <param name="handler">Optional test handler, owned by the client.</param>
+	internal PowerwallLocalClient (PowerwallOptions options, HttpMessageHandler? handler)
+		: this (options.Host, options.Password, options.Email, options.Timezone, options.Timeout,
+			options.CacheExpireSeconds, options.AuthMode, options.CacheFile, options.Logger)
+		{
+		_providedHandler = handler;
+		_persistSession = !options.NoLocalSessionPersistence;
+		_allowControl = options.AllowLocalControl;
+		}
+
+	private void EnsureAuthenticated ()
+		{
+		if (_httpClient is null || !_hasAuth)
+			throw new PowerwallConnectionException ("Authenticate with the local gateway before requesting data or sending commands.");
+		}
 	private double NowSeconds => _clock.Elapsed.TotalSeconds;
+
 
 	/// <inheritdoc/>
 	public override async Task AuthenticateAsync (CancellationToken cancellationToken = default)
 		{
-		LibraryLog.TeslaLocalModeEnabled (_log);
-
-		_cookies = new CookieContainer ();
-		var handler = new HttpClientHandler
+		await _requestGate.WaitAsync (cancellationToken).ConfigureAwait (false);
+		try
 			{
-			CookieContainer = _cookies,
-			// The Energy Gateway presents a self-signed certificate, so certificate validation
-			// is intentionally bypassed for the gateway connection, mirroring upstream behavior.
-			ServerCertificateCustomValidationCallback = static (_, _, _, _) => true
-			};
-
-		_httpClient = new HttpClient (handler)
-			{
-			Timeout = _timeout
-			};
-
-		LoadCachedAuth ();
-
-		if (!_hasAuth)
-			await GetSessionAsync (cancellationToken).ConfigureAwait (false);
+			LibraryLog.TeslaLocalModeEnabled (_log);
+			bool firstConnection = _httpClient is null;
+			if (firstConnection)
+				{
+				_cookies = new CookieContainer ();
+				HttpMessageHandler handler = _providedHandler ?? new HttpClientHandler
+					{
+					CookieContainer = _cookies,
+					AllowAutoRedirect = false,
+					UseProxy = false,
+					// This private handler only accesses the configured local gateway.
+					ServerCertificateCustomValidationCallback = static (_, _, _, _) => true
+					};
+				_httpClient = new HttpClient (handler) { Timeout = _timeout, MaxResponseContentBufferSize = 8 * 1024 * 1024 };
+				}
+			_hasAuth = false;
+			_authorizationHeader = null;
+			Token = null;
+			Cache.Clear ();
+			if (firstConnection && _persistSession)
+				LoadCachedAuth ();
+			if (!_hasAuth)
+				await GetSessionAsync (cancellationToken).ConfigureAwait (false);
+			}
+		finally { _requestGate.Release (); }
 		}
 
 	/// <inheritdoc/>
 	public override async Task CloseSessionAsync (CancellationToken cancellationToken = default)
 		{
-		if (_httpClient is not null)
+		await _requestGate.WaitAsync (cancellationToken).ConfigureAwait (false);
+		try
 			{
-			var url = $"https://{_host}/api/logout";
-			try
+			if (_httpClient is not null && _hasAuth)
 				{
-				using HttpRequestMessage request = CreateRequest (HttpMethod.Get, url);
-				using HttpResponseMessage response = await _httpClient.SendAsync (request, cancellationToken).ConfigureAwait (false);
-				}
-			catch (Exception exc) when (exc is HttpRequestException or TaskCanceledException)
-				{
-				LibraryLog.ErrorDuringLogout (_log, exc.Message);
+				try
+					{
+					using HttpRequestMessage request = CreateRequest (HttpMethod.Get, $"https://{_host}/api/logout");
+					using HttpResponseMessage response = await _httpClient.SendAsync (request, cancellationToken).ConfigureAwait (false);
+					}
+				catch (Exception exc) when (!cancellationToken.IsCancellationRequested && exc is HttpRequestException or TaskCanceledException)
+					{
+					LibraryLog.ErrorDuringLogout (_log, exc.Message);
+					}
 				}
 			}
-
-		_hasAuth = false;
-		_authorizationHeader = null;
+		finally
+			{
+			_hasAuth = false;
+			_authorizationHeader = null;
+			Token = null;
+			Cache.Clear ();
+			_requestGate.Release ();
+			}
 		}
 
 	/// <inheritdoc/>
 	public override async Task<string?> PollAsync (string api, bool force = false, bool recursive = false, CancellationToken cancellationToken = default)
 		{
+		await _requestGate.WaitAsync (cancellationToken).ConfigureAwait (false);
+		try
+			{
+			return await PollCoreAsync (api, force, recursive, cancellationToken).ConfigureAwait (false);
+			}
+		finally
+			{
+			_requestGate.Release ();
+			}
+		}
+
+	/// <inheritdoc/>
+	public override async Task<byte[]?> PollRawAsync (string api, bool force = false, bool recursive = false, CancellationToken cancellationToken = default)
+		{
+		await _requestGate.WaitAsync (cancellationToken).ConfigureAwait (false);
+		try
+			{
+			return await PollRawCoreAsync (api, force, recursive, cancellationToken).ConfigureAwait (false);
+			}
+		finally
+			{
+			_requestGate.Release ();
+			}
+		}
+	/// <inheritdoc/>
+	private async Task<string?> PollCoreAsync (string api, bool force = false, bool recursive = false, CancellationToken cancellationToken = default)
+		{
 		if (string.IsNullOrWhiteSpace (api))
 			throw new ArgumentException ("API endpoint is required.", nameof (api));
 
+		cancellationToken.ThrowIfCancellationRequested ();
+		EnsureAuthenticated ();
 		if (TryGetCached (api, out var cached) && !force)
 			return cached;
 
-		if (_cooldownUntil > NowSeconds)
+		if (_cooldownUntil > NowSeconds || (_cacheTimes.TryGetValue (api, out var retryAfter) && retryAfter > NowSeconds))
 			{
 			LibraryLog.RateLimitCooldownPeriodPausingAPICalls (_log);
 			return null;
 			}
 
+		EnsureAuthenticated ();
 		var url = $"https://{_host}{api}";
 		HttpResponseMessage response;
 		try
@@ -187,7 +263,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 			{
 			(bool Handled, bool Retry) statusHandling = await HandleStatusAsync (api, url, response, recursive, raw: false, cancellationToken).ConfigureAwait (false);
 			if (statusHandling.Handled)
-				return statusHandling.Retry ? await PollAsync (api, force, recursive: true, cancellationToken).ConfigureAwait (false) : null;
+				return statusHandling.Retry ? await PollCoreAsync (api, force, recursive: true, cancellationToken).ConfigureAwait (false) : null;
 
 #if NETFRAMEWORK
 			var body = await response.Content.ReadAsStringAsync ().ConfigureAwait (false);
@@ -206,7 +282,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 		}
 
 	/// <inheritdoc/>
-	public override async Task<byte[]?> PollRawAsync (string api, bool force = false, bool recursive = false, CancellationToken cancellationToken = default)
+	private async Task<byte[]?> PollRawCoreAsync (string api, bool force = false, bool recursive = false, CancellationToken cancellationToken = default)
 		{
 		if (string.IsNullOrWhiteSpace (api))
 			throw new ArgumentException ("API endpoint is required.", nameof (api));
@@ -214,12 +290,13 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 		if (api == "/api/devices/vitals" && !_vitalsApiAvailable)
 			return null;
 
-		if (_cooldownUntil > NowSeconds)
+		if (_cooldownUntil > NowSeconds || (_cacheTimes.TryGetValue (api, out var retryAfter) && retryAfter > NowSeconds))
 			{
 			LibraryLog.RateLimitCooldownPeriodPausingAPICalls (_log);
 			return null;
 			}
 
+		EnsureAuthenticated ();
 		var url = $"https://{_host}{api}";
 		HttpResponseMessage response;
 		try
@@ -242,22 +319,63 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 			{
 			(bool Handled, bool Retry) statusHandling = await HandleStatusAsync (api, url, response, recursive, raw: true, cancellationToken).ConfigureAwait (false);
 			if (statusHandling.Handled)
-				return statusHandling.Retry ? await PollRawAsync (api, force, recursive: true, cancellationToken).ConfigureAwait (false) : null;
+				return statusHandling.Retry ? await PollRawCoreAsync (api, force, recursive: true, cancellationToken).ConfigureAwait (false) : null;
 
+			const int maximumBytes = 8 * 1024 * 1024;
+			if (response.Content.Headers.ContentLength > maximumBytes)
+				throw new PowerwallConnectionException ("The local binary response exceeds the permitted size.");
+			using var deadline = CancellationTokenSource.CreateLinkedTokenSource (cancellationToken);
+			deadline.CancelAfter (_timeout);
 #if NETFRAMEWORK
-			return await response.Content.ReadAsByteArrayAsync ().ConfigureAwait (false);
+			using Stream stream = await response.Content.ReadAsStreamAsync ().ConfigureAwait (false);
 #else
-			return await response.Content.ReadAsByteArrayAsync (cancellationToken).ConfigureAwait (false);
+			using Stream stream = await response.Content.ReadAsStreamAsync (deadline.Token).ConfigureAwait (false);
 #endif
+			using var output = new MemoryStream ();
+			var buffer = new byte[8192];
+			int read;
+#if NETFRAMEWORK
+			while ((read = await stream.ReadAsync (buffer, 0, buffer.Length, deadline.Token).ConfigureAwait (false)) > 0)
+#else
+			while ((read = await stream.ReadAsync (buffer.AsMemory (), deadline.Token).ConfigureAwait (false)) > 0)
+#endif
+				{
+				if (output.Length + read > maximumBytes)
+					throw new PowerwallConnectionException ("The local binary response exceeds the permitted size.");
+				output.Write (buffer, 0, read);
+				}
+			return output.ToArray ();
 			}
 		}
+
 
 	/// <inheritdoc/>
 	public override async Task<string?> PostAsync (string api, object? payload, string? din = null, bool recursive = false, CancellationToken cancellationToken = default)
 		{
+		await _requestGate.WaitAsync (cancellationToken).ConfigureAwait (false);
+		try
+			{
+			return await PostCoreAsync (api, payload, din, recursive, cancellationToken).ConfigureAwait (false);
+			}
+		finally
+			{
+			// The gateway may have applied a command even when its response was lost.
+			Cache.Clear ();
+			_requestGate.Release ();
+			}
+		}
+
+	private async Task<string?> PostCoreAsync (string api, object? payload, string? din = null, bool recursive = false, CancellationToken cancellationToken = default)
+		{
+		if (!_allowControl)
+			{
+			throw new PowerwallNotSupportedException ("Local control is disabled. Enable AllowLocalControl only when commands are intended.");
+			}
+
 		if (string.IsNullOrWhiteSpace (api))
 			throw new ArgumentException ("API endpoint is required.", nameof (api));
 
+		EnsureAuthenticated ();
 		var url = $"https://{_host}{api}";
 		HttpResponseMessage response;
 		try
@@ -288,7 +406,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 			if (statusHandling.Handled)
 				{
 				if (statusHandling.Retry)
-					return await PostAsync (api, payload, din, recursive: true, cancellationToken).ConfigureAwait (false);
+					return await PostCoreAsync (api, payload, din, recursive: true, cancellationToken).ConfigureAwait (false);
 				return null;
 				}
 
@@ -303,10 +421,50 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 		}
 
 	/// <inheritdoc/>
-	public override Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>>?> VitalsAsync (CancellationToken cancellationToken = default) =>
-		// Vitals decoding requires the protobuf milestone; the binary stream is available via
-		// PollRawAsync("/api/devices/vitals") and will be decoded once protobuf support is added.
-		Task.FromResult<IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>>?> (null);
+	public override async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>>?> VitalsAsync (CancellationToken cancellationToken = default)
+		{
+		byte[]? bytes = await PollRawAsync ("/api/devices/vitals", cancellationToken: cancellationToken).ConfigureAwait (false);
+		if (bytes is null)
+			return null;
+		Classic.DevicesWithVitals devices;
+		try { devices = Classic.DevicesWithVitals.Parser.ParseFrom (bytes); }
+		catch (InvalidProtocolBufferException exc)
+			{
+			throw new PowerwallConnectionException ("The local gateway returned malformed device vitals.", exc);
+			}
+		var result = new Dictionary<string, IReadOnlyDictionary<string, object?>> (StringComparer.Ordinal);
+		foreach (Classic.SiteControllerConnectedDeviceWithVitals item in devices.Devices)
+			{
+			Classic.Device? device = item.Device?.Device;
+			if (string.IsNullOrWhiteSpace (device?.Din?.Value))
+				continue;
+			var values = new Dictionary<string, object?> (StringComparer.Ordinal)
+				{
+				["partNumber"] = device!.PartNumber?.Value,
+				["serialNumber"] = device.SerialNumber?.Value,
+				["manufacturer"] = device.Manufacturer?.Value,
+				["siteLabel"] = device.SiteLabel?.Value,
+				["componentParentDin"] = device.ComponentParentDin?.Value,
+				["firmwareVersion"] = device.FirmwareVersion?.Value,
+				["alerts"] = item.Alerts.ToArray ()
+				};
+			foreach (Classic.DeviceVital vital in item.Vitals)
+				{
+				if (string.IsNullOrWhiteSpace (vital.Name))
+					continue;
+				values[vital.Name] = vital.ValueCase switch
+					{
+					Classic.DeviceVital.ValueOneofCase.IntValue => vital.IntValue,
+					Classic.DeviceVital.ValueOneofCase.FloatValue => vital.FloatValue,
+					Classic.DeviceVital.ValueOneofCase.StringValue => vital.StringValue,
+					Classic.DeviceVital.ValueOneofCase.BoolValue => vital.BoolValue,
+					_ => null
+					};
+				}
+			result[device.Din.Value] = values;
+			}
+		return result;
+		}
 
 	/// <inheritdoc/>
 	public override async Task<double?> GetTimeRemainingAsync (CancellationToken cancellationToken = default)
@@ -355,6 +513,10 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 
 	private async Task GetSessionAsync (CancellationToken cancellationToken)
 		{
+		_hasAuth = false;
+		_authorizationHeader = null;
+		Token = null;
+		Cache.Clear ();
 		var url = $"https://{_host}/api/login/Basic";
 		var loginPayload = new LocalLoginRequest
 			{
@@ -373,7 +535,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 				};
 			response = await _httpClient!.SendAsync (request, cancellationToken).ConfigureAwait (false);
 			}
-		catch (Exception exc) when (exc is HttpRequestException or TaskCanceledException)
+		catch (Exception exc) when (!cancellationToken.IsCancellationRequested && exc is HttpRequestException or TaskCanceledException)
 			{
 			var err = $"Unable to connect to Powerwall at https://{_host}: {exc.Message}";
 			LibraryLog.CheckThatTheGatewayIsReachableOnTheNetwork (_log, err);
@@ -400,12 +562,14 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 				LocalLoginResponse? json = JsonHelper.Deserialize<LocalLoginResponse> (body);
 				if (_authMode == "token")
 					{
-					Token = json?.Token;
+					Token = !string.IsNullOrWhiteSpace (json?.Token) ? json!.Token
+						: throw new LoginException ("The local gateway did not return a bearer token.");
 					_authorizationHeader = $"Bearer {Token}";
 					}
 
 				_hasAuth = true;
-				PersistAuth ();
+				if (_persistSession)
+					PersistAuth ();
 				}
 			catch (JsonException exc)
 				{
@@ -479,7 +643,13 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 
 	private HttpRequestMessage CreateRequest (HttpMethod method, string url)
 		{
-		var request = new HttpRequestMessage (method, url);
+		var target = new Uri (url, UriKind.Absolute);
+		Uri gateway = LocalEndpoint.Create (_host);
+		if (target.Scheme != gateway.Scheme || target.Host != gateway.Host || target.Port != gateway.Port || target.UserInfo.Length != 0)
+			{
+			throw new ArgumentException ("Local requests must target the configured gateway.", nameof (url));
+			}
+		var request = new HttpRequestMessage (method, target);
 		if (_authMode == "token" && !string.IsNullOrWhiteSpace (_authorizationHeader))
 			request.Headers.TryAddWithoutValidation ("Authorization", _authorizationHeader);
 
@@ -495,7 +665,8 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 				LibraryLog.PowerwallAPINotFoundAt (_log, url);
 				if (api == "/api/devices/vitals")
 					{
-					var version = await GetVersionIntAsync (cancellationToken).ConfigureAwait (false);
+					var versionPayload = await PollCoreAsync ("/api/status", cancellationToken: cancellationToken).ConfigureAwait (false);
+					var version = VersionHelper.ParseVersion (JsonHelper.DeserializeOrNull<GatewayStatus> (versionPayload)?.Version);
 					if (version >= 23440)
 						{
 						_vitalsApiAvailable = false;
@@ -572,17 +743,14 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 		_cacheTimes[api] = NowSeconds + seconds;
 		}
 
-	private string HostWithoutPort
-		{
-		get
-			{
-			var colon = _host.LastIndexOf (':');
-			return colon > 0 && int.TryParse (_host[(colon + 1)..], out _) ? _host[..colon] : _host;
-			}
-		}
+	private string HostWithoutPort => LocalEndpoint.Create (_host).DnsSafeHost;
 
 	/// <summary>
 	/// Releases the underlying <see cref="HttpClient"/> and associated resources.
 	/// </summary>
-	public void Dispose () => _httpClient?.Dispose ();
+	public void Dispose ()
+		{
+		_httpClient?.Dispose ();
+		_requestGate.Dispose ();
+		}
 	}

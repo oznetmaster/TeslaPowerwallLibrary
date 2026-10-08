@@ -13,6 +13,8 @@
 			<RowDefinition Height="Auto" />
 			<RowDefinition Height="Auto" />
 			<RowDefinition Height="Auto" />
+			<RowDefinition Height="Auto" />
+			<RowDefinition Height="Auto" />
 			<RowDefinition Height="*" />
 			<RowDefinition Height="Auto" />
 		</Grid.RowDefinitions>
@@ -22,8 +24,29 @@
 					HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="8,0,8,8"
 					Visibility="{Binding SiteLabel, Converter={StaticResource NullToCollapsed}}" />
 
+		<StackPanel x:Name="HistorySetup" Grid.Row="1" Margin="8,0,8,12"
+			Visibility="{Binding IsLocal, Converter={StaticResource BoolToVisibility}}"
+			IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}">
+			<TextBlock Text="Cloud account for past history (live readings stay on LAN)" Style="{StaticResource MutedText}" Margin="0,0,0,6" />
+			<WrapPanel>
+				<ComboBox Width="95" ItemsSource="{Binding HistoryProviders}" SelectedItem="{Binding HistoryProvider}" />
+				<Button Content="{Binding HistoryAccountAction}" Command="{Binding ConnectHistoryCommand}" Margin="8,0,8,0" />
+				<ComboBox Visibility="{Binding HasBoundHistorySite, Converter={StaticResource InverseBoolToVisibility}}" Width="225" ItemsSource="{Binding HistorySites}" SelectedItem="{Binding SelectedHistorySite}" DisplayMemberPath="SiteName" />
+				<Button Visibility="{Binding HasBoundHistorySite, Converter={StaticResource InverseBoolToVisibility}}" Content="Use site" Command="{Binding UseHistorySiteCommand}" Margin="8,0,0,0" />
+			</WrapPanel>
+		</StackPanel>
+
+		<StackPanel Grid.Row="4" Margin="8,0,8,8">
+			<TextBlock Text="{Binding LiveReadingText}" Foreground="{StaticResource TextBrush}" Margin="0,0,0,4"
+				Visibility="{Binding IsLocal, Converter={StaticResource BoolToVisibility}}" />
+			<TextBlock Text="{Binding HistorySourceLabel}" Style="{StaticResource MutedText}" TextWrapping="Wrap" />
+			<TextBlock Text="{Binding LiveStorageWarning}" Style="{StaticResource MutedText}" TextWrapping="Wrap" />
+		</StackPanel>
+
 		<!-- Period selector -->
-		<StackPanel Grid.Row="1" Orientation="Horizontal" Margin="8,0,8,12">
+		<StackPanel x:Name="PeriodControls" Grid.Row="2" Orientation="Horizontal" Margin="8,0,8,12"
+			Visibility="{Binding IsAvailable, Converter={StaticResource BoolToVisibility}}"
+			IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}">
 			<TextBlock Text="Period" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
 						Margin="0,0,10,0" />
 			<ComboBox Width="160" ItemsSource="{Binding Periods}" SelectedItem="{Binding SelectedPeriod}" />
@@ -33,7 +56,7 @@
 						TextAlignment="Center" Foreground="{StaticResource TextBrush}" Margin="8,0,8,0" />
 			<Button Content="&#x25B6;" Command="{Binding NextPeriodCommand}" MinWidth="34"
 					ToolTip="Next period" />
-			<Button Content="Refresh" Command="{Binding LoadCommand}" Margin="12,0,0,0"
+			<Button Content="Refresh from cloud" Command="{Binding RefreshHistoryCommand}" Margin="12,0,0,0"
 					IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
 		</StackPanel>
 
@@ -41,7 +64,8 @@
 			  the Tesla™ app's own single-series presentation, instead of combining every component onto one
 			  chart. The shared GroupName makes the RadioButtons mutually exclusive in the UI; the view model
 			  also enforces the invariant itself (see EnergyViewModel.OnComponentSelectionChanged). -->
-		<ItemsControl Grid.Row="2" ItemsSource="{Binding Components}" Margin="8,0,8,12">
+		<ItemsControl Grid.Row="3" ItemsSource="{Binding Components}" Margin="8,0,8,12"
+			Visibility="{Binding IsAvailable, Converter={StaticResource BoolToVisibility}}">
 			<ItemsControl.ItemsPanel>
 				<ItemsPanelTemplate>
 					<WrapPanel Orientation="Horizontal" />
@@ -62,15 +86,22 @@
 		</ItemsControl>
 
 		<!-- Chart -->
-		<Border Grid.Row="3" Style="{StaticResource Card}">
-			<lvc:CartesianChart Series="{Binding Series}"
+		<Border Grid.Row="5" Style="{StaticResource Card}">
+			<Grid>
+			<lvc:CartesianChart x:Name="HistoryChart" Visibility="{Binding HasChartData, Converter={StaticResource BoolToVisibility}}" Series="{Binding Series, NotifyOnTargetUpdated=True}" TargetUpdated="OnChartDataChanged"
 								XAxes="{Binding XAxes}"
 								YAxes="{Binding YAxes}"
-								LegendPosition="Hidden" />
+								LegendPosition="Bottom" AnimationsSpeed="0:0:0" />
+			<StackPanel x:Name="EmptyHistory" VerticalAlignment="Center" Margin="32"
+				Visibility="{Binding HasChartData, Converter={StaticResource InverseBoolToVisibility}}">
+				<TextBlock Text="Energy history" Style="{StaticResource HeadingText}" Margin="0,0,0,12" />
+				<TextBlock Text="{Binding StatusMessage}" Style="{StaticResource MutedText}" TextWrapping="Wrap" />
+			</StackPanel>
+			</Grid>
 		</Border>
 
-		<TextBlock Grid.Row="4" Text="{Binding StatusMessage}" Foreground="{StaticResource MutedTextBrush}"
+		<TextBlock Grid.Row="6" Text="{Binding StatusMessage}" Foreground="{StaticResource MutedTextBrush}"
 					Margin="8,8,8,0" TextWrapping="Wrap"
-					Visibility="{Binding StatusMessage, Converter={StaticResource NullToCollapsed}}" />
+					Visibility="{Binding HasChartData, Converter={StaticResource BoolToVisibility}}" />
 	</Grid>
 </UserControl>

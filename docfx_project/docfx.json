@@ -67,6 +67,19 @@
         "files": [
           "toc.yml"
         ]
+      },
+      {
+        "files": [
+          "LOCAL-ACCESS.md",
+          "UPGRADING-2.1.md",
+          "RELEASE-NOTES.md",
+          "DEVELOPMENT-HISTORY.md",
+          "MIGRATION-SystemTextJson.md",
+          "TeslaPowerwallLibrary.Tests/README.md",
+          "CHANGELOG.md"
+        ],
+        "src": "..",
+        "dest": "guides"
       }
     ],
     "globalMetadata": {

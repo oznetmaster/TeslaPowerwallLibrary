@@ -14,6 +14,9 @@ using System.Text.Json.Serialization;
 
 using TeslaPowerwallLibrary.Cloud;
 
+using TeslaPowerwallLibrary.Local;
+using TeslaPowerwallLibrary.Tedapi;
+
 namespace TeslaPowerwallLibrary.FleetApi;
 
 /// <summary>
@@ -336,6 +339,22 @@ internal sealed class FleetApiConnection : IDisposable
 		return JsonHelper.UnwrapPayload (response);
 		}
 
+	/// <summary>Enrolls a public LAN key or reads its authorization state using this authenticated connection.</summary>
+	/// <param name="siteId">Selected energy site identifier.</param>
+	/// <param name="publicKey">PKCS#1 public-key DER; private key material is never sent.</param>
+	/// <param name="description">Registration description, or null to read authorization state.</param>
+	/// <param name="cancellationToken">Cancels the request.</param>
+	/// <returns>The reported state of the requested key.</returns>
+	internal async Task<LocalKeyRegistration> LocalKeyAsync (string siteId, byte[] publicKey, string? description, CancellationToken cancellationToken)
+		{
+		cancellationToken.ThrowIfCancellationRequested ();
+		EnrollmentRequest request = LocalKeyEnrollmentProtocol.Request (publicKey, description);
+		string? response = await SendApiAsync (HttpMethod.Post,
+			$"api/1/energy_sites/{siteId}/command", request, null, cancellationToken).ConfigureAwait (false);
+		if (response is null)
+			throw new PowerwallConnectionException ("The LAN key request did not return a result. Read the key status before retrying enrollment.");
+		return LocalKeyEnrollmentProtocol.Parse (response, publicKey, description is not null);
+		}
 	private async Task<string?> GetSiteEndpointAsync (string siteId, string segment, IReadOnlyDictionary<string, string>? query, CancellationToken cancellationToken)
 		{
 		var uri = $"api/1/energy_sites/{siteId}/{segment}";

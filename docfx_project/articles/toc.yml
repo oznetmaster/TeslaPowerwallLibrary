@@ -1,4 +1,10 @@
 - name: Introduction
   href: intro.md
-- name: Tesla cloud login (TeslaPowerwallLibrary.Login)
+- name: Owner and Fleet credential setup
   href: login.md
+- name: Local access
+  href: local-access.md
+- name: Upgrading to 2.1
+  href: upgrading.md
+- name: Release notes
+  href: release-notes.md

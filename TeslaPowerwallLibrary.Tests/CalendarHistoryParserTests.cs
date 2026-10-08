@@ -12,6 +12,13 @@ namespace TeslaPowerwallLibrary.Tests;
 [TestFixture]
 public sealed class CalendarHistoryParserTests
 	{
+	/// <summary>Home contribution excludes battery exports and distinguishes missing fields from a real zero.</summary>
+	[TestCase ("{}", null), TestCase ("{\"consumer_energy_imported_from_battery\":0}", 0.0), TestCase ("{\"consumer_energy_imported_from_battery\":1250,\"battery_energy_exported\":5000}", 1.25)]
+	public void BatteryToHome_UsesItsOwnWireField (string json, double? expected)
+		{
+		Assert.That (System.Text.Json.JsonSerializer.Deserialize<EnergyHistoryPoint> (json)!.BatteryToHomeKwh, Is.EqualTo (expected));
+		}
+
 	[Test]
 	public void WhenEnergyPayloadIsParsedThenPointsAreMappedAndConvertedToKwh ()
 		{

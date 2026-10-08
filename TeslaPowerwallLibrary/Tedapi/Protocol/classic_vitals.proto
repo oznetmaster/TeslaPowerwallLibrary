@@ -1,0 +1,35 @@
+// Copyright (c) 2026 Neil Colvin. MIT License; see LICENSE.
+// Read-only wire fields from pypowerwall tesla.proto (credit: brianhealey).
+// Upstream MIT notice: UPSTREAM-LICENSE.txt. Unknown fields remain protobuf-compatible.
+syntax = "proto3";
+package powerwall_classic_vitals;
+option csharp_namespace = "TeslaPowerwallLibrary.Tedapi.Protocol.Classic";
+import "google/protobuf/timestamp.proto";
+message StringValue { string value = 1; }
+message Device {
+ StringValue din = 1;
+ StringValue partNumber = 2;
+ StringValue serialNumber = 3;
+ StringValue manufacturer = 4;
+ StringValue siteLabel = 5;
+ StringValue componentParentDin = 6;
+ StringValue firmwareVersion = 7;
+ google.protobuf.Timestamp firstCommunicationTime = 8;
+ google.protobuf.Timestamp lastCommunicationTime = 9;
+}
+message DeviceVital {
+ optional string name = 1;
+ oneof value {
+  int64 intValue = 3;
+  double floatValue = 4;
+  string stringValue = 5;
+  bool boolValue = 6;
+ }
+}
+message SiteControllerConnectedDevice { Device device = 1; }
+message SiteControllerConnectedDeviceWithVitals {
+ SiteControllerConnectedDevice device = 1;
+ repeated DeviceVital vitals = 2;
+ repeated string alerts = 3;
+}
+message DevicesWithVitals { repeated SiteControllerConnectedDeviceWithVitals devices = 1; }

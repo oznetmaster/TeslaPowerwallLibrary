@@ -1,6 +1,8 @@
 // Copyright © 2026 Neil Colvin.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
+using System.Security.Cryptography;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -10,13 +12,14 @@ using TeslaPowerwallLibrary.Cloud;
 using TeslaPowerwallLibrary.FleetApi;
 using TeslaPowerwallLibrary.Local;
 using TeslaPowerwallLibrary.Models;
+using TeslaPowerwallLibrary.Tedapi;
 
 namespace TeslaPowerwallLibrary;
 
 /// <summary>
 /// High-level, async-first client representing a Tesla™ Energy Gateway Powerwall™ device.
 /// This is the primary entry point of the library and delegates to a mode-specific
-/// <see cref="PowerwallClientBase"/> implementation (currently local mode).
+/// <see cref="PowerwallClientBase"/> implementation for local, Owner, or Fleet access.
 /// </summary>
 /// <remarks>
 /// This type is an idiomatic .NET adaptation of the Python <c>pypowerwall</c> <c>Powerwall</c> class.
@@ -237,6 +240,19 @@ public sealed class Powerwall : IDisposable
 	/// </summary>
 	public string? CloudSiteId => (_client as PowerwallCloudClient)?.SiteId;
 
+	/// <summary>Gets the configured local hostname or IP authority, or null for a cloud connection.</summary>
+	/// <remarks>The hostname is retained across DHCP changes. Use <see cref="PowerwallDiscovery.ResolveAsync"/>
+	/// to resolve its current addresses; these are candidates, not proof of the active socket's remote address.</remarks>
+	public string? LocalHost => Mode == PowerwallMode.Local ? _options.Host : null;
+
+	/// <summary>Gets the authenticated TEDAPI device identifier without issuing a request; null for other transports or before connection.</summary>
+	public string? LocalDeviceIdentificationNumber => (_client as PowerwallTedapiClient)?.DeviceIdentificationNumber;
+
+	/// <summary>Whether supported local reads currently use the configured setup-network fallback.</summary>
+	/// <remarks>False for other transports or before connection. This indicates routing, not the success of the latest read.</remarks>
+	public bool IsUsingLocalReadFallback => (_client as PowerwallTedapiClient)?.IsUsingLocalReadFallback ?? false;
+
+
 	/// <summary>
 	/// Raised in FleetAPI mode after the underlying Tesla connection refreshes its OAuth tokens. The library
 	/// persists the current tokens to its own cache automatically (unless
@@ -284,15 +300,9 @@ public sealed class Powerwall : IDisposable
 		switch (Mode)
 			{
 			case PowerwallMode.Local:
-				var localClient = new PowerwallLocalClient (
-					_options.Host,
-					_options.Password,
-					_options.Email,
-					_options.Timezone,
-					_options.Timeout,
-					_options.CacheExpireSeconds,
-					_options.AuthMode,
-					_options.CacheFile, _log);
+				PowerwallClientBase localClient = _options.LocalProtocol != PowerwallLocalProtocol.Gateway
+					? new PowerwallTedapiClient (_options)
+					: new PowerwallLocalClient (_options);
 				try
 					{
 					await localClient.AuthenticateAsync (cancellationToken).ConfigureAwait (false);
@@ -300,7 +310,7 @@ public sealed class Powerwall : IDisposable
 				catch (Exception exc) when (exc is PowerwallException)
 					{
 					LibraryLog.FailedToConnectUsingLocalMode (_log, exc.Message);
-					localClient.Dispose ();
+					((IDisposable)localClient).Dispose ();
 					return false;
 					}
 
@@ -400,6 +410,11 @@ public sealed class Powerwall : IDisposable
 		{
 		try
 			{
+			if (Mode == PowerwallMode.Local)
+				{
+				var payload = await RequireClient ().PollAsync ("/api/system_status/soe", force: true, cancellationToken: cancellationToken).ConfigureAwait (false);
+				return JsonHelper.DeserializeOrNull<StateOfEnergy> (payload) is not null;
+				}
 			return await StatusAsync (cancellationToken).ConfigureAwait (false) is not null;
 			}
 		catch (PowerwallException)
@@ -450,9 +465,16 @@ public sealed class Powerwall : IDisposable
 	/// Returns the instantaneous power flows for site, solar, battery, and load.
 	/// </summary>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
-	/// <returns>A <see cref="PowerSnapshot"/> with the four flows in watts.</returns>
+	/// <returns>A <see cref="PowerSnapshot"/> in watts, with zero defaults for unavailable flows for compatibility.</returns>
+	/// <remarks>Use <see cref="GetPowerReadingsAsync"/> to distinguish missing readings from reported zeroes.</remarks>
 	public Task<PowerSnapshot> PowerAsync (CancellationToken cancellationToken = default) =>
 		RequireClient ().PowerAsync (cancellationToken);
+
+	/// <summary>Returns instantaneous power flows while preserving unavailable readings as null.</summary>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>Site, solar, battery and home power in watts; reported zeroes remain zero.</returns>
+	public Task<PowerReadings> GetPowerReadingsAsync (CancellationToken cancellationToken = default) =>
+		RequireClient ().GetPowerReadingsAsync (cancellationToken);
 
 	/// <summary>Returns the grid (site) power in watts.</summary>
 	/// <param name="verbose">When <see langword="true"/>, reads directly from the meter aggregates endpoint.</param>
@@ -656,7 +678,10 @@ public sealed class Powerwall : IDisposable
 		if (mode is not null && string.IsNullOrWhiteSpace (mode))
 			throw new ArgumentException ("Operation mode must not be empty.", nameof (mode));
 
-		// Local gateways replace the complete operation object. Cloud/Fleet issue separate commands.
+		if (RequireClient () is PowerwallTedapiClient)
+			return await WriteLocalSettingsResultAsync (new LocalSettingsUpdate { BackupReservePercent = level, OperationMode = mode }, cancellationToken).ConfigureAwait (false);
+
+		// Classic local gateways replace the complete operation object. Cloud/Fleet issue separate commands.
 		if (Mode == PowerwallMode.Local)
 			{
 			level ??= await GetReserveAsync (scale: false, cancellationToken: cancellationToken).ConfigureAwait (false);
@@ -678,6 +703,223 @@ public sealed class Powerwall : IDisposable
 	public Task<double?> GetTimeRemainingAsync (CancellationToken cancellationToken = default) =>
 		RequireClient ().GetTimeRemainingAsync (cancellationToken);
 
+
+	/// <summary>Changes selected settings over the connected signed local transport.</summary>
+	/// <remarks>Requires AllowLocalControl. Uses a fresh configuration hash to avoid overwriting concurrent changes.</remarks>
+	/// <param name="update">Settings to change; null fields preserve current values. Reserve uses the Tesla app scale.</param>
+	/// <param name="cancellationToken">Cancels the operation.</param>
+	/// <returns>The gateway acknowledgement, which does not establish physical actuation.</returns>
+	public Task<LocalCommandResult> UpdateLocalSettingsAsync (LocalSettingsUpdate update, CancellationToken cancellationToken = default) =>
+		RequireTedapiClient ().UpdateSettingsAsync (update, cancellationToken);
+
+
+	/// <summary>Reads manual and scheduled backup events through signed local access.</summary>
+	/// <remarks>Uses only the signed local connection. A command acknowledgement does not prove physical actuation.</remarks>
+	/// <param name="cancellationToken">Cancels the operation.</param>
+	/// <returns>The typed gateway response.</returns>
+	public Task<LocalBackupEvents> GetLocalBackupEventsAsync (CancellationToken cancellationToken = default) =>
+		RequireTedapiClient ().GetBackupEventsAsync (cancellationToken);
+
+
+	/// <summary>Replaces the manual backup event with maximum backup starting now. Requires AllowLocalControl.</summary>
+	/// <remarks>Uses only the signed local connection. A command acknowledgement does not prove physical actuation.</remarks>
+	/// <param name="duration">Whole-second duration of at least one minute. Any previous manual event is cancelled before scheduling.</param>
+	/// <param name="cancellationToken">Cancels the operation.</param>
+	/// <returns>The typed gateway response.</returns>
+	public Task<LocalCommandResult> ScheduleLocalMaxBackupAsync (TimeSpan duration, CancellationToken cancellationToken = default) =>
+		RequireTedapiClient ().ScheduleMaxBackupAsync (duration, cancellationToken);
+
+
+	/// <summary>Cancels the manual maximum-backup event. Requires AllowLocalControl.</summary>
+	/// <remarks>Uses only the signed local connection. A command acknowledgement does not prove physical actuation.</remarks>
+	/// <param name="cancellationToken">Cancels the operation.</param>
+	/// <returns>The typed gateway response.</returns>
+	public Task<LocalCommandResult> CancelLocalMaxBackupAsync (CancellationToken cancellationToken = default) =>
+		RequireTedapiClient ().CancelMaxBackupAsync (cancellationToken);
+
+
+	/// <summary>Requests intentional islanding by opening the grid contactor. Requires AllowLocalControl.</summary>
+	/// <remarks>Uses only the signed local connection. A command acknowledgement does not prove physical actuation.</remarks>
+	/// <param name="cancellationToken">Cancels the operation.</param>
+	/// <returns>The typed gateway response.</returns>
+	public Task<LocalGridCommandResult> GoOffGridAsync (CancellationToken cancellationToken = default) =>
+		RequireTedapiClient ().GoOffGridAsync (cancellationToken);
+
+
+	/// <summary>Requests grid reconnection by closing the grid contactor. Requires AllowLocalControl.</summary>
+	/// <remarks>Uses only the signed local connection. A command acknowledgement does not prove physical actuation.</remarks>
+	/// <param name="cancellationToken">Cancels the operation.</param>
+	/// <returns>The typed gateway response.</returns>
+	public Task<LocalGridCommandResult> ReconnectGridAsync (CancellationToken cancellationToken = default) =>
+		RequireTedapiClient ().ReconnectGridAsync (cancellationToken);
+
+	/// <summary>Reads IEEE 2030.5 service metadata without starting or changing a procedure.</summary>
+	/// <remarks>Uses the captured June 2026 supplemental vendor query independently of the regular telemetry query version.
+	/// Firmware must accept that query. No cloud fallback, mutation or automatic procedure is performed.</remarks>
+	/// <param name="force">Bypasses cached results but never device backoff.</param>
+	/// <param name="cancellationToken">Cancels the read.</param>
+	/// <returns>Reported metadata, or null when the device returns no section.</returns>
+	public Task<LocalIeee20305Telemetry?> GetLocalIeee20305Async (bool force = false, CancellationToken cancellationToken = default) =>
+		RequireTedapiClient ().GetIeee20305Async (force, cancellationToken);
+
+	/// <summary>Reads stored inverter self-test status and results without starting or changing a procedure.</summary>
+	/// <remarks>Uses the captured June 2026 supplemental vendor query independently of the regular telemetry query version.
+	/// Firmware must accept that query. No cloud fallback, mutation or automatic procedure is performed.</remarks>
+	/// <param name="force">Bypasses cached results but never device backoff.</param>
+	/// <param name="cancellationToken">Cancels the read.</param>
+	/// <returns>Reported metadata, or null when the device returns no section.</returns>
+	public Task<LocalInverterSelfTests?> GetLocalInverterSelfTestsAsync (bool force = false, CancellationToken cancellationToken = default) =>
+		RequireTedapiClient ().GetInverterSelfTestsAsync (force, cancellationToken);
+
+	/// <summary>Reads stored protection-test status and results without starting or changing a procedure.</summary>
+	/// <remarks>Uses the captured June 2026 supplemental vendor query independently of the regular telemetry query version.
+	/// Firmware must accept that query. No cloud fallback, mutation or automatic procedure is performed.</remarks>
+	/// <param name="force">Bypasses cached results but never device backoff.</param>
+	/// <param name="cancellationToken">Cancels the read.</param>
+	/// <returns>Reported metadata, or null when the device returns no section.</returns>
+	public Task<LocalProtectionTestStatus?> GetLocalProtectionTestStatusAsync (bool force = false, CancellationToken cancellationToken = default) =>
+		RequireTedapiClient ().GetProtectionTestStatusAsync (force, cancellationToken);
+
+	private PowerwallTedapiClient RequireTedapiClient () =>
+		RequireClient () as PowerwallTedapiClient
+			?? throw new PowerwallNotSupportedException ("This operation requires a TEDAPI local connection.");
+
+	private async Task<string?> WriteLocalSettingsResultAsync (LocalSettingsUpdate update, CancellationToken cancellationToken) =>
+		JsonHelper.Serialize (await RequireTedapiClient ().UpdateSettingsAsync (update, cancellationToken).ConfigureAwait (false));
+
+	private async Task<bool?> ReadLocalGridChargingAsync (bool force, CancellationToken cancellationToken) =>
+		(await RequireTedapiClient ().GetConfigurationAsync (force, cancellationToken).ConfigureAwait (false)).Site?.GridChargingDisallowed is bool blocked ? !blocked : null;
+
+	private async Task<string?> ReadLocalGridExportAsync (bool force, CancellationToken cancellationToken) =>
+		(await RequireTedapiClient ().GetConfigurationAsync (force, cancellationToken).ConfigureAwait (false)).Site?.GridExport;
+
+	/// <summary>Enrolls an RSA public key for subsequent independent local access to the selected energy site.</summary>
+	/// <remarks>
+	/// Uses the existing authenticated Owner or Fleet connection and sends only the public key.
+	/// This changes the site's authorized-client list and may require physical verification.
+	/// The library never initiates physical verification or switches household power.
+	/// Keep the caller-owned private key securely for use with a separate local connection.
+	/// After an uncertain outcome, call <see cref="GetLocalKeyStatusAsync"/> before attempting enrollment again.
+	/// </remarks>
+	/// <param name="signingKey">Caller-owned 4096-bit RSA key; it is not disposed or persisted by this operation.</param>
+	/// <param name="description">Nonempty user-visible label for the authorized local client.</param>
+	/// <param name="cancellationToken">Cancels the operation.</param>
+	/// <returns>The reported authorization state and public-key fingerprint. Pending verification is not authorization.</returns>
+	/// <exception cref="ArgumentException">The key size or description is invalid.</exception>
+	/// <exception cref="PowerwallNotSupportedException">The connection is not an authenticated Owner or Fleet connection.</exception>
+	public Task<LocalKeyRegistration> RegisterLocalKeyAsync (RSA signingKey, string description, CancellationToken cancellationToken = default)
+		{
+		if (string.IsNullOrWhiteSpace (description))
+			throw new ArgumentException ("A local client description is required.", nameof (description));
+		return RequestLocalKeyAsync (signingKey, description, cancellationToken);
+		}
+
+	/// <summary>Reads the selected energy site's authorization state for one specific RSA public key.</summary>
+	/// <remarks>
+	/// Uses the existing authenticated Owner or Fleet connection. It does not enroll keys or modify power settings.
+	/// A verified state belonging to another client never establishes authorization for this key.
+	/// Local connections do not invoke this cloud operation automatically.
+	/// </remarks>
+	/// <param name="signingKey">Caller-owned 4096-bit RSA key whose public authorization should be checked.</param>
+	/// <param name="cancellationToken">Cancels the operation.</param>
+	/// <returns>The key's authorization state, or Unknown if the response does not establish a recognized state for that key.</returns>
+	/// <exception cref="ArgumentException">The key size is invalid.</exception>
+	/// <exception cref="PowerwallNotSupportedException">The connection is not an authenticated Owner or Fleet connection.</exception>
+	public Task<LocalKeyRegistration> GetLocalKeyStatusAsync (RSA signingKey, CancellationToken cancellationToken = default) =>
+		RequestLocalKeyAsync (signingKey, null, cancellationToken);
+
+	private Task<LocalKeyRegistration> RequestLocalKeyAsync (RSA signingKey, string? description, CancellationToken cancellationToken)
+		{
+		cancellationToken.ThrowIfCancellationRequested ();
+#if NETFRAMEWORK
+		if (signingKey is null)
+			throw new ArgumentNullException (nameof (signingKey));
+#else
+		ArgumentNullException.ThrowIfNull (signingKey);
+#endif
+		if (signingKey.KeySize != 4096)
+			throw new ArgumentException ("Local signing requires a 4096-bit RSA key.", nameof (signingKey));
+		var client = RequireClient () as ILocalKeyEnrollmentClient
+			?? throw new PowerwallNotSupportedException ("Key enrollment requires an authenticated Owner or Fleet connection.");
+		return client.LocalKeyAsync (TedapiSigning.PublicKeyDer (signingKey), description, cancellationToken);
+		}
+
+	/// <summary>Reads local gateway identity, installed firmware and update details without starting an update.</summary>
+	/// <param name="force">Bypasses cached information, but never device backoff.</param>
+	/// <param name="cancellationToken">Cancels the operation.</param>
+	/// <returns>Typed local system information.</returns>
+	public Task<LocalSystemInformation> GetLocalSystemInformationAsync (bool force = false, CancellationToken cancellationToken = default) =>
+		RequireTedapiClient ().GetSystemInformationAsync (force, cancellationToken);
+
+	/// <summary>Reads configured local Powerwall devices, legacy bus telemetry and identified battery summaries.</summary>
+	/// <param name="force">Bypasses telemetry caches but never device backoff.</param>
+	/// <param name="cancellationToken">Cancels the operation.</param>
+	/// <returns>Sequential device readings, with explicit unavailable results for unsupported follower routes.</returns>
+	public Task<LocalDeviceSnapshot> GetLocalDeviceSnapshotAsync (bool force = false, CancellationToken cancellationToken = default) =>
+		RequireTedapiClient ().GetDeviceSnapshotAsync (force, cancellationToken);
+
+	/// <summary>Explicitly reads local customer meter readings and reported lifetime energy counters, without cloud access.</summary>
+	/// <param name="force">Bypasses cached readings, but never device backoff.</param>
+	/// <param name="cancellationToken">Cancels the operation.</param>
+	/// <returns>Reported native meter measurements; unsupported firmware returns an exception.</returns>
+	public Task<MeterAggregates> GetLocalNativeMeterAggregatesAsync (bool force = false, CancellationToken cancellationToken = default) =>
+		RequireTedapiClient ().GetNativeMeterAggregatesAsync (force, cancellationToken);
+
+	/// <summary>Reads detailed configured local meter aggregates, retaining missing values and converting cumulative energy to watt-hours.</summary>
+	/// <param name="force">Bypasses cached configuration and telemetry but not device backoff.</param>
+	/// <param name="cancellationToken">Cancels the operation.</param>
+	/// <returns>Typed site, solar, battery and load meter summaries.</returns>
+	public Task<MeterAggregates> GetLocalMeterAggregatesAsync (bool force = false, CancellationToken cancellationToken = default) =>
+		RequireTedapiClient ().GetDetailedMeterAggregatesAsync (force, cancellationToken);
+
+	/// <summary>Reads local meter channels with their configured locations and real-power scaling.</summary>
+	/// <param name="force">Bypasses cached configuration and telemetry but not device backoff.</param>
+	/// <param name="cancellationToken">Cancels the operation.</param>
+	/// <returns>Separate typed channels for each reported Neurio or Tesla remote meter.</returns>
+	public Task<IReadOnlyList<LocalConfiguredMeter>> GetLocalMeterReadingsAsync (bool force = false, CancellationToken cancellationToken = default) =>
+		RequireTedapiClient ().GetMeterReadingsAsync (force, cancellationToken);
+
+	/// <summary>Reads non-secret local configuration through the connected TEDAPI transport.</summary>
+	/// <param name="force">Bypasses the configuration cache but not gateway backoff.</param>
+	/// <param name="cancellationToken">Cancels the operation.</param>
+	/// <returns>The gateway's non-secret configuration fields.</returns>
+	public Task<LocalConfiguration> GetLocalConfigurationAsync (bool force = false, CancellationToken cancellationToken = default) =>
+		(RequireClient () as PowerwallTedapiClient
+			?? throw new PowerwallNotSupportedException ("This operation requires a TEDAPI local connection."))
+			.GetConfigurationAsync (force, cancellationToken);
+	/// <summary>Reads typed local TEDAPI controller telemetry without contacting a cloud service.</summary>
+	/// <param name="force">Bypasses the measurement cache but not gateway backoff.</param>
+	/// <param name="cancellationToken">Cancels the operation.</param>
+	/// <returns>Gateway controller measurements.</returns>
+	public Task<LocalTelemetry> GetLocalTelemetryAsync (bool force = false, CancellationToken cancellationToken = default) =>
+		(RequireClient () as PowerwallTedapiClient
+			?? throw new PowerwallNotSupportedException ("This operation requires a TEDAPI local connection."))
+			.GetTelemetryAsync (force, cancellationToken);
+
+
+	/// <summary>Reads detailed local controller telemetry, including remote-meter measurements.</summary>
+	/// <param name="force">Bypasses cached measurements but not gateway backoff.</param>
+	/// <param name="cancellationToken">Cancels the operation.</param>
+	/// <returns>Typed reported telemetry without cloud access.</returns>
+	public Task<LocalTelemetry> GetLocalDetailedTelemetryAsync (bool force = false, CancellationToken cancellationToken = default) =>
+		RequireTedapiClient ().GetDetailedTelemetryAsync (force, cancellationToken);
+	/// <summary>Reads typed Powerwall 3 component measurements without contacting a cloud service.</summary>
+	/// <param name="force">Bypasses the measurement cache but not gateway backoff.</param>
+	/// <param name="cancellationToken">Cancels the operation.</param>
+	/// <returns>Component measurements and alerts.</returns>
+	public Task<LocalComponentTelemetry> GetLocalComponentsAsync (bool force = false, CancellationToken cancellationToken = default) =>
+		(RequireClient () as PowerwallTedapiClient
+			?? throw new PowerwallNotSupportedException ("This operation requires a TEDAPI local connection."))
+			.GetComponentsAsync (force, cancellationToken);
+	/// <summary>Reads one identified Powerwall's components over the configured local transport.</summary>
+	/// <remarks>Follower routing requires setup Wi-Fi. Signed LAN is limited to the connected unit.</remarks>
+	/// <param name="deviceDin">Device identifier from local configuration.</param>
+	/// <param name="force">Bypasses cached measurements but not device backoff.</param>
+	/// <param name="cancellationToken">Cancels the operation.</param>
+	/// <returns>Typed measurements from the requested device.</returns>
+	public Task<LocalComponentTelemetry> GetLocalComponentsAsync (string deviceDin, bool force = false, CancellationToken cancellationToken = default) =>
+		RequireTedapiClient ().GetComponentsAsync (deviceDin, force, cancellationToken);
+
 	/// <summary>
 	/// Returns the list of Tesla energy sites available to the authenticated account (cloud or FleetAPI mode only).
 	/// </summary>
@@ -698,27 +940,30 @@ public sealed class Powerwall : IDisposable
 		RequireEnergySiteClient ().ChangeSiteAsync (siteId, cancellationToken);
 
 	/// <summary>
-	/// Enables or disables charging the battery from the grid (cloud or FleetAPI mode only).
+	/// Enables or disables charging the battery from the grid (cloud, Fleet, or signed local access).
 	/// </summary>
 	/// <param name="enabled"><see langword="true"/> to allow grid charging; <see langword="false"/> to disallow it.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The raw response body, or <see langword="null"/> when the call fails.</returns>
 	/// <exception cref="PowerwallNotSupportedException">Thrown when the active connection does not support energy-site operations.</exception>
 	public Task<string?> SetGridChargingAsync (bool enabled, CancellationToken cancellationToken = default) =>
-		RequireEnergySiteClient ().SetGridChargingAsync (enabled, cancellationToken);
+		RequireClient () is PowerwallTedapiClient
+			? WriteLocalSettingsResultAsync (new LocalSettingsUpdate { GridChargingEnabled = enabled }, cancellationToken)
+			: RequireEnergySiteClient ().SetGridChargingAsync (enabled, cancellationToken);
 
 	/// <summary>
-	/// Returns whether charging the battery from the grid is currently allowed (cloud or FleetAPI mode only).
+	/// Returns whether charging the battery from the grid is currently allowed (cloud, Fleet, or TEDAPI access).
 	/// </summary>
 	/// <param name="force">When <see langword="true"/>, bypasses the cache.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns><see langword="true"/> when grid charging is allowed, <see langword="false"/> when disallowed, or <see langword="null"/> when unavailable.</returns>
 	/// <exception cref="PowerwallNotSupportedException">Thrown when the active connection does not support energy-site operations.</exception>
 	public Task<bool?> GetGridChargingAsync (bool force = false, CancellationToken cancellationToken = default) =>
-		RequireEnergySiteClient ().GetGridChargingAsync (force, cancellationToken);
+		RequireClient () is PowerwallTedapiClient ? ReadLocalGridChargingAsync (force, cancellationToken)
+			: RequireEnergySiteClient ().GetGridChargingAsync (force, cancellationToken);
 
 	/// <summary>
-	/// Sets the grid export rule (cloud or FleetAPI mode only).
+	/// Sets the grid export rule (cloud, Fleet, or signed local access).
 	/// </summary>
 	/// <param name="mode">The export rule: <c>battery_ok</c>, <c>pv_only</c>, or <c>never</c>.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
@@ -728,17 +973,20 @@ public sealed class Powerwall : IDisposable
 	public Task<string?> SetGridExportAsync (string mode, CancellationToken cancellationToken = default) =>
 		mode is not ("battery_ok" or "pv_only" or "never")
 			? throw new ArgumentException ($"Invalid grid export mode '{mode}'. Must be 'battery_ok', 'pv_only', or 'never'.", nameof (mode))
-			: RequireEnergySiteClient ().SetGridExportAsync (mode, cancellationToken);
+			: RequireClient () is PowerwallTedapiClient
+				? WriteLocalSettingsResultAsync (new LocalSettingsUpdate { GridExport = mode }, cancellationToken)
+				: RequireEnergySiteClient ().SetGridExportAsync (mode, cancellationToken);
 
 	/// <summary>
-	/// Returns the current grid export rule (cloud or FleetAPI mode only).
+	/// Returns the current grid export rule (cloud, Fleet, or TEDAPI access).
 	/// </summary>
 	/// <param name="force">When <see langword="true"/>, bypasses the cache.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The export rule (<c>battery_ok</c>, <c>pv_only</c>, or <c>never</c>), or <see langword="null"/> when unavailable.</returns>
 	/// <exception cref="PowerwallNotSupportedException">Thrown when the active connection does not support energy-site operations.</exception>
 	public Task<string?> GetGridExportAsync (bool force = false, CancellationToken cancellationToken = default) =>
-		RequireEnergySiteClient ().GetGridExportAsync (force, cancellationToken);
+		RequireClient () is PowerwallTedapiClient ? ReadLocalGridExportAsync (force, cancellationToken)
+			: RequireEnergySiteClient ().GetGridExportAsync (force, cancellationToken);
 
 	/// <summary>
 	/// Enables or disables Storm Watch (predictive pre-charging ahead of severe weather) (cloud mode only).
@@ -1048,6 +1296,13 @@ public sealed class Powerwall : IDisposable
 		return JsonHelper.DeserializeOrNull<OperationResponse> (payload);
 		}
 
+	/// <summary>Reads identified local fan, temperature and photovoltaic-input diagnostics.</summary>
+	/// <param name="force">Bypasses measurement caches without bypassing device backoff.</param>
+	/// <param name="cancellationToken">Cancels the read.</param>
+	/// <returns>Typed diagnostics from available local components.</returns>
+	public Task<IReadOnlyList<LocalComponentDiagnostics>> GetLocalComponentDiagnosticsAsync (bool force = false, CancellationToken cancellationToken = default) =>
+		RequireTedapiClient ().GetComponentDiagnosticsAsync (force, cancellationToken);
+
 	private PowerwallClientBase RequireClient () =>
 		_client ?? throw new InvalidOperationException ("Not connected. Call ConnectAsync before invoking data methods.");
 
@@ -1067,22 +1322,28 @@ public sealed class Powerwall : IDisposable
 			$"This operation requires an energy-site-capable backend (cloud or FleetAPI mode). The active connection mode is '{Mode}'.");
 
 	private static PowerwallMode ResolveMode (PowerwallOptions options) =>
-		string.IsNullOrWhiteSpace (options.Host)
+		string.IsNullOrWhiteSpace (options.Host) && options.LocalProtocol == PowerwallLocalProtocol.Gateway
 			? options.FleetApi ? PowerwallMode.FleetApi : PowerwallMode.Cloud
 			: options.CloudMode ? options.FleetApi ? PowerwallMode.FleetApi : PowerwallMode.Cloud : PowerwallMode.Local;
 
 	private void ValidateConfiguration ()
 		{
-		if (!string.IsNullOrWhiteSpace (_options.Host))
+		if (_options.LocalProtocol != PowerwallLocalProtocol.Gateway && (_options.CloudMode || _options.FleetApi))
 			{
-			var host = StripPort (_options.Host);
-			if (!Validation.IsValidHost (host) && !Validation.IsValidIpAddress (host))
-				{
-				throw new PowerwallInvalidConfigurationException (
-					$"Invalid powerwall host: '{_options.Host}'. Must be in the form of IP address or a valid hostname or FQDN.");
-				}
+			throw new PowerwallInvalidConfigurationException ("A local TEDAPI protocol cannot be combined with cloud or Fleet mode.");
 			}
 
+		if (!string.IsNullOrWhiteSpace (_options.Host))
+			{
+			try
+				{
+				_ = LocalEndpoint.Create (_options.Host);
+				}
+			catch (ArgumentException exception)
+				{
+				throw new PowerwallInvalidConfigurationException ("Invalid local gateway hostname or IP address.", exception);
+				}
+			}
 		if (Mode == PowerwallMode.Cloud && !_options.NoCloudTokenPersistence && !Validation.IsValidEmail (_options.Email))
 			{
 			throw new PowerwallInvalidConfigurationException (

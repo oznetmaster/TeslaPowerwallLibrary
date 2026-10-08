@@ -33,13 +33,13 @@ jobs:
         run: dotnet restore TeslaPowerwallLibrary.slnx
 
       - name: Build solution
-        run: dotnet build TeslaPowerwallLibrary.slnx --configuration Release --no-restore
+        run: dotnet build TeslaPowerwallLibrary.slnx --configuration Release --no-restore -p:GenerateDocfxDocumentation=false
 
       - name: Run tests (net472)
-        run: dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj --configuration Release --no-build --framework net472
+        run: dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj --configuration Release --no-build --framework net472 --filter "TestCategory!=Live"
 
       - name: Run tests (net10.0)
-        run: dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj --configuration Release --no-build --framework net10.0
+        run: dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj --configuration Release --no-build --framework net10.0 --filter "TestCategory!=Live"
 
       - name: Build metadata and site
         shell: pwsh

@@ -179,6 +179,12 @@
 										  HorizontalAlignment="Left" VerticalAlignment="Center"
 										  TextElement.Foreground="{StaticResource TextBrush}" />
 
+						<TextBox x:Name="PART_EditableTextBox" Style="{x:Null}" Visibility="Hidden"
+								 IsReadOnly="{TemplateBinding IsReadOnly}" Background="{TemplateBinding Background}"
+								 Foreground="{TemplateBinding Foreground}" CaretBrush="{TemplateBinding Foreground}"
+								 BorderThickness="0" Padding="0" Margin="8,6,30,6"
+								 VerticalContentAlignment="Center" />
+
 						<Popup x:Name="Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}"
 								AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
 							<Border x:Name="DropDownBorder" MinWidth="{Binding ActualWidth, ElementName=ToggleButton}"
@@ -192,8 +198,71 @@
 						</Popup>
 					</Grid>
 					<ControlTemplate.Triggers>
+						<Trigger Property="IsEditable" Value="True">
+							<Setter TargetName="ContentSite" Property="Visibility" Value="Hidden" />
+							<Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible" />
+						</Trigger>
 						<Trigger Property="IsEnabled" Value="False">
 							<Setter Property="Opacity" Value="0.4" />
+						</Trigger>
+					</ControlTemplate.Triggers>
+				</ControlTemplate>
+			</Setter.Value>
+		</Setter>
+	</Style>
+
+	<!-- Horizontal percentage slider: the filled segment follows the native track and thumb. -->
+	<Style x:Key="ProgressSlider" TargetType="Slider">
+		<Setter Property="MinHeight" Value="32" />
+		<Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+		<Setter Property="Background" Value="#FF414855" />
+		<Setter Property="Template">
+			<Setter.Value>
+				<ControlTemplate TargetType="Slider">
+					<Grid x:Name="Root" Background="Transparent" SnapsToDevicePixels="True">
+						<Border x:Name="FocusRing" BorderBrush="{TemplateBinding Foreground}" BorderThickness="1"
+							CornerRadius="5" Opacity="0" IsHitTestVisible="False" />
+						<Border Height="8" Margin="10,0" CornerRadius="4" Background="{TemplateBinding Background}" />
+						<Track x:Name="PART_Track" Orientation="Horizontal" IsDirectionReversed="False">
+							<Track.DecreaseRepeatButton>
+								<RepeatButton Command="{x:Static Slider.DecreaseLarge}" Focusable="False">
+									<RepeatButton.Template>
+										<ControlTemplate TargetType="RepeatButton">
+											<Grid Background="Transparent">
+												<Border Height="8" Margin="10,0,-10,0" CornerRadius="4"
+													Background="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Slider}}" />
+											</Grid>
+										</ControlTemplate>
+									</RepeatButton.Template>
+								</RepeatButton>
+							</Track.DecreaseRepeatButton>
+							<Track.Thumb>
+								<Thumb Width="20" Height="20" Cursor="Hand">
+									<Thumb.Template>
+										<ControlTemplate TargetType="Thumb">
+											<Ellipse Fill="{StaticResource TextBrush}" StrokeThickness="3"
+												Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Slider}}" />
+										</ControlTemplate>
+									</Thumb.Template>
+								</Thumb>
+							</Track.Thumb>
+							<Track.IncreaseRepeatButton>
+								<RepeatButton Command="{x:Static Slider.IncreaseLarge}" Focusable="False">
+									<RepeatButton.Template>
+										<ControlTemplate TargetType="RepeatButton">
+											<Border Background="Transparent" />
+										</ControlTemplate>
+									</RepeatButton.Template>
+								</RepeatButton>
+							</Track.IncreaseRepeatButton>
+						</Track>
+					</Grid>
+					<ControlTemplate.Triggers>
+						<Trigger Property="IsEnabled" Value="False">
+							<Setter TargetName="Root" Property="Opacity" Value="0.45" />
+						</Trigger>
+						<Trigger Property="IsKeyboardFocusWithin" Value="True">
+							<Setter TargetName="FocusRing" Property="Opacity" Value="1" />
 						</Trigger>
 					</ControlTemplate.Triggers>
 				</ControlTemplate>

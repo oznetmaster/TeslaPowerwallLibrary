@@ -15,7 +15,14 @@
 			<RowDefinition Height="Auto" />
 		</Grid.RowDefinitions>
 
-		<TextBlock Grid.Row="0" Text="Home" Style="{StaticResource HeadingText}" Margin="8,0,8,8" />
+		<StackPanel Grid.Row="0" Margin="8,0,8,8">
+			<StackPanel Orientation="Horizontal">
+				<TextBlock Text="Home" Style="{StaticResource HeadingText}" />
+				<Button Content="Refresh now" Command="{Binding RefreshCommand}" Margin="16,0,0,0"
+						IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+			</StackPanel>
+			<TextBlock Text="{Binding FreshnessText}" Style="{StaticResource MutedText}" Margin="0,4,0,0" />
+		</StackPanel>
 		<TextBlock Grid.Row="0" Text="{Binding SiteLabel}" Style="{StaticResource MutedText}"
 					HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="8,0,8,8"
 					Visibility="{Binding SiteLabel, Converter={StaticResource NullToCollapsed}}" />

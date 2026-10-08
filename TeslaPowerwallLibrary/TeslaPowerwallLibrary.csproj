@@ -23,10 +23,13 @@
 		<Product>TeslaPowerwallLibrary</Product>
 		<Copyright>Copyright © 2026 Neil Colvin</Copyright>
 		<AssemblyVersion>2.0.0.0</AssemblyVersion>
-		<FileVersion>2.0.0.0</FileVersion>
+		<FileVersion>2.1.0.0</FileVersion>
 		<PackageId>TeslaPowerwallLibrary</PackageId>
-		<Version>2.0.0</Version>
-		<PackageReleaseNotes>Move to System.Text.Json and caller-owned Microsoft ILogger; remove Newtonsoft.Json and log4net runtime dependencies. Consumers deserializing models with Newtonsoft or casting object-valued results must migrate. Fix partial Cloud/Fleet operation writes, numeric zero reserve and stale configuration caches. See MIGRATION-SystemTextJson.md.</PackageReleaseNotes>
+		<Version>2.1.0</Version>
+		<!-- Retain AssemblyVersion 2.0.0.0 for existing binary consumers. -->
+		<EnablePackageValidation>true</EnablePackageValidation>
+		<PackageValidationBaselineVersion>2.0.0</PackageValidationBaselineVersion>
+		<PackageReleaseNotes>Add typed local TEDAPI access, signed Powerwall 3 LAN connections, discovery, diagnostics and explicit controls. Preserve the 2.0.0 public API and classic gateway defaults; add nullable GetPowerReadingsAsync for missing telemetry. Update the desktop dashboard and console. See UPGRADING-2.1.md and LOCAL-ACCESS.md.</PackageReleaseNotes>
 		<Authors>Neil Colvin</Authors>
 		<PackageTags>tesla;powerwall;smart-home;iot;rest;api;nuget</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -77,6 +80,14 @@
 		<Reference Include="Microsoft.CSharp" />
 	</ItemGroup>
 
+		<ItemGroup>
+		<PackageReference Include="Grpc.Tools" Version="2.84.0" PrivateAssets="all" />
+		<Protobuf Include="Tedapi/Protocol/*.proto" GrpcServices="None" Access="Internal" />
+		<EmbeddedResource Include="Tedapi/Protocol/Queries.json" />
+		<EmbeddedResource Include="Tedapi/Protocol/Queries2026.json" />
+		<None Remove="Tedapi/Protocol/UPSTREAM-LICENSE.txt" />
+		<None Include="Tedapi/Protocol/UPSTREAM-LICENSE.txt" Pack="true" PackagePath="licenses/pypowerwall.txt" TargetPath="licenses/pypowerwall.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+	</ItemGroup>
 	<!-- Packages common to both TFMs -->
 	<ItemGroup>
 		<PackageReference Include="Google.Protobuf" Version="3.35.1" />
@@ -122,6 +133,9 @@
 	</ItemGroup>
 	<ItemGroup>
 		<None Include="..\README.md" Pack="true" PackagePath="\" />
+		<None Include="..\LOCAL-ACCESS.md" Pack="true" PackagePath="\" />
+		<None Include="..\UPGRADING-2.1.md" Pack="true" PackagePath="\" />
+		<None Include="..\RELEASE-NOTES.md" Pack="true" PackagePath="\" />
         <None Include="..\MIGRATION-SystemTextJson.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 

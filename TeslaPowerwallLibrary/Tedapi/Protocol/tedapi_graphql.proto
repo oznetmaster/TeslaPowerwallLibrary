@@ -1,0 +1,49 @@
+// Copyright © 2026 Neil Colvin.
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+
+// Wire fields referenced from pypowerwall's V2026_06 energy-device schema.
+// Only the query transport is described here; unrelated device commands are intentionally absent.
+syntax = "proto3";
+option csharp_namespace = "TeslaPowerwallLibrary.Tedapi.Protocol.Graphql";
+package powerwall_graphql;
+
+message Frame {
+  bytes message = 1;
+  Tail tail = 2;
+}
+message Tail { int32 value = 1; }
+message Participant {
+  oneof id {
+    string din = 1;
+    int32 local = 3;
+  }
+}
+message Envelope {
+  int32 deliveryChannel = 1;
+  Participant sender = 2;
+  Participant recipient = 3;
+  GraphQLMessages graphql = 16;
+}
+message GraphQLMessages {
+  oneof message {
+    QueryRequest queryRequest = 1;
+    QueryResponse queryResponse = 2;
+  }
+}
+message StringValue { string value = 1; }
+message QueryRequest {
+  int32 format = 1;
+  bytes query = 2;
+  bytes signature = 3;
+  StringValue variablesJson = 4;
+}
+message QueryResponse {
+  int32 status = 1;
+  string data = 2;
+  repeated QueryError errors = 3;
+}
+message QueryError {
+  repeated string path = 1;
+  int32 code = 2;
+  string message = 3;
+}

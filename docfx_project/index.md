@@ -1,29 +1,23 @@
 # TeslaPowerwallLibrary
 
-`TeslaPowerwallLibrary` is a .NET client library for interacting with a Tesla™ Powerwall™ system, either
-over the local gateway network API or the Tesla Owners cloud API.
+A typed .NET client for Tesla™ Powerwall™ classic gateway, local TEDAPI, Owner and Fleet APIs, targeting .NET Framework 4.7.2 and .NET 10.
 
-Tesla and Powerwall are trademarks of Tesla, Inc. This project is an independent, unofficial .NET library
-and is not affiliated with or endorsed by Tesla.
+Tesla and Powerwall are trademarks of Tesla, Inc. This independent, unofficial project is not affiliated with or endorsed by Tesla.
 
-## What this library provides
+## Version 2.1
 
-- Local network access to the Powerwall gateway (status, power flow, history, and control)
-- Tesla Owners (cloud) API access, including interactive OAuth login and token persistence
-- Access to gateway status, system status, grid status, and energy history, including strongly typed calendar-history convenience methods (energy, power, state of energy, self-consumption, and backup events)
-- Control helpers such as backup reserve level, operating mode, grid charging, grid export, and Storm Watch (cloud only)
-- Multi-target support for .NET Framework 4.7.2 and .NET 10
-
-## Gateway hardware compatibility
-
-Local mode's plain HTTPS/JSON REST API is the original Gateway 2 / Powerwall+ local interface and is well established on that hardware. On Powerwall 3, Tesla replaced this local REST API with TEDAPI (protobuf-encoded, RSA-signed); the plain REST endpoints return a `403` error on a Powerwall 3 gateway. Powerwall 3 owners need TEDAPI support (not yet implemented in this library) for local access; Cloud mode works today regardless of gateway generation.
-
-## Origins
-
-Behavioral and compatibility reference work in this project draws on the upstream [pypowerwall](https://pypi.org/project/pypowerwall/) project by Jason A. Cox and its public documentation.
-
-## Documentation sections
+Version 2.1 adds signed Powerwall 3 LAN access over Ethernet or home Wi-Fi, local telemetry and diagnostics, explicit controls, discovery and nullable power readings while retaining the 2.0 public API.
 
 - [Getting started](articles/intro.md)
+- [Choosing a connection](articles/local-access.md#choosing-a-connection)
+- [Local access, commands and hardware validation](articles/local-access.md)
+- [Compatibility and upgrading](articles/upgrading.md)
+- [Release notes](articles/release-notes.md)
 - [API reference](api/index.md)
+- [Obtain Owner or Fleet credentials](articles/login.md#using-the-setup-app)
 
+The library makes requests when called; consumers control refresh and storage. Calendar history uses Owner or Fleet. TEDAPI runtime stays local; key enrollment is an explicit, separate operation.
+
+Signed LAN has live evidence over Ethernet and home Wi-Fi on one Powerwall 3. Setup-network, installer-bearer and multi-device paths have offline coverage. See the local-access guide for the exact validation boundary.
+
+Protocol reference: [pypowerwall](https://github.com/jasonacox/pypowerwall) by Jason A. Cox. Bundled protocol/query resources retain its MIT notice.

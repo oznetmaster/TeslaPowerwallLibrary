@@ -24,6 +24,18 @@ internal sealed class ConsoleSettings
 	[JsonPropertyName ("protectedPassword")]
 	public string? ProtectedPassword { get; set; }
 
+	/// <summary>Local protocol to use with the remembered host.</summary>
+	[JsonPropertyName ("localProtocol")]
+	public PowerwallLocalProtocol LocalProtocol { get; set; }
+
+	/// <summary>Gets or sets the explicit local vendor-signed query version.</summary>
+	[JsonPropertyName ("localQueryVersion")]
+	public Tedapi.TedapiQueryVersion LocalQueryVersion { get; set; }
+
+	/// <summary>Existing Windows signing-key name; private key material is never serialized.</summary>
+	[JsonPropertyName ("localSigningKeyName")]
+	public string? LocalSigningKeyName { get; set; }
+
 	/// <summary>Customer email to default on the next run.</summary>
 	[JsonPropertyName ("email")]
 	public string? Email { get; set; }

@@ -5,6 +5,9 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Security.Cryptography;
+using TeslaPowerwallLibrary.Tools;
+using TeslaPowerwallLibrary.Local;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -25,6 +28,7 @@ namespace TeslaPowerwallLibrary.App.ViewModels;
 public sealed partial class ConnectViewModel : ViewModelBase
 	{
 	private readonly PowerwallConnectionService _connection;
+	private readonly Func<CancellationToken, Task<IReadOnlyList<PowerwallHost>>> _discoverHosts;
 
 	/// <summary>Raised when a connection has been successfully established.</summary>
 	public event EventHandler? Connected;
@@ -32,8 +36,17 @@ public sealed partial class ConnectViewModel : ViewModelBase
 	/// <summary>Initializes a new instance of the <see cref="ConnectViewModel"/> class.</summary>
 	/// <param name="connection">The shared connection service.</param>
 	public ConnectViewModel (PowerwallConnectionService connection)
+		: this (connection, static token => PowerwallDiscovery.DiscoverAsync (cancellationToken: token))
+		{
+		}
+
+	/// <summary>Initializes the connection screen with a replaceable read-only discovery operation.</summary>
+	/// <param name="connection">The shared connection service.</param>
+	/// <param name="discoverHosts">Bounded network discovery or an offline test implementation.</param>
+	internal ConnectViewModel (PowerwallConnectionService connection, Func<CancellationToken, Task<IReadOnlyList<PowerwallHost>>> discoverHosts)
 		{
 		_connection = connection ?? throw new ArgumentNullException (nameof (connection));
+		_discoverHosts = discoverHosts ?? throw new ArgumentNullException (nameof (discoverHosts));
 		Sites = new ObservableCollection<CloudSite> ();
 		LoadFromSettings ();
 		}
@@ -153,6 +166,102 @@ public sealed partial class ConnectViewModel : ViewModelBase
 	/// <summary>Gets or sets the gateway customer password used for local mode.</summary>
 	[ObservableProperty]
 	private string _password = string.Empty;
+
+	/// <summary>Gets the supported local connection choices.</summary>
+	public IReadOnlyList<LocalProtocolOption> LocalProtocols { get; } =
+		[
+		new ("Basic local readings", PowerwallLocalProtocol.Gateway),
+		new ("Full local data — signed LAN", PowerwallLocalProtocol.TedapiSigned),
+		new ("Full local data — setup Wi-Fi", PowerwallLocalProtocol.Tedapi),
+		new ("Full local data — installer login", PowerwallLocalProtocol.TedapiBearer)
+		];
+
+	/// <summary>Gets or sets the selected local protocol.</summary>
+	[ObservableProperty]
+	[NotifyPropertyChangedFor (nameof (UsesSigningKey))]
+	[NotifyPropertyChangedFor (nameof (LocalPasswordLabel))]
+	private PowerwallLocalProtocol _localProtocol;
+
+	/// <summary>Gets the available TEDAPI query versions.</summary>
+	public IReadOnlyList<Tedapi.TedapiQueryVersion> LocalQueryVersions { get; } =
+		[Tedapi.TedapiQueryVersion.June2024, Tedapi.TedapiQueryVersion.June2026];
+
+	/// <summary>Gets or sets the explicit vendor query set used by TEDAPI.</summary>
+	[ObservableProperty]
+	private Tedapi.TedapiQueryVersion _localQueryVersion;
+
+
+	/// <summary>Gets or sets the name of an existing Windows local signing key.</summary>
+	[ObservableProperty]
+	private string _localSigningKeyName = LocalSigningKeyStore.DefaultKeyName;
+
+	/// <summary>Gets or sets the desktop's local refresh interval in seconds; zero disables automatic refresh.</summary>
+	[ObservableProperty]
+	private int _localPollSeconds = 5;
+
+	/// <summary>Gets or sets explicit permission to change local settings for this session only.</summary>
+	[ObservableProperty]
+	private bool _allowLocalControl;
+
+	/// <summary>Gets whether the selected connection requires an enrolled signing key.</summary>
+	public bool UsesSigningKey => LocalProtocol == PowerwallLocalProtocol.TedapiSigned;
+
+	/// <summary>Gets the appropriate password description for the selected local connection.</summary>
+	public string LocalPasswordLabel => LocalProtocol is (PowerwallLocalProtocol.Tedapi or PowerwallLocalProtocol.TedapiBearer)
+		? "Full setup label password" : "Local customer password";
+
+	/// <summary>Gets discovered, unverified hostnames for explicit user selection.</summary>
+	public ObservableCollection<string> DiscoveredHosts { get; } = new ();
+
+	/// <summary>Gets or sets local discovery feedback displayed beside the search button.</summary>
+	[ObservableProperty]
+	private string _discoveryStatus = "Enter a hostname or IP address, or search for advertised Powerwalls.";
+
+	/// <summary>Gets or sets whether the bounded local discovery operation is running.</summary>
+	[ObservableProperty]
+	[NotifyPropertyChangedFor (nameof (DiscoveryButtonText))]
+	private bool _isDiscovering;
+
+	/// <summary>Gets the current search-button label.</summary>
+	public string DiscoveryButtonText => IsDiscovering ? "Searching for Powerwalls..." : "Find local Powerwalls";
+
+	/// <summary>Browses advertised Powerwalls without logging in or selecting a device.</summary>
+	/// <returns>A task that completes after the bounded discovery interval.</returns>
+	[RelayCommand]
+	private async Task DiscoverAsync ()
+		{
+		if (IsBusy)
+			return;
+		IsBusy = true;
+		IsDiscovering = true;
+		DiscoveryStatus = "Searching the local network for advertised Powerwalls...";
+		StatusMessage = null;
+		try
+			{
+			string previousHost = Host;
+			DiscoveredHosts.Clear ();
+			Host = previousHost;
+			using var deadline = new CancellationTokenSource (TimeSpan.FromSeconds (5));
+			foreach (var candidate in await _discoverHosts (deadline.Token).ConfigureAwait (true))
+				DiscoveredHosts.Add (candidate.Port == 443 ? candidate.Host : $"{candidate.Host}:{candidate.Port}");
+			DiscoveryStatus = DiscoveredHosts.Count == 0
+				? "No advertised Powerwalls found. Enter the hostname or IP address above; discovery is not required to connect."
+				: $"Found {DiscoveredHosts.Count} candidate(s). Choose one from the hostname dropdown, or type your own address.";
+			}
+		catch (OperationCanceledException)
+			{
+			DiscoveryStatus = "Search timed out. You can still enter the hostname or IP address above.";
+			}
+		catch (Exception exc) when (exc is System.Net.Sockets.SocketException or PowerwallException or System.IO.IOException or UnauthorizedAccessException)
+			{
+			DiscoveryStatus = $"Discovery unavailable: {exc.Message} Enter the hostname or IP address above.";
+			}
+		finally
+			{
+			IsDiscovering = false;
+			IsBusy = false;
+			}
+		}
 
 	/// <summary>Gets or sets a value indicating whether credentials should be saved on a successful connect.</summary>
 	[ObservableProperty]
@@ -446,20 +555,27 @@ public sealed partial class ConnectViewModel : ViewModelBase
 		StatusMessage = null;
 		ShowSiteSelection = false;
 
+		if (IsLocalMode && (LocalPollSeconds < 0 || LocalPollSeconds > 3600))
+			{
+			StatusMessage = "Local refresh must be 0 (manual) or 1–3600 seconds.";
+			return false;
+			}
 		var options = BuildOptions ();
 		using var cts = new CancellationTokenSource (TimeSpan.FromSeconds (60));
 
 		bool ok;
 		try
 			{
-			ok = await _connection.ConnectAsync (options, cts.Token).ConfigureAwait (true);
+			ok = IsLocalMode
+				? await _connection.ConnectLocalAsync (options, LocalSigningKeyName.Trim (), cts.Token).ConfigureAwait (true)
+				: await _connection.ConnectAsync (options, cts.Token).ConfigureAwait (true);
 			}
 		catch (OperationCanceledException)
 			{
 			StatusMessage = "The connection attempt timed out.";
 			return false;
 			}
-		catch (PowerwallException exc)
+		catch (Exception exc) when (exc is PowerwallException or ArgumentException or InvalidOperationException or CryptographicException)
 			{
 			StatusMessage = $"Connection error: {exc.Message}";
 			return false;
@@ -471,6 +587,8 @@ public sealed partial class ConnectViewModel : ViewModelBase
 			return false;
 			}
 
+		if (IsLocalMode)
+			_connection.LocalPollInterval = TimeSpan.FromSeconds (LocalPollSeconds);
 		await AfterConnectAsync (preferSavedSite).ConfigureAwait (true);
 		return true;
 		}
@@ -563,7 +681,9 @@ public sealed partial class ConnectViewModel : ViewModelBase
 		Connected?.Invoke (this, EventArgs.Empty);
 		}
 
-	private PowerwallOptions BuildOptions ()
+	/// <summary>Builds connection settings, matching local cache lifetime to the selected polling interval.</summary>
+	/// <returns>The selected connection options without starting a connection.</returns>
+	internal PowerwallOptions BuildOptions ()
 		{
 		if (IsFleetApiMode)
 			{
@@ -593,7 +713,13 @@ public sealed partial class ConnectViewModel : ViewModelBase
 		return new PowerwallOptions
 			{
 			Host = Host.Trim (),
-			Password = Password
+			Password = LocalProtocol is (PowerwallLocalProtocol.Tedapi or PowerwallLocalProtocol.TedapiBearer) ? string.Empty : Password,
+			GatewayPassword = LocalProtocol is (PowerwallLocalProtocol.Tedapi or PowerwallLocalProtocol.TedapiBearer) ? Password : string.Empty,
+			LocalProtocol = LocalProtocol,
+			LocalQueryVersion = LocalQueryVersion,
+			AllowLocalControl = AllowLocalControl,
+			NoLocalSessionPersistence = true,
+			CacheExpireSeconds = LocalPollSeconds
 			};
 		}
 
@@ -614,6 +740,10 @@ public sealed partial class ConnectViewModel : ViewModelBase
 		IsCloudMode = !IsFleetApiMode && !string.Equals (settings.Mode, "Local", StringComparison.OrdinalIgnoreCase);
 		Email = settings.Email ?? string.Empty;
 		Host = settings.Host ?? string.Empty;
+		LocalProtocol = settings.LocalProtocol;
+		LocalQueryVersion = settings.LocalQueryVersion;
+		LocalPollSeconds = settings.LocalPollSeconds is >= 0 and <= 3600 ? settings.LocalPollSeconds : 5;
+		LocalSigningKeyName = settings.LocalSigningKeyName ?? LocalSigningKeyStore.DefaultKeyName;
 		Region = string.IsNullOrWhiteSpace (settings.Region) ? "us" : settings.Region!.Trim ().ToLowerInvariant ();
 		Password = CredentialProtector.Unprotect (settings.ProtectedPassword) ?? string.Empty;
 		FleetApiClientId = settings.FleetApiClientId ?? string.Empty;
@@ -640,6 +770,8 @@ public sealed partial class ConnectViewModel : ViewModelBase
 		SelectedSite = null;
 		Sites.Clear ();
 		ShowSiteSelection = false;
+		AllowLocalControl = false;
+		LocalSigningKeyName = AppSettingsStore.Load ().LocalSigningKeyName ?? LocalSigningKeyName;
 		StatusMessage = null;
 		}
 
@@ -649,17 +781,28 @@ public sealed partial class ConnectViewModel : ViewModelBase
 		// email); the app additionally remembers the FleetAPI Client ID and (encrypted) initial refresh token
 		// here so it can populate the sign-in fields before the library's own cache has been created,
 		// mirroring the local gateway password below.
-		var settings = new AppSettings
+		var settings = AppSettingsStore.Load ();
+		settings.Mode = IsFleetApiMode ? "FleetApi" : IsCloudMode ? "Cloud" : "Local";
+		if (IsLocalMode)
 			{
-			Mode = IsFleetApiMode ? "FleetApi" : IsCloudMode ? "Cloud" : "Local",
-			Email = IsCloudMode ? Email.Trim () : null,
-			Host = IsLocalMode ? Host.Trim () : null,
-			Region = IsCloudMode ? Region : null,
-			ProtectedPassword = IsLocalMode ? CredentialProtector.Protect (Password) : null,
-			FleetApiClientId = IsFleetApiMode ? FleetApiClientId.Trim () : null,
-			ProtectedFleetApiRefreshToken = IsFleetApiMode ? CredentialProtector.Protect (FleetApiRefreshToken) : null,
-			FleetApiRegion = IsFleetApiMode ? FleetApiRegion : null
-			};
+			settings.Host = Host.Trim ();
+			settings.ProtectedPassword = CredentialProtector.Protect (Password);
+			settings.LocalProtocol = LocalProtocol;
+			settings.LocalQueryVersion = LocalQueryVersion;
+			settings.LocalPollSeconds = LocalPollSeconds;
+			settings.LocalSigningKeyName = LocalSigningKeyName.Trim ();
+			}
+		else if (IsCloudMode)
+			{
+			settings.Email = Email.Trim ();
+			settings.Region = Region;
+			}
+		else
+			{
+			settings.FleetApiClientId = FleetApiClientId.Trim ();
+			settings.ProtectedFleetApiRefreshToken = CredentialProtector.Protect (FleetApiRefreshToken);
+			settings.FleetApiRegion = FleetApiRegion;
+			}
 
 		AppSettingsStore.Save (settings);
 		}
@@ -669,3 +812,8 @@ public sealed partial class ConnectViewModel : ViewModelBase
 /// <param name="Display">The human-readable region label.</param>
 /// <param name="Value">The region code passed to the login flow (<c>us</c> or <c>cn</c>).</param>
 public sealed record RegionOption (string Display, string Value);
+
+/// <summary>A local connection choice shown by the desktop application.</summary>
+/// <param name="Display">User-facing connection description.</param>
+/// <param name="Value">Protocol selected for the connection.</param>
+public sealed record LocalProtocolOption (string Display, PowerwallLocalProtocol Value);

@@ -83,16 +83,22 @@ jobs:
         run: dotnet restore TeslaPowerwallLibrary.slnx
 
       - name: Build solution
-        run: dotnet build TeslaPowerwallLibrary.slnx --configuration Release --no-restore -p:ContinuousIntegrationBuild=true -p:Version=${{ steps.version.outputs.package_version }}
+        run: dotnet build TeslaPowerwallLibrary.slnx --configuration Release --no-restore -p:GenerateDocfxDocumentation=false -p:ContinuousIntegrationBuild=true -p:Version=${{ steps.version.outputs.package_version }}
 
       - name: Run tests (net472)
-        run: dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj --configuration Release --no-build --framework net472
+        run: dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj --configuration Release --no-build --framework net472 --filter "TestCategory!=Live"
 
       - name: Run tests (net10.0)
-        run: dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj --configuration Release --no-build --framework net10.0
+        run: dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj --configuration Release --no-build --framework net10.0 --filter "TestCategory!=Live"
 
       - name: Test credential helper and callback handling
         run: dotnet test TeslaPowerwallLibrary.TestCredentials.Tests/TeslaPowerwallLibrary.TestCredentials.Tests.csproj --configuration Release --no-build
+
+      - name: Test console on both runtimes
+        run: dotnet test TeslaPowerwallLibrary.TestConsole.Tests/TeslaPowerwallLibrary.TestConsole.Tests.csproj --configuration Release --no-build
+
+      - name: Test desktop presentation offline
+        run: dotnet test TeslaPowerwallLibrary.App.Tests/TeslaPowerwallLibrary.App.Tests.csproj --configuration Release --no-build
 
       - name: Pack library
         shell: pwsh
@@ -113,7 +119,7 @@ jobs:
           foreach ($app in $apps) {
               foreach ($framework in $app.Frameworks) {
                   $outputDir = "${{ env.ARTIFACT_DIR }}/publish/$($app.Name)-$framework"
-                  dotnet publish $app.Project --configuration Release --no-restore --no-build --framework $framework --output $outputDir -p:Version=${{ steps.version.outputs.package_version }}
+                  dotnet publish $app.Project --configuration Release --no-restore -p:GenerateDocfxDocumentation=false --no-build --framework $framework --output $outputDir -p:Version=${{ steps.version.outputs.package_version }}
                   if ($LASTEXITCODE -ne 0) {
                       throw "Publish failed for $($app.Project) ($framework)"
                   }
@@ -125,6 +131,11 @@ jobs:
         run: |
           $releaseDir = "${{ env.ARTIFACT_DIR }}/release"
           New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
+
+          foreach ($document in @('README.md', 'LOCAL-ACCESS.md', 'UPGRADING-2.1.md', 'RELEASE-NOTES.md')) {
+              Copy-Item $document (Join-Path $releaseDir $document)
+          }
+          Copy-Item 'TeslaPowerwallLibrary/Tedapi/Protocol/UPSTREAM-LICENSE.txt' (Join-Path $releaseDir 'pypowerwall-LICENSE.txt')
 
           $libraries = @(
               @{ ProjectDir = 'TeslaPowerwallLibrary'; AssemblyName = 'TeslaPowerwallLibrary'; Frameworks = @('net472', 'net10.0') },
@@ -175,3 +186,5 @@ jobs:
             ${{ env.ARTIFACT_DIR }}/release/*.dll
             ${{ env.ARTIFACT_DIR }}/release/*.xml
             ${{ env.ARTIFACT_DIR }}/release/*.zip
+            ${{ env.ARTIFACT_DIR }}/release/*.md
+            ${{ env.ARTIFACT_DIR }}/release/*.txt

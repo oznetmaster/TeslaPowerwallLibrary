@@ -13,6 +13,8 @@ using System.Text.Json.Serialization;
 
 using TeslaPowerwallLibrary.Cloud;
 
+using TeslaPowerwallLibrary.Tedapi;
+
 namespace TeslaPowerwallLibrary.FleetApi;
 
 /// <summary>
@@ -30,7 +32,7 @@ namespace TeslaPowerwallLibrary.FleetApi;
 /// obtain the initial refresh token via an external Tesla Developer setup flow. Storm Watch is intentionally
 /// not exposed for FleetAPI mode.
 /// </remarks>
-public sealed class PowerwallFleetApiClient : PowerwallClientBase, IEnergySiteClient, IDisposable
+public sealed class PowerwallFleetApiClient : PowerwallClientBase, IEnergySiteClient, ILocalKeyEnrollmentClient, IDisposable
 	{
 	private const int COUNTER_MAX = 64;
 	private const int SITE_CONFIG_TTL_SECONDS = 59;
@@ -917,6 +919,12 @@ public sealed class PowerwallFleetApiClient : PowerwallClientBase, IEnergySiteCl
 	private static string GetSiteId (EnergyProduct site) =>
 		site.EnergySiteId ?? site.Id ?? string.Empty;
 
+	/// <inheritdoc/>
+	Task<LocalKeyRegistration> ILocalKeyEnrollmentClient.LocalKeyAsync (byte[] publicKey, string? description, CancellationToken cancellationToken)
+		{
+		EnsureConnected ();
+		return _connection!.LocalKeyAsync (_resolvedSiteId!, publicKey, description, cancellationToken);
+		}
 	private void EnsureConnected ()
 		{
 		if (_connection is null || _resolvedSiteId is null)

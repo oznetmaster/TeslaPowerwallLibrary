@@ -2,6 +2,10 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System.CommandLine;
+using System.Security.Cryptography;
+using System.Text.Json;
+using TeslaPowerwallLibrary.Tools;
+using TeslaPowerwallLibrary.Local;
 
 using TeslaPowerwallLibrary;
 using TeslaPowerwallLibrary.Cloud;
@@ -12,6 +16,13 @@ var rootCommand = new RootCommand (
 	"Run without a subcommand to start an interactive session.");
 
 rootCommand.Options.Add (CliOptions.Host);
+rootCommand.Options.Add (CliOptions.LocalProtocol);
+rootCommand.Options.Add (CliOptions.LocalQueryVersion);
+rootCommand.Options.Add (CliOptions.LocalKeyName);
+rootCommand.Options.Add (CliOptions.AllowLocalControl);
+rootCommand.Options.Add (CliOptions.LocalSetupHost);
+rootCommand.Options.Add (CliOptions.LocalReadFailover);
+rootCommand.Options.Add (CliOptions.LocalRetrySeconds);
 rootCommand.Options.Add (CliOptions.Password);
 rootCommand.Options.Add (CliOptions.Email);
 rootCommand.Options.Add (CliOptions.Cloud);
@@ -48,6 +59,10 @@ rootCommand.Subcommands.Add (CreateReadCommand ("vitals", "Show device vitals (c
 rootCommand.Subcommands.Add (CreateReadCommand ("alerts", "Show the active device alerts.", PowerwallActions.AlertsAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("profile", "Show the authenticated Tesla account summary (FleetAPI mode).", PowerwallActions.ProfileAsync));
 rootCommand.Subcommands.Add (CreateReadCommand ("region", "Show the authenticated account's region and FleetAPI base URL (FleetAPI mode).", PowerwallActions.RegionAsync));
+foreach (var command in LocalConsoleCommands.Create (RunWithConnectionAsync,
+	result => result.GetValue (CliOptions.AllowLocalControl) && result.GetValue (CliOptions.LocalProtocol) == PowerwallLocalProtocol.TedapiSigned))
+	rootCommand.Subcommands.Add (command);
+rootCommand.Subcommands.Add (CreateLocalKeyCommand ());
 rootCommand.Subcommands.Add (CreateInteractiveCommand ());
 rootCommand.Subcommands.Add (CreateSetReserveCommand ());
 rootCommand.Subcommands.Add (CreateSetModeCommand ());
@@ -64,7 +79,25 @@ rootCommand.Subcommands.Add (CreateConfigCommand ());
 
 rootCommand.SetAction (RunInteractiveAsync);
 
-return await rootCommand.Parse (args).InvokeAsync ().ConfigureAwait (false);
+try
+	{
+	return await rootCommand.Parse (args).InvokeAsync ().ConfigureAwait (false);
+	}
+catch (OperationCanceledException)
+	{
+	ConsoleHelpers.WriteError ("Operation cancelled.");
+	return 130;
+	}
+catch (Exception exc) when (exc is System.Net.Http.HttpRequestException or PowerwallException)
+	{
+	ConsoleHelpers.WriteError ("Connection error: " + exc.Message);
+	return 1;
+	}
+catch (Exception exc) when (exc is ArgumentException or InvalidOperationException or CryptographicException)
+	{
+	ConsoleHelpers.WriteError ("Configuration error: " + exc.Message);
+	return 2;
+	}
 
 static Command CreateReadCommand (string name, string description, Func<Powerwall, CancellationToken, Task> action)
 	{
@@ -427,6 +460,8 @@ static async Task<int> RunInteractiveAsync (ParseResult parseResult, Cancellatio
 	if (resolved.Verbose)
 		VerboseLogging.Enable ();
 
+	using var localResources = await LocalConsoleResources.PrepareAsync (resolved, parseResult, cancellationToken).ConfigureAwait (false);
+	resolved = resolved with { Options = localResources.Options };
 	Powerwall powerwall;
 	try
 		{
@@ -470,7 +505,7 @@ static async Task<int> RunInteractiveAsync (ParseResult parseResult, Cancellatio
 		return 1;
 		}
 
-	using var session = new InteractiveConnection (powerwall, resolved.Options, resolved.Region, resolved.NoSave);
+	using var session = new InteractiveConnection (powerwall, resolved.Options, resolved.Region, resolved.NoSave, resolved.LocalKeyName);
 	return await InteractiveSession.RunAsync (session, cancellationToken).ConfigureAwait (false);
 	}
 
@@ -483,6 +518,8 @@ static async Task<int> RunWithConnectionAsync (
 	if (resolved.Verbose)
 		VerboseLogging.Enable ();
 
+	using var localResources = await LocalConsoleResources.PrepareAsync (resolved, parseResult, cancellationToken).ConfigureAwait (false);
+	resolved = resolved with { Options = localResources.Options };
 	Powerwall powerwall;
 	try
 		{
@@ -537,4 +574,59 @@ static async Task<int> RunWithConnectionAsync (
 		{
 		powerwall.Dispose ();
 		}
+	}
+
+
+static Command CreateLocalKeyCommand ()
+	{
+	var command = new Command ("local-key", "Prepare or explicitly enroll a Windows signing key for local access.");
+	string KeyName (ParseResult result) => result.GetValue (CliOptions.LocalKeyName)
+		?? Environment.GetEnvironmentVariable ("PW_LOCAL_KEY")
+		?? SettingsStore.Load ().LocalSigningKeyName
+		?? LocalSigningKeyStore.DefaultKeyName;
+	var create = new Command ("create", "Create a nonexportable RSA-4096 key locally; preserve it if it already exists. No cloud request.");
+	create.SetAction (result =>
+		{
+		using var key = LocalSigningKeyStore.CreateOrOpen (KeyName (result));
+		Console.WriteLine ("Windows signing key is ready. This action does not register or verify it.");
+		return 0;
+		});
+	command.Subcommands.Add (create);
+	var status = new Command ("status", "Read this key's verification state using the selected Owner or Fleet connection.");
+	status.SetAction ((result, ct) => RunWithConnectionAsync (result, async (pw, token) =>
+		{
+		using var key = LocalSigningKeyStore.Open (KeyName (result));
+		var state = await pw.GetLocalKeyStatusAsync (key, token).ConfigureAwait (false);
+		Console.WriteLine ($"State: {state.State}\nPublic-key fingerprint: {state.Fingerprint}");
+		if (state.State == TeslaPowerwallLibrary.Tedapi.LocalKeyState.VerificationTimedOut)
+			Console.WriteLine ("The physical verification window expired. Reuse this key and register only when ready.");
+		return 0;
+		}, ct));
+	command.Subcommands.Add (status);
+	var ready = new Option<bool> ("--ready-for-physical-verification")
+		{
+		Description = "Confirm readiness for the approximately ten-minute physical verification window."
+		};
+	var register = new Command ("register", "Register the existing key once through Owner/Fleet. Never retries or operates a physical switch.");
+	register.Options.Add (ready);
+	register.SetAction ((result, ct) =>
+		{
+		if (!result.GetValue (ready))
+			{
+			ConsoleHelpers.WriteError ("Coordinate the physical verification procedure first, then pass --ready-for-physical-verification.");
+			return Task.FromResult (2);
+			}
+		return RunWithConnectionAsync (result, async (pw, token) =>
+			{
+			using var key = LocalSigningKeyStore.Open (KeyName (result));
+			Console.WriteLine ("Sending one enrollment request. If the outcome is uncertain, check status before retrying.");
+			var state = await pw.RegisterLocalKeyAsync (key, "TeslaPowerwall console local client", token).ConfigureAwait (false);
+			Console.WriteLine ($"State: {state.State}\nPublic-key fingerprint: {state.Fingerprint}");
+			if (state.State == TeslaPowerwallLibrary.Tedapi.LocalKeyState.PendingVerification)
+				Console.WriteLine ("Awaiting physical verification. Complete the coordinated procedure, then run local-key status.");
+			return 0;
+			}, ct);
+		});
+	command.Subcommands.Add (register);
+	return command;
 	}

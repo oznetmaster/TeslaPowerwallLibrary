@@ -12,7 +12,8 @@ namespace TeslaPowerwallLibrary.Models;
 
 /// <summary>
 /// Instantaneous power readings (in watts) for the four primary energy flows, as returned by
-/// <c>/api/meters/aggregates</c> and surfaced through the high-level power helpers.
+/// <c>/api/meters/aggregates</c> and surfaced through the high-level power helpers. Missing readings default to zero for compatibility.
+/// Use <see cref="PowerReadings"/> to distinguish missing readings from reported zeroes.
 /// </summary>
 public sealed record PowerSnapshot
 	{
@@ -31,6 +32,29 @@ public sealed record PowerSnapshot
 	/// <summary>Home (load) consumption power in watts.</summary>
 	[JsonPropertyName ("load")]
 	public double Load { get; init; }
+	}
+
+/// <summary>
+/// Instantaneous power readings (in watts) for the four primary energy flows, as returned by
+/// <c>/api/meters/aggregates</c> and surfaced through the high-level power helpers. Missing readings remain null.
+/// </summary>
+public sealed record PowerReadings
+	{
+	/// <summary>Grid (site) power in watts. Positive values indicate import from the grid.</summary>
+	[JsonPropertyName ("site")]
+	public double? Site { get; init; }
+
+	/// <summary>Solar generation power in watts.</summary>
+	[JsonPropertyName ("solar")]
+	public double? Solar { get; init; }
+
+	/// <summary>Battery power in watts. Positive values indicate discharge.</summary>
+	[JsonPropertyName ("battery")]
+	public double? Battery { get; init; }
+
+	/// <summary>Home (load) consumption power in watts.</summary>
+	[JsonPropertyName ("load")]
+	public double? Load { get; init; }
 	}
 
 /// <summary>
@@ -77,6 +101,18 @@ public sealed record MeterReading
 	/// <summary>Total instantaneous current in amperes.</summary>
 	[JsonPropertyName ("instant_total_current")]
 	public double? InstantTotalCurrent { get; init; }
+
+	/// <summary>Reported current for original CT phase A, in amperes; null when unavailable.</summary>
+	[JsonPropertyName ("i_a_current")]
+	public double? PhaseACurrent { get; init; }
+
+	/// <summary>Reported current for original CT phase B, in amperes; null when unavailable.</summary>
+	[JsonPropertyName ("i_b_current")]
+	public double? PhaseBCurrent { get; init; }
+
+	/// <summary>Reported current for original CT phase C, in amperes; null when unavailable.</summary>
+	[JsonPropertyName ("i_c_current")]
+	public double? PhaseCCurrent { get; init; }
 
 	/// <summary>Number of physical meters aggregated into this reading.</summary>
 	[JsonPropertyName ("num_meters_aggregated")]

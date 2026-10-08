@@ -7,6 +7,7 @@
 			 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 			 mc:Ignorable="d"
 			 Background="{StaticResource BackgroundBrush}">
+	<ScrollViewer VerticalScrollBarVisibility="Auto">
 	<Grid HorizontalAlignment="Center" VerticalAlignment="Center" Width="440">
 		<Border Style="{StaticResource Card}">
 			<StackPanel>
@@ -110,11 +111,36 @@
 
 					<!-- Local fields -->
 					<StackPanel Visibility="{Binding IsLocalMode, Converter={StaticResource BoolToVisibility}}">
+						<TextBlock Text="Local connection" Style="{StaticResource MutedText}" Margin="0,0,0,4" />
+						<ComboBox ItemsSource="{Binding LocalProtocols}" DisplayMemberPath="Display" SelectedValuePath="Value"
+								  SelectedValue="{Binding LocalProtocol}" Margin="0,0,0,10" />
 						<TextBlock Text="Gateway host or IP" Style="{StaticResource MutedText}" Margin="0,0,0,4" />
-						<TextBox Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+						<ComboBox IsEditable="True" IsTextSearchEnabled="False" Text="{Binding Host, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+								  ItemsSource="{Binding DiscoveredHosts}" Margin="0,0,0,10" />
+						<Button Content="{Binding DiscoveryButtonText}" Command="{Binding DiscoverCommand}" Margin="0,0,0,6"
+								IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
 
-						<TextBlock Text="Gateway password" Style="{StaticResource MutedText}" Margin="0,0,0,4" />
+						<TextBlock Text="{Binding DiscoveryStatus}" TextWrapping="Wrap" Style="{StaticResource MutedText}" Margin="0,0,0,12" />
+
+						<TextBlock Text="{Binding LocalPasswordLabel}" Style="{StaticResource MutedText}" Margin="0,0,0,4" />
 						<PasswordBox x:Name="LocalPasswordBox" PasswordChanged="OnPasswordChanged" Margin="0,0,0,10" />
+						<StackPanel Visibility="{Binding UsesSigningKey, Converter={StaticResource BoolToVisibility}}">
+							<TextBlock Text="Windows signing key name" Style="{StaticResource MutedText}" />
+							<TextBox Text="{Binding LocalSigningKeyName, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,10" />
+							<TextBlock Text="Enroll this key once from Settings while connected through Owner or Fleet. Local connections do not contact the cloud."
+									   TextWrapping="Wrap" Style="{StaticResource MutedText}" Margin="0,0,0,10" />
+						</StackPanel>
+						<Expander Header="TEDAPI query compatibility" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,10">
+							<StackPanel>
+								<ComboBox ItemsSource="{Binding LocalQueryVersions}" SelectedItem="{Binding LocalQueryVersion}" />
+								<TextBlock Text="June2024 is the default. June2026 uses newer vendor signatures and may expose a different set of signals."
+										   TextWrapping="Wrap" Style="{StaticResource MutedText}" Margin="0,6,0,0" />
+							</StackPanel>
+						</Expander>
+						<TextBlock Text="Refresh interval in seconds (0 = manual)" Style="{StaticResource MutedText}" />
+						<TextBox Text="{Binding LocalPollSeconds, ValidatesOnExceptions=True}" Margin="0,4,0,10" />
+						<CheckBox Content="Allow local setting changes this session" IsChecked="{Binding AllowLocalControl}"
+								  Foreground="{StaticResource TextBrush}" Margin="0,0,0,10" />
 
 						<Button Content="Connect" Command="{Binding ConnectCommand}"
 								IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
@@ -140,4 +166,5 @@
 			</StackPanel>
 		</Border>
 	</Grid>
+	</ScrollViewer>
 </UserControl>

@@ -57,7 +57,7 @@ public sealed record EnergyHistoryPoint
 	private double ConsumerEnergyImportedFromSolar { get; init; }
 
 	[JsonPropertyName ("consumer_energy_imported_from_battery"), JsonInclude]
-	private double ConsumerEnergyImportedFromBattery { get; init; }
+	private double? ConsumerEnergyImportedFromBattery { get; init; }
 
 	[JsonPropertyName ("consumer_energy_imported_from_generator"), JsonInclude]
 	private double ConsumerEnergyImportedFromGenerator { get; init; }
@@ -69,7 +69,7 @@ public sealed record EnergyHistoryPoint
 	public double HomeKwh => ToKwh (
 		ConsumerEnergyImportedFromGrid
 		+ ConsumerEnergyImportedFromSolar
-		+ ConsumerEnergyImportedFromBattery
+		+ (ConsumerEnergyImportedFromBattery ?? 0)
 		+ ConsumerEnergyImportedFromGenerator);
 
 	/// <summary>Energy imported from the grid, in kilowatt-hours.</summary>
@@ -80,6 +80,10 @@ public sealed record EnergyHistoryPoint
 		GridEnergyExportedFromSolar
 		+ GridEnergyExportedFromBattery
 		+ GridEnergyExportedFromGenerator);
+
+	/// <summary>Energy supplied by the battery specifically to home loads, in kilowatt-hours; null when unreported. Excludes battery exports to the grid.</summary>
+	[JsonIgnore]
+	public double? BatteryToHomeKwh => ConsumerEnergyImportedFromBattery is double value ? ToKwh (value) : null;
 
 	/// <summary>Gross energy charged into the Powerwall™ battery (from solar, grid, or generator), in kilowatt-hours.</summary>
 	public double BatteryChargeKwh => ToKwh (

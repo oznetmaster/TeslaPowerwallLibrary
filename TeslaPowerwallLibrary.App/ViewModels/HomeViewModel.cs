@@ -2,6 +2,9 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System;
+using System.Threading;
+using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.Input;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -17,6 +20,33 @@ public sealed partial class HomeViewModel : ViewModelBase
 	{
 	private readonly PowerwallConnectionService _connection;
 
+	/// <summary>Gets or sets when the app last received a successful response, not the device measurement time.</summary>
+	[ObservableProperty]
+	private string _freshnessText = "No readings received.";
+
+	/// <summary>Refreshes once, independently of the application's configured polling interval.</summary>
+	/// <returns>A task completing when the snapshot has been received.</returns>
+	[RelayCommand]
+	private async Task RefreshAsync ()
+		{
+		IsBusy = true;
+		try
+			{
+			using var cts = new CancellationTokenSource (TimeSpan.FromSeconds (30));
+			await _connection.RefreshAsync (cts.Token).ConfigureAwait (true);
+			}
+		catch (Exception exc) when (exc is PowerwallException or OperationCanceledException)
+			{
+			StatusMessage = exc is OperationCanceledException ? "Refresh timed out." : exc.Message;
+			FreshnessText = "Refresh failed; values are from the last successful response.";
+			}
+		finally
+			{
+			IsBusy = false;
+			}
+		}
+
+
 	/// <summary>Initializes a new instance of the <see cref="HomeViewModel"/> class.</summary>
 	/// <param name="connection">The shared connection service.</param>
 	public HomeViewModel (PowerwallConnectionService connection)
@@ -25,6 +55,7 @@ public sealed partial class HomeViewModel : ViewModelBase
 		_connection.SnapshotUpdated += OnSnapshotUpdated;
 		_connection.PollFailed += OnPollFailed;
 		_connection.SiteLabelChanged += OnSiteLabelChanged;
+		_connection.ConnectionChanged += OnConnectionChanged;
 		_siteLabel = _connection.SiteLabel;
 		}
 
@@ -36,24 +67,24 @@ public sealed partial class HomeViewModel : ViewModelBase
 
 	[ObservableProperty]
 	[NotifyPropertyChangedFor (nameof (SolarText))]
-	private double _solarWatts;
+	private double? _solarWatts;
 
 	/// <summary>Gets or sets the battery power in watts (positive indicates discharge).</summary>
 	[ObservableProperty]
 	[NotifyPropertyChangedFor (nameof (BatteryText))]
 	[NotifyPropertyChangedFor (nameof (BatteryFlowText))]
-	private double _batteryWatts;
+	private double? _batteryWatts;
 
 	/// <summary>Gets or sets the home (load) power in watts.</summary>
 	[ObservableProperty]
 	[NotifyPropertyChangedFor (nameof (HomeText))]
-	private double _homeWatts;
+	private double? _homeWatts;
 
 	/// <summary>Gets or sets the grid power in watts (positive indicates import).</summary>
 	[ObservableProperty]
 	[NotifyPropertyChangedFor (nameof (GridText))]
 	[NotifyPropertyChangedFor (nameof (GridFlowText))]
-	private double _gridWatts;
+	private double? _gridWatts;
 
 	/// <summary>Gets or sets the battery charge level as an app-scaled percentage.</summary>
 	[ObservableProperty]
@@ -74,17 +105,18 @@ public sealed partial class HomeViewModel : ViewModelBase
 	public string SolarText => FormatPower (SolarWatts);
 
 	/// <summary>Gets the formatted battery power magnitude.</summary>
-	public string BatteryText => FormatPower (Math.Abs (BatteryWatts));
+	public string BatteryText => FormatPower (BatteryWatts is double battery ? Math.Abs (battery) : null);
 
 	/// <summary>Gets the formatted home power.</summary>
 	public string HomeText => FormatPower (HomeWatts);
 
 	/// <summary>Gets the formatted grid power magnitude.</summary>
-	public string GridText => FormatPower (Math.Abs (GridWatts));
+	public string GridText => FormatPower (GridWatts is double grid ? Math.Abs (grid) : null);
 
 	/// <summary>Gets a description of the current battery flow direction.</summary>
 	public string BatteryFlowText => BatteryWatts switch
 		{
+		null => "Unavailable",
 		> 50 => "Discharging",
 		< -50 => "Charging",
 		_ => "Idle"
@@ -93,6 +125,7 @@ public sealed partial class HomeViewModel : ViewModelBase
 	/// <summary>Gets a description of the current grid flow direction.</summary>
 	public string GridFlowText => GridWatts switch
 		{
+		null => "Unavailable",
 		> 50 => "Importing",
 		< -50 => "Exporting",
 		_ => "No flow"
@@ -111,9 +144,16 @@ public sealed partial class HomeViewModel : ViewModelBase
 		};
 
 	/// <summary>Gets the formatted backup time remaining.</summary>
-	public string TimeRemainingText => TimeRemainingHours is double h
-		? $"{Math.Floor (h)}h {Math.Round ((h - Math.Floor (h)) * 60)}m backup"
-		: "Backup time unavailable";
+	public string TimeRemainingText
+		{
+		get
+			{
+			if (TimeRemainingHours is not double hours || !double.IsFinite (hours) || hours < 0)
+				return "Backup time unavailable";
+			double minutes = Math.Round (hours * 60);
+			return $"{Math.Floor (minutes / 60)}h {minutes % 60}m estimated backup";
+			}
+		}
 
 	private void OnSnapshotUpdated (object? sender, PowerFlowSnapshot snapshot) =>
 		RunOnUi (() =>
@@ -125,15 +165,41 @@ public sealed partial class HomeViewModel : ViewModelBase
 			BatteryPercent = snapshot.BatteryPercent;
 			GridStatus = snapshot.GridStatus;
 			TimeRemainingHours = snapshot.TimeRemainingHours;
+			FreshnessText = $"Last response received {DateTimeOffset.Now:T}";
 			StatusMessage = null;
 			});
 
 	private void OnPollFailed (object? sender, string message) =>
-		RunOnUi (() => StatusMessage = message);
+		RunOnUi (() =>
+			{
+			StatusMessage = message;
+			FreshnessText = "Refresh failed; values are from the last successful response.";
+			});
 
 	private void OnSiteLabelChanged (object? sender, EventArgs e) =>
-		RunOnUi (() => SiteLabel = _connection.SiteLabel);
+		RunOnUi (() =>
+			{
+			if (!string.Equals (SiteLabel, _connection.SiteLabel, StringComparison.Ordinal))
+				ClearReadings ();
+			SiteLabel = _connection.SiteLabel;
+			});
 
-	private static string FormatPower (double watts) =>
-		$"{Math.Round (watts / 1000.0, 1, MidpointRounding.AwayFromZero):0.0} kW";
+	private void OnConnectionChanged (object? sender, EventArgs e) => RunOnUi (ClearReadings);
+
+	private void ClearReadings ()
+		{
+		SolarWatts = null;
+		BatteryWatts = null;
+		HomeWatts = null;
+		GridWatts = null;
+		BatteryPercent = null;
+		GridStatus = null;
+		TimeRemainingHours = null;
+		StatusMessage = null;
+		FreshnessText = "No readings received for this connection.";
+		}
+
+	private static string FormatPower (double? watts) =>
+		 watts is null ? "Unavailable" :
+		$"{Math.Round (watts.Value / 1000.0, 1, MidpointRounding.AwayFromZero):0.0} kW";
 	}

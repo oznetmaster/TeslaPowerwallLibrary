@@ -7,4 +7,6 @@
   <Project Path="TeslaPowerwallLibrary.TestConsole/TeslaPowerwallLibrary.TestConsole.csproj" />
   <Project Path="TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj" />
   <Project Path="TeslaPowerwallLibrary/TeslaPowerwallLibrary.csproj" />
+  <Project Path="TeslaPowerwallLibrary.App.Tests/TeslaPowerwallLibrary.App.Tests.csproj" />
+  <Project Path="TeslaPowerwallLibrary.TestConsole.Tests/TeslaPowerwallLibrary.TestConsole.Tests.csproj" />
 </Solution>
