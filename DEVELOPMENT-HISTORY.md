@@ -2,6 +2,8 @@
 
 ## 2.1 release preparation — 8 October 2026
 
+- Merged-package discovery identified generated generic helpers inside an attributed live fixture as invalid fixtures. Moved the asynchronous journal helper into the unannotated support class; ordinary test identities and control guards are unchanged. Both library runtime suites still pass.
+
 - Integrated the upstream NUnit 5 migration before release, aligned the new companion suites and awaited asynchronous exception assertions. The complete offline suite passed again with NUnit 5.0.0: 1,072 executions across both library/console runtimes, desktop presentation and credential tooling.
 
 - Preserved the released non-nullable `PowerSnapshot` and `PowerAsync()` contract. Added nullable `PowerReadings`/`GetPowerReadingsAsync()` for the desktop, console and new consumers.

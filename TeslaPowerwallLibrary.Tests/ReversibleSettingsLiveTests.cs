@@ -104,31 +104,8 @@ public sealed class ReversibleSettingsLiveTests
 			});
 		}
 
-	private async Task Exercise<T> (string setting, T original, T target, Func<Task<T>> read, Func<T, Task> write, Func<T, T, bool> equal)
-		{
-		string journal = Path.Combine (TestContext.CurrentContext.WorkDirectory, "setting-restore-" + setting + "-" + DateTime.UtcNow.ToString ("yyyyMMddHHmmss") + ".json");
-		File.WriteAllText (journal, JsonSerializer.Serialize (new { Setting = setting, Original = original, Target = target, Restored = false }));
-		TestContext.Out.WriteLine ($"{setting}: original={original}; temporary={target}; UTC={DateTime.UtcNow:O}");
-		try
-			{
-			await SettingRoundTrip.RunAsync (original, target, read, write, equal,
-				async (expected, verify) =>
-					{
-					for (int attempt = 0; attempt < 12; attempt++)
-						{
-						if (equal (await verify (), expected)) return;
-						await Task.Delay (2000);
-						}
-					throw new InvalidDataException ("The requested setting was not confirmed by a fresh read.");
-					},
-				() =>
-					{
-					File.WriteAllText (journal, JsonSerializer.Serialize (new { Setting = setting, Original = original, Target = target, Restored = true }));
-					TestContext.Out.WriteLine ($"{setting}: original value restored and confirmed; UTC={DateTime.UtcNow:O}");
-					}, () => _restorationFailed = true);
-			}
-		finally { TestContext.AddTestAttachment (journal, "Non-secret setting restoration record"); }
-		}
+	private Task Exercise<T> (string setting, T original, T target, Func<Task<T>> read, Func<T, Task> write, Func<T, T, bool> equal) =>
+		SettingRoundTrip.ExerciseAsync (setting, original, target, read, write, equal, () => _restorationFailed = true);
 
 	/// <summary>Captures only the rejected command's RPC diagnostic, never the configuration or credentials.</summary>
 	private sealed class RejectionProbe : DelegatingHandler
@@ -200,6 +177,42 @@ public sealed class ReversibleSettingsLiveTests
 /// <summary>Ensures a restoration attempt also runs after a lost write acknowledgement or failed confirmation.</summary>
 internal static class SettingRoundTrip
 	{
+	/// <summary>Records a live setting trial and its restoration without adding generated helpers to the test fixture.</summary>
+	/// <typeparam name="T">Typed setting value.</typeparam>
+	/// <param name="setting">Authorized setting name.</param>
+	/// <param name="original">Value recorded before the trial.</param>
+	/// <param name="target">Temporary value.</param>
+	/// <param name="read">Uncached setting read.</param>
+	/// <param name="write">Single setting update.</param>
+	/// <param name="equal">Value comparison.</param>
+	/// <param name="failed">Blocks later trials if restoration fails.</param>
+	/// <returns>The trial and restoration completion.</returns>
+	internal static async Task ExerciseAsync<T> (string setting, T original, T target, Func<Task<T>> read, Func<T, Task> write, Func<T, T, bool> equal, Action failed)
+		{
+		string journal = Path.Combine (TestContext.CurrentContext.WorkDirectory, "setting-restore-" + setting + "-" + DateTime.UtcNow.ToString ("yyyyMMddHHmmss") + ".json");
+		File.WriteAllText (journal, JsonSerializer.Serialize (new { Setting = setting, Original = original, Target = target, Restored = false }));
+		TestContext.Out.WriteLine ($"{setting}: original={original}; temporary={target}; UTC={DateTime.UtcNow:O}");
+		try
+			{
+			await SettingRoundTrip.RunAsync (original, target, read, write, equal,
+				async (expected, verify) =>
+					{
+					for (int attempt = 0; attempt < 12; attempt++)
+						{
+						if (equal (await verify (), expected)) return;
+						await Task.Delay (2000);
+						}
+					throw new InvalidDataException ("The requested setting was not confirmed by a fresh read.");
+					},
+				() =>
+					{
+					File.WriteAllText (journal, JsonSerializer.Serialize (new { Setting = setting, Original = original, Target = target, Restored = true }));
+					TestContext.Out.WriteLine ($"{setting}: original value restored and confirmed; UTC={DateTime.UtcNow:O}");
+					}, failed);
+			}
+		finally { TestContext.AddTestAttachment (journal, "Non-secret setting restoration record"); }
+		}
+
 	/// <summary>Writes once, confirms, then independently restores and confirms the initial setting.</summary>
 	/// <typeparam name="T">Typed setting value.</typeparam>
 	/// <param name="original">Value read before testing.</param>
