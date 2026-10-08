@@ -22,15 +22,11 @@ public sealed class LocalKeyEnrollmentTests
 	[OneTimeSetUp]
 	public static void CreateKey ()
 		{
-#if NETFRAMEWORK
-		_key = new RSACng (4096);
-#else
-		_key = RSA.Create (4096);
-#endif
+		_key = TestRsaKey.Create ();
 		}
 
 	[OneTimeTearDown]
-	public static void DisposeKey () => _key.Dispose ();
+	public static void DisposeKey () => _key?.Dispose ();
 
 	[TestCase (false)]
 	[TestCase (true)]

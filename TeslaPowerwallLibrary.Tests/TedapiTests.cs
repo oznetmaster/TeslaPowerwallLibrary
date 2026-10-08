@@ -30,7 +30,7 @@ public sealed class TedapiTests
 	[TestCase (PowerwallLocalProtocol.Tedapi), TestCase (PowerwallLocalProtocol.TedapiSigned), TestCase (PowerwallLocalProtocol.TedapiBearer)]
 	public async Task SystemInformation_PreservesMetadataAndCachesAcrossStatusCalls (PowerwallLocalProtocol protocol)
 		{
-		using RSA key = RSA.Create (4096);
+		using RSA key = TestRsaKey.Create ();
 		using var handler = new ScriptedHandler (async (request, _) =>
 			{
 			if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
@@ -289,11 +289,7 @@ public sealed class TedapiTests
 	[Test]
 	public void Signing_UsesDocumentedTlvAndSha512Pkcs1 ()
 		{
-		#if NETFRAMEWORK
-		using RSA key = new RSACng (4096);
-#else
-		using RSA key = RSA.Create (4096);
-#endif
+		using RSA key = TestRsaKey.Create ();
 		byte[] envelope = { 1, 2, 3 };
 		const uint expiry = 0x12345678;
 		Signed.RoutableMessage result = TedapiSigning.Sign (key, DIN, envelope, expiry);
@@ -315,11 +311,7 @@ public sealed class TedapiTests
 	[Test]
 	public async Task SignedRead_RenewsRejectedSessionOnce_AndUsesFreshTokenAndSignature ()
 		{
-		#if NETFRAMEWORK
-		using RSA key = new RSACng (4096);
-#else
-		using RSA key = RSA.Create (4096);
-#endif
+		using RSA key = TestRsaKey.Create ();
 		var logins = 0;
 		var queries = new List<Signed.RoutableMessage> ();
 		using var handler = new ScriptedHandler (async (request, _) =>
@@ -360,11 +352,7 @@ public sealed class TedapiTests
 	[TestCase (true)]
 	public async Task June2026Queries_UseCapturedVendorSignatures_AndCorrectTransportFraming (bool signed)
 		{
-#if NETFRAMEWORK
-		using RSA key = new RSACng (4096);
-#else
-		using RSA key = RSA.Create (4096);
-#endif
+		using RSA key = TestRsaKey.Create ();
 		using var handler = new ScriptedHandler (async (request, _) =>
 			{
 			if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
@@ -432,7 +420,7 @@ public sealed class TedapiTests
 	[TestCase (TedapiQueryVersion.June2024), TestCase (TedapiQueryVersion.June2026)]
 	public async Task SignedFollowers_UseOnlyTheExplicitCallerOwnedConnection (TedapiQueryVersion version)
 		{
-		using RSA key = RSA.Create (4096);
+		using RSA key = TestRsaKey.Create ();
 		var requested = new List<string> ();
 		using var followerHandler = new ScriptedHandler (async (request, _) =>
 			{
@@ -529,11 +517,7 @@ public sealed class TedapiTests
 	[Test]
 	public async Task SignedFollowerQuery_RejectsUnsupportedRouteWithoutFallback ()
 		{
-#if NETFRAMEWORK
-		using RSA key = new RSACng (4096);
-#else
-		using RSA key = RSA.Create (4096);
-#endif
+		using RSA key = TestRsaKey.Create ();
 		using var handler = new ScriptedHandler ((request, _) => Task.FromResult (
 			request.RequestUri!.AbsolutePath == "/api/login/Basic" ? Text ("""{"token":"synthetic"}""") : Text (DIN)));
 		using var client = new PowerwallTedapiClient (Options () with
@@ -577,11 +561,7 @@ public sealed class TedapiTests
 	[Test]
 	public async Task DeviceSnapshot_SignedFollowersAreExplicitlyUnavailable ()
 		{
-#if NETFRAMEWORK
-		using RSA key = new RSACng (4096);
-#else
-		using RSA key = RSA.Create (4096);
-#endif
+		using RSA key = TestRsaKey.Create ();
 		int queries = 0;
 		using var handler = new ScriptedHandler (async (request, _) =>
 			{
@@ -655,11 +635,7 @@ public sealed class TedapiTests
 	[TestCase (PowerwallLocalProtocol.Tedapi), TestCase (PowerwallLocalProtocol.TedapiSigned), TestCase (PowerwallLocalProtocol.TedapiBearer)]
 	public async Task SupplementalQueries_UseExactDefinitionsAndIndependentCaches (PowerwallLocalProtocol protocol)
 		{
-		#if NETFRAMEWORK
-		using RSA key = new RSACng (4096);
-#else
-		using RSA key = RSA.Create (4096);
-#endif
+		using RSA key = TestRsaKey.Create ();
 		using var resource = typeof (Powerwall).Assembly.GetManifestResourceStream ("TeslaPowerwallLibrary.Tedapi.Protocol.Queries2026.data")!;
 		using var definitions = JsonDocument.Parse (resource);
 		var names = new List<string> ();

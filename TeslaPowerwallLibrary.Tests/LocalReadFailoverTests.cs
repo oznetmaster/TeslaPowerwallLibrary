@@ -23,15 +23,11 @@ public sealed class LocalReadFailoverTests
 	[SetUp]
 	public void SetUp ()
 		{
-#if NETFRAMEWORK
-		_key = new RSACng (4096);
-#else
-		_key = RSA.Create (4096);
-#endif
+		_key = TestRsaKey.Create ();
 		}
 	/// <summary>Releases the test-only signing key.</summary>
 	[TearDown]
-	public void TearDown () => _key.Dispose ();
+	public void TearDown () => _key?.Dispose ();
 
 	/// <summary>Reads switch only after three failures, hold the retry interval, and return to LAN on recovery.</summary>
 	[TestCase ("network"), TestCase ("timeout"), TestCase ("502")]

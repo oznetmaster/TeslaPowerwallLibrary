@@ -90,7 +90,7 @@ public sealed class PowerCompatibilityTests
 	[TestCase (true)]
 	public async Task ClassicGateway_RetainsSessionAndWriteDefaults (bool legacyConstructor)
 		{
-		string path = Path.Combine (Path.GetTempPath (), Guid.NewGuid () + ".json");
+		string path = Path.Combine (TestContext.CurrentContext.WorkDirectory, Guid.NewGuid () + ".json");
 		try
 			{
 			for (int connection = 0; connection < 2; connection++)
@@ -101,9 +101,11 @@ public sealed class PowerCompatibilityTests
 					: new PowerwallLocalClient (new PowerwallOptions { Host = "powerwall.test", Password = "synthetic", AuthMode = "token", CacheFile = path }, handler);
 				if (legacyConstructor)
 					OperationRegressionTests.SetField (client, "_providedHandler", handler);
+				using var logger = new SerializationAndLoggingTests.CaptureLogger ("session-cache");
+				OperationRegressionTests.SetField (client, "_log", logger);
 				await client.AuthenticateAsync ();
 				Assert.That (handler.Logins, Is.EqualTo (connection == 0 ? 1 : 0));
-				Assert.That (File.Exists (path), Is.True);
+				Assert.That (File.Exists (path), Is.True, path + ": " + string.Join ("; ", logger.Entries));
 				await client.PostAsync ("/api/operation", new { backup_reserve_percent = 0 });
 				Assert.That (handler.Writes, Is.EqualTo (1));
 				}
@@ -115,7 +117,7 @@ public sealed class PowerCompatibilityTests
 	[Test]
 	public async Task ClassicGateway_RespectsExplicitReadOnlyAndMemoryOnly ()
 		{
-		string path = Path.Combine (Path.GetTempPath (), Guid.NewGuid () + ".json");
+		string path = Path.Combine (TestContext.CurrentContext.WorkDirectory, Guid.NewGuid () + ".json");
 		const string cached = "{\"Authorization\":\"Bearer old-synthetic\"}";
 		try
 			{
