@@ -4,7 +4,7 @@ All notable changes are documented here. This project follows [Semantic Versioni
 
 This changelog records shipped features, fixes, compatibility and runtime dependency changes. See [development and validation history](DEVELOPMENT-HISTORY.md) for tests, CI, build tooling and work not yet released.
 
-## [2.1.0] - 2026-10-08
+## 2.1.0 — 2026-10-08
 
 ### Added
 
@@ -22,7 +22,7 @@ This changelog records shipped features, fixes, compatibility and runtime depend
 
 Existing public signatures and classic gateway defaults are retained. See [upgrading to 2.1](UPGRADING-2.1.md) and [local access](LOCAL-ACCESS.md) for compatibility and hardware limits.
 
-## [2.0.0] - 2026-09-22
+## 2.0.0 — 2026-09-22
 
 ### Changed
 
@@ -36,7 +36,7 @@ Existing public signatures and classic gateway defaults are retained. See [upgra
 - Preserve unscaled reserve values when filling local gateway configuration writes, and reject invalid or unavailable settings.
 - Support dictionary-key serialization in merged assemblies.
 
-## [1.2.5] - 2026-09-15
+## 1.2.5 — 2026-09-15
 
 ### Fixed
 
@@ -50,13 +50,17 @@ Existing public signatures and classic gateway defaults are retained. See [upgra
 
 - The new embedded Fleet sign-in flow has not yet completed end-to-end interactive validation; the manual browser fallback remains available.
 
-## [1.2.4] - 2026-09-07
+## 1.2.4 — 2026-09-07
+
+[Compare changes][1.2.4]
 
 ### Fixed
 
 - `PowerwallCloudClient.SetOperationAsync` (Tesla cloud mode) no longer unconditionally sends `backup_reserve_percent=0` on mode-only operation writes. Previously, changing only the operating mode (`real_mode`) silently zeroed out the site's configured backup reserve. The reserve is now only written when the caller's payload actually includes `backup_reserve_percent`, matching the behavior already present in `PowerwallFleetApiClient`.
 
-## [1.2.3] - 2026-07-31
+## 1.2.3 — 2026-07-31
+
+[Compare changes][1.2.3]
 
 ### Changed
 
@@ -64,19 +68,25 @@ Existing public signatures and classic gateway defaults are retained. See [upgra
 
 - Added reference-only acknowledgements for `pypowerwall` and `tesla_auth` in the README.
 
-## [1.2.2] - 2026-07-10
+## 1.2.2 — 2026-07-10
+
+[Compare changes][1.2.2]
 
 ### Fixed
 
 - Corrected inaccurate `PackageReleaseNotes`: a Client Secret is not required for FleetAPI connect.
 
-## [1.2.1] - 2026-07-10
+## 1.2.1 — 2026-07-10
+
+[Compare changes][1.2.1]
 
 ### Fixed
 
 - Corrected stale `PackageReleaseNotes` that still described the 1.1.1 refactor.
 
-## [1.2.0] - 2026-07-10
+## 1.2.0 — 2026-07-10
+
+[Compare changes][1.2.0]
 
 ### Added
 
@@ -84,13 +94,17 @@ Existing public signatures and classic gateway defaults are retained. See [upgra
 
 - Standalone `TeslaPowerwallLibrary.Setup` WPF wizard for Tesla cloud login and FleetAPI partner token/registration/PEM verification/authorize/code exchange.
 
-## [1.1.1] - 2026-07-08
+## 1.1.1 — 2026-07-08
+
+[Compare changes][1.1.1]
 
 ### Changed
 
 - Replaced hand-written JSON parsing with typed models across the cloud, local, and login layers.
 
-## [1.1.0] - 2026-07-08
+## 1.1.0 — 2026-07-08
+
+[Compare changes][1.1.0]
 
 ### Added
 
@@ -102,29 +116,39 @@ Existing public signatures and classic gateway defaults are retained. See [upgra
 
 - Formatting errors.
 
-## [1.0.3] - 2026-07-07
+## 1.0.3 — 2026-07-07
+
+[Compare changes][1.0.3]
 
 ### Added
 
 - Storm Watch cloud control (read/set) across the library, console, and app.
 
-## [1.0.2] - 2026-07-06
+## 1.0.2 — 2026-07-06
+
+[Compare changes][1.0.2]
 
 ### Fixed
 
 - `CloudTokensRefreshed` gating for refresh-token-only bootstrap.
 
-## [1.0.1] - 2026-07-06
+## 1.0.1 — 2026-07-06
+
+[Compare changes][1.0.1]
 
 ### Changed
 
 - Use stable `Microsoft.Bcl.AsyncInterfaces`/`Microsoft.Bcl.Memory` 10.0.9 instead of the 11.0.0 preview.
 
-## [1.0.0] - 2026-07-06
+## 1.0.0 — 2026-07-06
+
+[Compare changes][1.0.0]
 
 Initial stable release.
 
-## [0.2.0-preview] - 2026-07-06
+## 0.2.0-preview — 2026-07-06
+
+[Compare changes][0.2.0-preview]
 
 ### Added
 
@@ -142,7 +166,9 @@ Initial stable release.
 
 - Battery label display.
 
-## [0.1.0-preview1] - 2026-07-05
+## 0.1.0-preview1 — 2026-07-05
+
+[Compare changes][0.1.0-preview1]
 
 Initial public preview release, including:
 
