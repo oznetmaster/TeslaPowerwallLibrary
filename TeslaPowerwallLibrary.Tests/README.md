@@ -53,3 +53,14 @@ The local HTTP test probe also verifies that only the requested configuration pa
 Transport regressions check the exact signed supplemental query bytes for Basic, signed LAN and installer bearer, independent caches, forced refresh and rejection of partial responses. The console and desktop presentation tests verify that reported zero/false values remain visible and IEEE provisioning PINs are omitted.
 
 `ReadOnlyTypedExtendedDiagnostics` exercises the three public facade methods using the existing verified LAN key. It logs section availability and result counts, not provisioning values. Run live tests with an explicit `-f net472` or `-f net10.0`, one framework at a time: simultaneous target-framework runners can exceed the gateway's login rate limit. A 429 is a rate-limit failure, not a successful hardware test. No live diagnostic fixture starts an inverter test, protection trip, phase detection or firmware update.
+
+
+## Portable local live inputs
+
+`LiveSiteTests` also accepts local connections through the same `LiveTestSettings.json` input mechanism as Owner/Fleet. Set `mode` to `local`, `localProtocol` to `Gateway` or `Signed LAN`, `host` to a reachable address/hostname and `password` to the customer password. Optional `localRefreshIntervalSeconds` defaults to 15 (15–3600 seconds). Signed LAN requires an already registered RSA-4096 private key in `localSigningKey` as XML. The same input file works unchanged on Windows and Mono. The credential helper still owns cloud sessions only; it does not prepare local inputs or enroll keys.
+
+For existing Windows-only test credentials, `localSigningKeyName` may reference an existing CNG key instead of XML. It must not be combined with `localSigningKey` and cannot be used on Mono. No test exports or creates a key. Keep all private input files outside source control.
+
+Select `FullyQualifiedName~LiveSiteTests` with NUnit `EnableLiveTests=true` and `TestDataDirectory` (or `TESLA_LIVE_TEST_DATA_DIRECTORY`). The manual processor `live` suite selects these three portable tests, excluding the separate explicit Windows diagnostic fixtures. An explicit false enablement parameter takes precedence over JSON.
+
+The acceptance matrix covers Owner, Fleet, Gateway and signed LAN. Home-network Wi-Fi is another route to the same local API; temporary setup Wi-Fi is excluded. Gateway may return telemetry without operating settings or a cloud site name; tests report that availability without inventing values. Signed LAN and cloud require actual operating configuration. All tests are read-only, with local controls disabled and no automatic cloud fallback.

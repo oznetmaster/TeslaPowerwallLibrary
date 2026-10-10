@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Neil Colvin. MIT License; see TeslaPowerwallLibrary/LICENSE.
 using System.IO;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -12,6 +13,7 @@ public sealed partial class LiveSiteTests
     private Powerwall? _client;
     private LiveSettings? _settings;
     private CancellationTokenSource? _deadline;
+    private RSA? _signingKey;
 
     [OneTimeSetUp]
     public async Task ConnectSite()
@@ -35,14 +37,20 @@ public sealed partial class LiveSiteTests
         }
         if (!flag.Equals("true", StringComparison.OrdinalIgnoreCase) && _settings?.Enabled != true)
             Assert.Ignore("Live library tests require private settings and explicit enablement.");
-        if (_settings is null || string.IsNullOrWhiteSpace(_settings.AccessToken) || string.IsNullOrWhiteSpace(_settings.SiteId)
+        if (_settings?.Mode == "local")
+        {
+            _settings.ValidateLocal();
+        }
+        else if (_settings is null || string.IsNullOrWhiteSpace(_settings.AccessToken) || string.IsNullOrWhiteSpace(_settings.SiteId)
             || !_settings.SiteId.All(char.IsDigit) || _settings.Mode is not ("fleet" or "cloud")
             || (_settings.Mode == "fleet" && (string.IsNullOrWhiteSpace(_settings.ClientId)
                 || _settings.Region is not ("auto" or "na" or "eu" or "cn"))))
             throw new InvalidDataException("Live settings require accessToken, numeric siteId, mode (fleet/cloud), and clientId/region for Fleet API.");
         bool fleet = _settings.Mode == "fleet";
         _deadline = new CancellationTokenSource(TimeSpan.FromMinutes(3));
-        _client = new Powerwall(new PowerwallOptions
+        _client = _settings!.Mode == "local"
+            ? new Powerwall(_settings.LocalOptions(out _signingKey))
+            : new Powerwall(new PowerwallOptions
         {
             FleetApi = fleet, CloudMode = !fleet, SiteId = _settings.SiteId,
             FleetApiClientId = fleet ? _settings.ClientId : null,
@@ -58,7 +66,8 @@ public sealed partial class LiveSiteTests
     [OneTimeTearDown]
     public void DisposeSite()
     {
-        _client?.Dispose(); _deadline?.Dispose();
+        _client?.Dispose(); _signingKey?.Dispose(); _deadline?.Dispose();
+        _signingKey = null;
         _client = null; _deadline = null; _settings = null;
     }
 
@@ -66,8 +75,13 @@ public sealed partial class LiveSiteTests
     public async Task RealSite_SelectsSiteAndReadsName()
     {
         string? selected = _settings!.Mode == "fleet" ? _client!.FleetApiSiteId : _client!.CloudSiteId;
-        Assert.That(selected == _settings.SiteId, Is.True, "The requested site must be selected.");
-        Assert.That(!string.IsNullOrWhiteSpace(await _client.SiteNameAsync(_deadline!.Token)), Is.True);
+        if (_settings.Mode != "local")
+            Assert.That(selected == _settings.SiteId, Is.True, "The requested site must be selected.");
+        if (_settings.Mode == "local")
+            Assert.That(_client.LocalHost, Is.EqualTo(_settings.Host),
+                "The configured local endpoint must be retained without cloud fallback.");
+        else
+            Assert.That(!string.IsNullOrWhiteSpace(await _client.SiteNameAsync(_deadline!.Token)), Is.True);
     }
 
     [Test]
@@ -82,12 +96,22 @@ public sealed partial class LiveSiteTests
     [Test]
     public async Task RealSite_RefreshesOperatingConfiguration()
     {
-        Assert.That(await _client!.GetReserveAsync(scale: false, force: true, cancellationToken: _deadline!.Token), Is.InRange(0d, 100d));
-        Assert.That(!string.IsNullOrWhiteSpace(await _client.GetModeAsync(force: true, cancellationToken: _deadline.Token)), Is.True);
+        double? reserve = await _client!.GetReserveAsync(scale: false, force: true, cancellationToken: _deadline!.Token);
+        string? mode = await _client.GetModeAsync(force: true, cancellationToken: _deadline.Token);
+        if (_settings!.Mode == "local" && _settings.LocalProtocol == "Gateway")
+        {
+            TestContext.Progress.WriteLine("Gateway operating settings available: " + (reserve.HasValue && !string.IsNullOrWhiteSpace(mode)));
+            if (reserve.HasValue) Assert.That(reserve, Is.InRange(0d, 100d));
+        }
+        else
+        {
+            Assert.That(reserve, Is.Not.Null.And.InRange(0d, 100d));
+            Assert.That(mode, Is.Not.Null.And.Not.Empty);
+        }
         Assert.That(await _client.IsConnectedAsync(_deadline.Token), Is.True);
     }
 
-    public sealed class LiveSettings
+    public sealed partial class LiveSettings
     {
         [JsonPropertyName("enabled")] public bool Enabled { get; set; }
         [JsonPropertyName("mode")] public string? Mode { get; set; }
