@@ -84,7 +84,9 @@ public sealed partial class TedapiTests
 			GatewayPassword = "label",
 			Password = "customer",
 			LocalProtocol = protocol,
-			LocalSigningKey = key
+			LocalSigningKey = key,
+			// These assertions test reuse, not expiry or the speed of intervening signed requests.
+			CacheExpireSeconds = int.MaxValue
 			}, handler);
 		await client.AuthenticateAsync ();
 		var data = await client.GetComponentsAsync ();
@@ -137,7 +139,9 @@ public sealed partial class TedapiTests
 			GatewayPassword = "label",
 			Password = "customer",
 			LocalProtocol = protocol,
-			LocalSigningKey = key
+			LocalSigningKey = key,
+			// These assertions test reuse, not expiry or the speed of intervening signed requests.
+			CacheExpireSeconds = int.MaxValue
 			}, handler);
 		await client.AuthenticateAsync ();
 		var uptime = await client.GetGatewayUptimeAsync ();
