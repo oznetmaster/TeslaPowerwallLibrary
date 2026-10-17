@@ -9,6 +9,7 @@ using System.Text.Json;
 
 using TeslaPowerwallLibrary.Local;
 using TeslaPowerwallLibrary.Tedapi;
+
 using Signed = TeslaPowerwallLibrary.Tedapi.Protocol.Signed;
 
 namespace TeslaPowerwallLibrary.Tests;
@@ -31,7 +32,7 @@ public sealed class LocalReadOnlyLiveTests
 			Assert.Ignore ("Set the local test hostname and private encrypted label-password file.");
 			return;
 			}
-		#if !NETFRAMEWORK
+#if !NETFRAMEWORK
 		if (!OperatingSystem.IsWindows ())
 			{
 			Assert.Ignore ("This live fixture uses Windows DPAPI credentials.");
@@ -110,13 +111,19 @@ public sealed class LocalReadOnlyLiveTests
 		string? host = Environment.GetEnvironmentVariable ("TESLA_LOCAL_TEST_HOST");
 		string? credentials = Environment.GetEnvironmentVariable ("TESLA_LOCAL_TEST_LABEL_PASSWORD_FILE");
 		if (string.IsNullOrWhiteSpace (host) || string.IsNullOrWhiteSpace (credentials))
-			{ Assert.Ignore ("Set the local hostname and protected label-password file."); return; }
+			{
+			Assert.Ignore ("Set the local hostname and protected label-password file.");
+			return;
+			}
 #if !NETFRAMEWORK
 		if (!OperatingSystem.IsWindows ()) { Assert.Ignore ("This fixture uses Windows DPAPI and CNG."); return; }
 #endif
 		byte[] clear = ProtectedData.Unprotect (File.ReadAllBytes (credentials), null, DataProtectionScope.CurrentUser);
 		string password;
-		try { password = Encoding.UTF8.GetString (clear); }
+		try
+			{
+			password = Encoding.UTF8.GetString (clear);
+			}
 		finally { Array.Clear (clear, 0, clear.Length); }
 		Assert.That (password.Length, Is.GreaterThanOrEqualTo (5));
 		using CngKey stored = CngKey.Open ("TeslaPowerwallLibrary.LocalDevelopment.Powerwall3", CngProvider.MicrosoftSoftwareKeyStorageProvider);
@@ -124,9 +131,13 @@ public sealed class LocalReadOnlyLiveTests
 		using var deadline = new CancellationTokenSource (TimeSpan.FromSeconds (60));
 		using var powerwall = new Powerwall (new PowerwallOptions
 			{
-			Host = host, Password = password.Substring (password.Length - 5),
-			LocalProtocol = PowerwallLocalProtocol.TedapiSigned, LocalSigningKey = key,
-			AllowLocalControl = false, NoLocalSessionPersistence = true, Timeout = TimeSpan.FromSeconds (10)
+			Host = host,
+			Password = password.Substring (password.Length - 5),
+			LocalProtocol = PowerwallLocalProtocol.TedapiSigned,
+			LocalSigningKey = key,
+			AllowLocalControl = false,
+			NoLocalSessionPersistence = true,
+			Timeout = TimeSpan.FromSeconds (10)
 			});
 		Assert.That (await powerwall.ConnectAsync (deadline.Token), Is.True);
 		var ieee = await powerwall.GetLocalIeee20305Async (cancellationToken: deadline.Token);
@@ -156,7 +167,10 @@ public sealed class LocalReadOnlyLiveTests
 #endif
 		byte[] clear = ProtectedData.Unprotect (File.ReadAllBytes (credentials), null, DataProtectionScope.CurrentUser);
 		string password;
-		try { password = Encoding.UTF8.GetString (clear); }
+		try
+			{
+			password = Encoding.UTF8.GetString (clear);
+			}
 		finally { Array.Clear (clear, 0, clear.Length); }
 		Assert.That (password.Length, Is.GreaterThanOrEqualTo (5));
 		using CngKey stored = CngKey.Open ("TeslaPowerwallLibrary.LocalDevelopment.Powerwall3", CngProvider.MicrosoftSoftwareKeyStorageProvider);
@@ -184,6 +198,25 @@ public sealed class LocalReadOnlyLiveTests
 			+ "; remote meters: " + detailed.RemoteMeters?.Meters?.Count);
 		LocalComponentTelemetry components = await client.GetComponentsAsync (force: true, deadline.Token);
 		TestContext.Out.WriteLine ("Reported component families: " + string.Join (", ", components.Components?.Keys ?? Array.Empty<string> ()));
+		var health = components.Components is { } families && families.TryGetValue ("bms", out var packs)
+			? packs.SelectMany (pack => pack.Signals ?? Array.Empty<LocalSignal> ())
+				.Where (signal => signal.Name is "BMS_kwhDischargeTotal" or "BMS_LOG_ahDischargeTotal" or "BMS_LOG_cacAvg"
+					or "BMS_LOG_numFullBattCycles" or "BMS_LOG_overDischargeCounter" or "BMS_LOG_selfDischargeRate").ToArray ()
+			: Array.Empty<LocalSignal> ();
+		Assert.That (health.All (signal => signal.Value is null || signal.Value >= 0 && !double.IsInfinity (signal.Value.Value) && !double.IsNaN (signal.Value.Value)), Is.True);
+		TestContext.Out.WriteLine ("Battery-health signals returned: " + health.Length + "; numeric readings: " + health.Count (signal => signal.Value.HasValue));
+		var uptime = await client.GetGatewayUptimeAsync (cancellationToken: deadline.Token);
+		if (queryVersion == TedapiQueryVersion.June2026)
+			Assert.That (uptime, Is.Null);
+		if (uptime is not null)
+			{
+			Assert.That (uptime.Uptime, Is.GreaterThanOrEqualTo (TimeSpan.Zero));
+			Assert.That (uptime.StartedAt, Is.LessThanOrEqualTo (uptime.GatewayTime));
+			}
+		TestContext.Out.WriteLine ("Gateway sync-board uptime available: " + (uptime is not null));
+		var gatewayStatus = JsonHelper.Deserialize<Models.GatewayStatus> ((await client.PollAsync ("/api/status", cancellationToken: deadline.Token))!);
+		Assert.That (gatewayStatus!.GitHash, Is.Not.Null.And.Not.Empty);
+		Assert.That (gatewayStatus.UpTimeSeconds is not null, Is.EqualTo (uptime is not null));
 		LocalConfiguration configuration = await client.GetConfigurationAsync (force: true, deadline.Token);
 		TestContext.Out.WriteLine ("Typed non-secret local settings: " + JsonSerializer.Serialize (configuration));
 		TestContext.Out.WriteLine ("Configured meter projection count: " + LocalMeterProjection.Create (configuration, detailed).Count);
@@ -218,22 +251,32 @@ public sealed class LocalReadOnlyLiveTests
 		string? host = Environment.GetEnvironmentVariable ("TESLA_LOCAL_TEST_HOST");
 		string? credentials = Environment.GetEnvironmentVariable ("TESLA_LOCAL_TEST_LABEL_PASSWORD_FILE");
 		if (string.IsNullOrWhiteSpace (host) || string.IsNullOrWhiteSpace (credentials))
-			{ Assert.Ignore ("Set private local test settings."); return; }
+			{
+			Assert.Ignore ("Set private local test settings.");
+			return;
+			}
 #if !NETFRAMEWORK
 		if (!OperatingSystem.IsWindows ())
 			{ Assert.Ignore ("This fixture uses Windows DPAPI and CNG."); return; }
 #endif
 		byte[] clear = ProtectedData.Unprotect (File.ReadAllBytes (credentials), null, DataProtectionScope.CurrentUser);
 		string password;
-		try { password = Encoding.UTF8.GetString (clear); }
+		try
+			{
+			password = Encoding.UTF8.GetString (clear);
+			}
 		finally { Array.Clear (clear, 0, clear.Length); }
 		using var stored = CngKey.Open ("TeslaPowerwallLibrary.LocalDevelopment.Powerwall3", CngProvider.MicrosoftSoftwareKeyStorageProvider);
 		using RSA key = new RSACng (stored);
 		using var handler = new SiteIdentityProbeHandler ();
 		using var client = new PowerwallTedapiClient (new PowerwallOptions
 			{
-			Host = host, Password = password.Substring (password.Length - 5), LocalSigningKey = key,
-			LocalProtocol = PowerwallLocalProtocol.TedapiSigned, AllowLocalControl = false, Timeout = TimeSpan.FromSeconds (10)
+			Host = host,
+			Password = password.Substring (password.Length - 5),
+			LocalSigningKey = key,
+			LocalProtocol = PowerwallLocalProtocol.TedapiSigned,
+			AllowLocalControl = false,
+			Timeout = TimeSpan.FromSeconds (10)
 			}, handler);
 		using var deadline = new CancellationTokenSource (TimeSpan.FromSeconds (30));
 		await client.AuthenticateAsync (deadline.Token);
@@ -249,22 +292,33 @@ public sealed class LocalReadOnlyLiveTests
 		string? host = Environment.GetEnvironmentVariable ("TESLA_LOCAL_TEST_HOST");
 		string? credentials = Environment.GetEnvironmentVariable ("TESLA_LOCAL_TEST_LABEL_PASSWORD_FILE");
 		if (string.IsNullOrWhiteSpace (host) || string.IsNullOrWhiteSpace (credentials))
-			{ Assert.Ignore ("Set private local test settings."); return; }
+			{
+			Assert.Ignore ("Set private local test settings.");
+			return;
+			}
 #if !NETFRAMEWORK
 		if (!OperatingSystem.IsWindows ())
 			{ Assert.Ignore ("This fixture uses Windows DPAPI and CNG."); return; }
 #endif
 		byte[] clear = ProtectedData.Unprotect (File.ReadAllBytes (credentials), null, DataProtectionScope.CurrentUser);
 		string password;
-		try { password = Encoding.UTF8.GetString (clear); }
+		try
+			{
+			password = Encoding.UTF8.GetString (clear);
+			}
 		finally { Array.Clear (clear, 0, clear.Length); }
 		using var stored = CngKey.Open ("TeslaPowerwallLibrary.LocalDevelopment.Powerwall3", CngProvider.MicrosoftSoftwareKeyStorageProvider);
 		using RSA key = new RSACng (stored);
 		using var handler = new SiteIdentityProbeHandler (inspectQuery: true, version: version);
 		using var client = new PowerwallTedapiClient (new PowerwallOptions
 			{
-			Host = host, Password = password.Substring (password.Length - 5), LocalSigningKey = key,
-			LocalProtocol = PowerwallLocalProtocol.TedapiSigned, LocalQueryVersion = version, AllowLocalControl = false, Timeout = TimeSpan.FromSeconds (10)
+			Host = host,
+			Password = password.Substring (password.Length - 5),
+			LocalSigningKey = key,
+			LocalProtocol = PowerwallLocalProtocol.TedapiSigned,
+			LocalQueryVersion = version,
+			AllowLocalControl = false,
+			Timeout = TimeSpan.FromSeconds (10)
 			}, handler);
 		using var deadline = new CancellationTokenSource (TimeSpan.FromSeconds (30));
 		await client.AuthenticateAsync (deadline.Token);
@@ -280,26 +334,41 @@ public sealed class LocalReadOnlyLiveTests
 		{
 		const TedapiQueryVersion version = TedapiQueryVersion.June2026;
 		string? reference = Environment.GetEnvironmentVariable ("TESLA_LOCAL_TEST_QUERY_REFERENCE");
-		if (string.IsNullOrWhiteSpace (reference)) { Assert.Ignore ("Set the pinned vendor-query reference file."); return; }
+		if (string.IsNullOrWhiteSpace (reference))
+			{
+			Assert.Ignore ("Set the pinned vendor-query reference file.");
+			return;
+			}
 		string? host = Environment.GetEnvironmentVariable ("TESLA_LOCAL_TEST_HOST");
 		string? credentials = Environment.GetEnvironmentVariable ("TESLA_LOCAL_TEST_LABEL_PASSWORD_FILE");
 		if (string.IsNullOrWhiteSpace (host) || string.IsNullOrWhiteSpace (credentials))
-			{ Assert.Ignore ("Set private local test settings."); return; }
+			{
+			Assert.Ignore ("Set private local test settings.");
+			return;
+			}
 #if !NETFRAMEWORK
 		if (!OperatingSystem.IsWindows ())
 			{ Assert.Ignore ("This fixture uses Windows DPAPI and CNG."); return; }
 #endif
 		byte[] clear = ProtectedData.Unprotect (File.ReadAllBytes (credentials), null, DataProtectionScope.CurrentUser);
 		string password;
-		try { password = Encoding.UTF8.GetString (clear); }
+		try
+			{
+			password = Encoding.UTF8.GetString (clear);
+			}
 		finally { Array.Clear (clear, 0, clear.Length); }
 		using var stored = CngKey.Open ("TeslaPowerwallLibrary.LocalDevelopment.Powerwall3", CngProvider.MicrosoftSoftwareKeyStorageProvider);
 		using RSA key = new RSACng (stored);
 		using var handler = new SiteIdentityProbeHandler (inspectQuery: true, version: version);
 		using var client = new PowerwallTedapiClient (new PowerwallOptions
 			{
-			Host = host, Password = password.Substring (password.Length - 5), LocalSigningKey = key,
-			LocalProtocol = PowerwallLocalProtocol.TedapiSigned, LocalQueryVersion = version, AllowLocalControl = false, Timeout = TimeSpan.FromSeconds (10)
+			Host = host,
+			Password = password.Substring (password.Length - 5),
+			LocalSigningKey = key,
+			LocalProtocol = PowerwallLocalProtocol.TedapiSigned,
+			LocalQueryVersion = version,
+			AllowLocalControl = false,
+			Timeout = TimeSpan.FromSeconds (10)
 			}, handler);
 		using var deadline = new CancellationTokenSource (TimeSpan.FromSeconds (30));
 		await client.AuthenticateAsync (deadline.Token);
@@ -309,15 +378,19 @@ public sealed class LocalReadOnlyLiveTests
 		byte[] Decode (string value) => Enumerable.Range (0, value.Length / 2).Select (i => Convert.ToByte (value.Substring (i * 2, 2), 16)).ToArray ();
 		var envelope = new Tedapi.Protocol.Graphql.Envelope
 			{
-			DeliveryChannel = 1, Sender = new Tedapi.Protocol.Graphql.Participant { Local = 1 },
+			DeliveryChannel = 1,
+			Sender = new Tedapi.Protocol.Graphql.Participant { Local = 1 },
 			Recipient = new Tedapi.Protocol.Graphql.Participant { Din = client.DeviceIdentificationNumber },
 			Graphql = new Tedapi.Protocol.Graphql.GraphQLMessages
-				{ QueryRequest = new Tedapi.Protocol.Graphql.QueryRequest
+				{
+				QueryRequest = new Tedapi.Protocol.Graphql.QueryRequest
 					{
-					Format = 2, Query = Google.Protobuf.ByteString.CopyFrom (Decode (definition.GetProperty ("signed_bytes").GetString ()!)),
+					Format = 2,
+					Query = Google.Protobuf.ByteString.CopyFrom (Decode (definition.GetProperty ("signed_bytes").GetString ()!)),
 					Signature = Google.Protobuf.ByteString.CopyFrom (Decode (definition.GetProperty ("code").GetString ()!)),
 					VariablesJson = new Tedapi.Protocol.Graphql.StringValue { Value = "{}" }
-					} }
+					}
+				}
 			};
 		var exchange = typeof (PowerwallTedapiClient).GetMethod ("ExchangeEnvelopeAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
 		byte[] bytes = await (Task<byte[]>)exchange.Invoke (client, new object?[] { Google.Protobuf.MessageExtensions.ToByteArray (envelope), deadline.Token, true, null })!;
@@ -332,12 +405,23 @@ public sealed class LocalReadOnlyLiveTests
 		private readonly bool _inspectQuery;
 		private readonly TedapiQueryVersion _version;
 		/// <summary>Gets whether a configuration payload was inspected without storing it.</summary>
-		internal bool Inspected { get; private set; }
+		internal bool Inspected
+			{
+			get; private set;
+			}
 		/// <summary>Creates a read-only response inspector for the explicitly selected local endpoint.</summary>
 		/// <param name="inspectQuery">Whether to inspect only query field types instead of site identity.</param>
 		/// <param name="version">Query envelope version to inspect.</param>
 		internal SiteIdentityProbeHandler (bool inspectQuery = false, TedapiQueryVersion version = TedapiQueryVersion.June2024) : base (new HttpClientHandler
-			{ UseProxy = false, AllowAutoRedirect = false, ServerCertificateCustomValidationCallback = (_, _, _, _) => true }) { _inspectQuery = inspectQuery; _version = version; }
+			{
+			UseProxy = false,
+			AllowAutoRedirect = false,
+			ServerCertificateCustomValidationCallback = (_, _, _, _) => true
+			})
+			{
+			_inspectQuery = inspectQuery;
+			_version = version;
+			}
 		/// <inheritdoc/>
 		protected override async Task<HttpResponseMessage> SendAsync (HttpRequestMessage request, CancellationToken cancellationToken)
 			{
@@ -352,14 +436,16 @@ public sealed class LocalReadOnlyLiveTests
 				var query = _version == TedapiQueryVersion.June2024
 					? Tedapi.Protocol.Legacy.MessageEnvelope.Parser.ParseFrom (routed.ProtobufMessageAsBytes).Payload?.Recv?.Text
 					: Tedapi.Protocol.Graphql.Envelope.Parser.ParseFrom (routed.ProtobufMessageAsBytes).Graphql?.QueryResponse?.Data;
-				if (string.IsNullOrWhiteSpace (query)) return response;
+				if (string.IsNullOrWhiteSpace (query))
+					return response;
 				using var fields = JsonDocument.Parse (query!);
 				InspectTypes (fields.RootElement, "controller");
 				Inspected = true;
 				return response;
 				}
 			var blob = envelope.Filestore?.ReadFileResponse?.File?.Blob;
-			if (blob is null || blob.IsEmpty) return response;
+			if (blob is null || blob.IsEmpty)
+				return response;
 			using var document = JsonDocument.Parse (blob.ToStringUtf8 ());
 			Inspected = true;
 			TestContext.Out.WriteLine ("Configuration top-level field names: " + string.Join (", ", document.RootElement.EnumerateObject ().Select (p => p.Name)));
@@ -370,11 +456,13 @@ public sealed class LocalReadOnlyLiveTests
 			{
 			TestContext.Out.WriteLine (path + " : " + value.ValueKind);
 			if (value.ValueKind == JsonValueKind.Object)
-				foreach (var property in value.EnumerateObject ()) InspectTypes (property.Value, path + "." + property.Name);
+				foreach (var property in value.EnumerateObject ())
+					InspectTypes (property.Value, path + "." + property.Name);
 			else if (value.ValueKind == JsonValueKind.Array)
 				{
 				int index = 0;
-				foreach (var item in value.EnumerateArray ()) InspectTypes (item, path + "[" + index++ + "]");
+				foreach (var item in value.EnumerateArray ())
+					InspectTypes (item, path + "[" + index++ + "]");
 				}
 			}
 
@@ -388,10 +476,12 @@ public sealed class LocalReadOnlyLiveTests
 						TestContext.Out.WriteLine ("Site field names: " + string.Join (", ", property.Value.EnumerateObject ().Select (p => p.Name)));
 					if (property.Name is "site_id" or "energy_site_id" or "siteId" or "energySiteId" or "site_name")
 						TestContext.Out.WriteLine (next + " = " + property.Value.ToString ());
-					else Inspect (property.Value, next);
+					else
+						Inspect (property.Value, next);
 					}
 			else if (value.ValueKind == JsonValueKind.Array)
-				foreach (var item in value.EnumerateArray ()) Inspect (item, path + "[]");
+				foreach (var item in value.EnumerateArray ())
+					Inspect (item, path + "[]");
 			}
 		}
 

@@ -66,6 +66,11 @@ public sealed class OperationRegressionTests
 		var status = await rig.Powerwall.StatusAsync ();
 		Assert.That (status!.Din, Is.EqualTo ("test--din"));
 		Assert.That (status.Version, Is.EqualTo ("26.1"));
+		Assert.That (status.StartTime, Is.Null, "Installation is not a gateway boot timestamp.");
+		Assert.That (status.InstallationDate, Is.EqualTo ("2026-01-01T12:00:00+01:00"));
+		Assert.That (status.UpTimeSeconds, Is.Null);
+		Assert.That (status.GitHash, Is.Null);
+		Assert.That (status.SyncType, Is.EqualTo ("unknown"));
 		var system = await rig.Powerwall.SystemStatusAsync ();
 		Assert.That (system!.NominalFullPackEnergy, Is.EqualTo (13500));
 		Assert.That (system.NominalEnergyRemaining, Is.EqualTo (6750));

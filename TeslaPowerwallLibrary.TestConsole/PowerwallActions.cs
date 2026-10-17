@@ -34,6 +34,7 @@ internal static class PowerwallActions
 		ConsoleHelpers.WriteField ("Git hash", status.GitHash);
 		ConsoleHelpers.WriteField ("Uptime", status.UpTimeSeconds);
 		ConsoleHelpers.WriteField ("Start time", status.StartTime);
+		ConsoleHelpers.WriteField ("Installation date", status.InstallationDate);
 		}
 
 	/// <summary>Prints the configured site name.</summary>

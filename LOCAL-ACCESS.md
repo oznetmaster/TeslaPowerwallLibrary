@@ -1,6 +1,16 @@
-# Local access — 2.1
+# Local access — 2.2
 
-This guide describes local access in version 2.1.0. TEDAPI support was added in this release. See [compatibility notes](UPGRADING-2.1.md).
+This guide describes local access in version 2.2.0. TEDAPI support was introduced in 2.1.0; the existing connection and control defaults remain compatible. See [2.2 release notes](RELEASE-NOTES.md) and [upgrading from 2.0](UPGRADING-2.1.md).
+
+## Telemetry additions in 2.2
+
+The June 2024 component request now includes the 23 additional PW3 signals documented by pypowerwall 0.20.0. Six are battery-health/capacity counters; the remainder describe inverter measurements, safety states and hardware identity. They use the existing typed `LocalSignal` numeric/text/boolean fields and appear in component reads, vitals and desktop detailed telemetry. The optional June 2026 query already selects 17 of these signals, but does not select the six additional BMS counters. Missing firmware signals remain unavailable. No state-of-health percentage is inferred.
+
+`GetLocalGatewayUptimeAsync()` and console `local-uptime` return nullable typed sync-board uptime, its gateway timestamp and a boot-time estimate. `StatusAsync()` and `UptimeAsync()` expose the same supported measurement while retaining their existing string contracts. `SYNC_Uptime` must come from the component matching the controller's sync-board serial. The June 2026 signed query cannot request it, and sites without a supported sync board return null. This is not the uptime of each battery. Boot estimates tolerate normal publication jitter and reset with a new session; no install/commission date is treated as a boot time.
+
+Local site configuration now includes nominal energy (kWh), nominal power (kW), panel current (A), raw site-meter limits, grid-code metadata and battery commission date. Raw limits are passed through without guessing unit conversions. Wi-Fi (`trm_wifi`) and wired (`trm_mb`) remote meters share the same identity, CT and scaling rules. Missing power is not filled with a stale solar reading.
+
+Owner/Fleet status leaves boot time, uptime and firmware hash null when unreported. The separately named `InstallationDate` retains the cloud installation date. No new raw JSON response surface or arbitrary query API is introduced.
 
 ## Choosing a connection
 
@@ -96,7 +106,7 @@ The typed reads include controller power/energy/grid state, alerts, component si
 
 `CacheExpireSeconds` controls reuse of previous responses; it is not a polling interval. `force: true` requests another read but does not bypass a device rate-limit cooldown.
 
-`LocalQueryVersion` defaults to `TedapiQueryVersion.June2024`. The optional `June2026` path sends newer vendor-signed GraphQL query captures. There is no automatic cross-version fallback; firmware and vendor signature changes can affect which set is accepted. The captured signal sets differ. Both sets have now returned signed telemetry on the development Powerwall 3; the default June 2024 set also includes the additional fan and temperature signals documented upstream.
+`LocalQueryVersion` defaults to `TedapiQueryVersion.June2024`, as it did in 2.1.0. The date identifies a query capture/format, not the library release or firmware age. Both query sets remain supported. The optional `June2026` path sends newer vendor-signed GraphQL query captures. There is no automatic cross-version fallback; firmware and vendor signature changes can affect which set is accepted. The captured signal sets differ. Both sets have returned signed telemetry on the development Powerwall 3; the default June 2024 set also includes the additional fan, temperature and BMS health signals documented upstream, and can request gateway sync-board uptime.
 
 ## Additional local telemetry and multiple devices
 

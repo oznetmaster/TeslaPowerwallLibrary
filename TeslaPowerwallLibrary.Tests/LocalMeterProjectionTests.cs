@@ -2,6 +2,7 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System.Text.Json;
+
 using TeslaPowerwallLibrary.Tedapi;
 
 namespace TeslaPowerwallLibrary.Tests;
@@ -10,6 +11,23 @@ namespace TeslaPowerwallLibrary.Tests;
 [TestFixture]
 public sealed class LocalMeterProjectionTests
 	{
+	/// <summary>Wired and Wi-Fi remote meters retain the same configured CT identity, location and scale.</summary>
+	/// <param name="type">The configured remote-meter connection type.</param>
+	[TestCase ("trm_mb"), TestCase ("trm_wifi")]
+	public void RemoteMeterTypes_ApplyConfigurationAndScaling (string type)
+		{
+		var configuration = JsonSerializer.Deserialize<LocalConfiguration> ("""
+			{"meters":[{"type":"TYPE","location":"solar","cts":[true,false,true],"connection":{"device_serial":"meter"},"real_power_scale_factor":2}]}
+			""".Replace ("TYPE", type))!;
+		var telemetry = JsonSerializer.Deserialize<LocalTelemetry> ("""
+			{"teslaRemoteMeter":{"meters":[{"din":"meter","reading":{"ctReadings":[{"realPowerW":100},{"realPowerW":900},{"realPowerW":0}]}}]}}
+			""")!;
+		var meter = LocalMeterProjection.Create (configuration, telemetry).Single ();
+		Assert.That (meter.Channels.Select (channel => channel.Index), Is.EqualTo (new[] { 0, 2 }));
+		Assert.That (meter.Channels.All (channel => channel.IsConfigured && channel.Location == "solar"), Is.True);
+		Assert.That (meter.Channels.Select (channel => channel.RealPowerWatts), Is.EqualTo (new[] { 200d, 0d }));
+		Assert.That (LocalMeterProjection.Aggregate (configuration, telemetry).Solar!.InstantPower, Is.EqualTo (200));
+		}
 	/// <summary>Remote-meter signal strength uses the upstream fixture's numeric wire field and preserves absence.</summary>
 	[TestCase ("{\"rssiDb\":-50}", -50d)]
 	[TestCase ("{\"rssiDb\":0}", 0d)]
@@ -178,8 +196,13 @@ public sealed class LocalMeterProjectionTests
 		Assert.That (result.Solar!.PhaseCCurrent, Is.EqualTo (-2));
 		Assert.That (result.Solar.InstantAverageVoltage, Is.EqualTo (231));
 		Assert.That (result.Solar.InstantPower, Is.Null);
-		var duplicate = controller with { Components = new Dictionary<string, IReadOnlyList<LocalComponent>>
-			{ ["sync"] = new[] { controller.Components!["sync"][0], controller.Components["sync"][0] with { SerialNumber = "sync-b" } } } };
+		var duplicate = controller with
+			{
+			Components = new Dictionary<string, IReadOnlyList<LocalComponent>>
+				{
+				["sync"] = new[] { controller.Components!["sync"][0], controller.Components["sync"][0] with { SerialNumber = "sync-b" } }
+				}
+			};
 		var ambiguous = LocalMeterProjection.Aggregate (new LocalDeviceSnapshot { Controller = duplicate });
 		Assert.That (ambiguous.Site, Is.Null);
 		Assert.That (ambiguous.Solar, Is.Null);

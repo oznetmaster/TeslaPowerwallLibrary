@@ -16,6 +16,21 @@ namespace TeslaPowerwallLibrary.App.Tests;
 [TestFixture]
 public sealed class LocalPresentationTests
 	{
+	/// <summary>Battery-health labels distinguish units and retain reported zero and unavailable values.</summary>
+	[Test]
+	public void HealthAndSiteDetails_PreserveUnitsAndUnavailableReadings ()
+		{
+		var row = LocalMeasurementView.FromSignal ("pack", new LocalSignal { Name = "BMS_kwhDischargeTotal", Value = 0 });
+		Assert.That (row.Name, Does.Contain ("kWh"));
+		Assert.That (row.Value, Is.EqualTo ("0"));
+		Assert.That (LocalMeasurementView.FromSignal ("pack", new LocalSignal { Name = "BMS_LOG_cacAvg" }).Value, Is.EqualTo ("Unavailable"));
+		using var connection = new PowerwallConnectionService ();
+		var model = new SystemViewModel (connection);
+		model.AddSiteDetails (new LocalSiteConfiguration { NominalEnergyKilowattHours = 0, PanelMaximumCurrentAmps = 100, BatteryCommissionDate = "2025-01-01" });
+		Assert.That (model.LocalMeasurements.Single (value => value.Name == "Nominal energy (kWh)").Value, Is.EqualTo ("0"));
+		Assert.That (model.LocalMeasurements.Single (value => value.Name == "Nominal power (kW)").Value, Is.EqualTo ("Unavailable"));
+		Assert.That (model.LocalMeasurements.Single (value => value.Name == "Battery commissioned").Value, Is.EqualTo ("2025-01-01"));
+		}
 	/// <summary>Diagnostic display retains zero, absent slots and scalar text without exposing provisioning PINs.</summary>
 	[Test]
 	public void ExtendedDiagnostics_DisplayReportedValuesAndHideProvisioningPin ()

@@ -230,6 +230,11 @@ internal sealed record MappedSystemStatus
 
 internal sealed record MappedGatewayStatus
 	{
+	[JsonPropertyName ("installation_date")]
+	public string? InstallationDate
+		{
+		get; init;
+		}
 	[JsonPropertyName ("din")]
 	public string? Din
 		{
@@ -253,7 +258,10 @@ internal sealed record MappedGatewayStatus
 		get; init;
 		}
 	[JsonPropertyName ("git_hash")]
-	public string? GitHash { get; init; } = "27626f98a66cad5c665bbe1d4d788cdb3e94fd34";
+	public string? GitHash
+		{
+		get; init;
+		}
 	[JsonPropertyName ("commission_count")]
 	public int CommissionCount { get; init; } = 0;
 	[JsonPropertyName ("device_type")]
@@ -264,7 +272,7 @@ internal sealed record MappedGatewayStatus
 	[JsonPropertyName ("teg_type")]
 	public string? TegType { get; init; } = "unknown";
 	[JsonPropertyName ("sync_type")]
-	public string? SyncType { get; init; } = "v2.1";
+	public string? SyncType { get; init; } = "unknown";
 	[JsonPropertyName ("cellular_disabled")]
 	public bool CellularDisabled { get; init; } = false;
 	[JsonPropertyName ("can_reboot")]

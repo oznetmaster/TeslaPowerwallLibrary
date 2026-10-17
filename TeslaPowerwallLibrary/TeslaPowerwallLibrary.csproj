@@ -23,13 +23,13 @@
 		<Product>TeslaPowerwallLibrary</Product>
 		<Copyright>Copyright © 2026 Neil Colvin</Copyright>
 		<AssemblyVersion>2.0.0.0</AssemblyVersion>
-		<FileVersion>2.1.0.0</FileVersion>
+		<FileVersion>2.2.0.0</FileVersion>
 		<PackageId>TeslaPowerwallLibrary</PackageId>
-		<Version>2.1.0</Version>
+		<Version>2.2.0</Version>
 		<!-- Retain AssemblyVersion 2.0.0.0 for existing binary consumers. -->
 		<EnablePackageValidation>true</EnablePackageValidation>
-		<PackageValidationBaselineVersion>2.0.0</PackageValidationBaselineVersion>
-		<PackageReleaseNotes>Add typed local TEDAPI access, signed Powerwall 3 LAN connections, discovery, diagnostics and explicit controls. Preserve the 2.0.0 public API and classic gateway defaults; add nullable GetPowerReadingsAsync for missing telemetry. Update the desktop dashboard and console. See UPGRADING-2.1.md and LOCAL-ACCESS.md.</PackageReleaseNotes>
+		<PackageValidationBaselineVersion>2.1.0</PackageValidationBaselineVersion>
+		<PackageReleaseNotes>Add 23 PW3 battery-health, inverter and safety signals, typed nullable gateway uptime and richer site configuration. Correct Wi-Fi remote-meter scaling and cloud status metadata; preserve installation date separately from boot time. Update desktop details and console commands. Retain existing public signatures, classic gateway defaults and both supported TEDAPI query formats. See RELEASE-NOTES.md and LOCAL-ACCESS.md for availability and compatibility details.</PackageReleaseNotes>
 		<Authors>Neil Colvin</Authors>
 		<PackageTags>tesla;powerwall;smart-home;iot;rest;api;nuget</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -134,6 +134,7 @@
 	</ItemGroup>
 	<ItemGroup>
 		<None Include="..\README.md" Pack="true" PackagePath="\" />
+		<None Include="..\CHANGELOG.md" Pack="true" PackagePath="\" />
 		<None Include="..\LOCAL-ACCESS.md" Pack="true" PackagePath="\" />
 		<None Include="..\UPGRADING-2.1.md" Pack="true" PackagePath="\" />
 		<None Include="..\RELEASE-NOTES.md" Pack="true" PackagePath="\" />

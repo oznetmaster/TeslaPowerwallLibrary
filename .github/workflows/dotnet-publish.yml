@@ -132,7 +132,7 @@ jobs:
           $releaseDir = "${{ env.ARTIFACT_DIR }}/release"
           New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
 
-          foreach ($document in @('README.md', 'LOCAL-ACCESS.md', 'UPGRADING-2.1.md', 'RELEASE-NOTES.md')) {
+          foreach ($document in @('README.md', 'CHANGELOG.md', 'LOCAL-ACCESS.md', 'UPGRADING-2.1.md', 'RELEASE-NOTES.md')) {
               Copy-Item $document (Join-Path $releaseDir $document)
           }
           Copy-Item 'TeslaPowerwallLibrary/Tedapi/Protocol/UPSTREAM-LICENSE.txt' (Join-Path $releaseDir 'pypowerwall-LICENSE.txt')

@@ -4,6 +4,22 @@ All notable changes are documented here. This project follows [Semantic Versioni
 
 This changelog records shipped features, fixes, compatibility and runtime dependency changes. See [development and validation history](DEVELOPMENT-HISTORY.md) for tests, CI, build tooling and work not yet released.
 
+## 2.2.0 — 2026-10-17
+
+### Added
+
+- Request 23 additional Powerwall 3 battery-health, inverter, safety and identity signals through the June 2024 TEDAPI query. Preserve reported numeric, text and boolean values and the vendor-signed query captures.
+- Typed nullable gateway sync-board uptime and boot estimates, with `GetLocalGatewayUptimeAsync()` and the console's `local-uptime` command. Availability depends on hardware and query version; the June 2026 capture cannot request this signal.
+- Typed local site ratings, meter limits, panel current, grid-code metadata and battery commission dates. Desktop details include site metadata and battery-health labels with documented units.
+- A separate `GatewayStatus.InstallationDate`, shown separately from boot time in the desktop and console.
+
+### Fixed
+
+- Match both wired and Wi-Fi Tesla remote meters to their configured locations, CT assignments and scaling.
+- Stop reporting cloud installation dates as gateway boot times or supplying an invented firmware hash/sync type. TEDAPI status uses its reported firmware hash and supported uptime; unavailable metadata remains null.
+
+Existing public signatures, nullable status-property types and classic gateway defaults are retained. Cloud callers should use `InstallationDate` for installation metadata. Both TEDAPI query formats remain supported; their dates identify captured query sets, and June 2024 remains the default. See [release notes](RELEASE-NOTES.md).
+
 ## 2.1.0 — 2026-10-08
 
 ### Added

@@ -72,7 +72,12 @@ public sealed partial class SystemViewModel : ViewModelBase
 			AddDetail ("Firmware", "Update progress (device scale)", telemetry.Powerwall3Bus?.FirmwareUpdate?.Progress?.Progress);
 			AddDetail ("Controller", "Device enumeration running", telemetry.Powerwall3Bus?.Enumeration?.InProgress);
 			var configuration = snapshot.Configuration;
-			if (!string.IsNullOrWhiteSpace (configuration.Site?.Name)) _connection.SetSiteName (configuration.Site.Name);
+			AddSiteDetails (configuration.Site);
+			var uptime = await _connection.Powerwall.GetLocalGatewayUptimeAsync (cancellationToken: cts.Token).ConfigureAwait (true);
+			AddDetail ("Gateway", "Sync-board uptime", uptime?.Uptime);
+			AddDetail ("Gateway", "Boot time estimate", uptime?.StartedAt);
+			if (!string.IsNullOrWhiteSpace (configuration.Site?.Name))
+				_connection.SetSiteName (configuration.Site.Name);
 			foreach (var meter in LocalMeterProjection.Create (configuration, telemetry))
 				foreach (var channel in meter.Channels)
 					{
@@ -92,12 +97,17 @@ public sealed partial class SystemViewModel : ViewModelBase
 			foreach (var device in snapshot.Devices)
 				{
 				if (device.Telemetry is null)
-					{ AddDetail (device.Din, "Unavailable", device.UnavailableReason); continue; }
-				if (device.Telemetry.Components is not { } families) continue;
+					{
+					AddDetail (device.Din, "Unavailable", device.UnavailableReason);
+					continue;
+					}
+				if (device.Telemetry.Components is not { } families)
+					continue;
 				foreach (var family in families)
-					foreach (var component in family.Value)
+					for (int index = 0; index < family.Value.Count; index++)
 						{
-						string name = device.Din + " / " + family.Key + " " + (component.SerialNumber ?? "unreported serial");
+						var component = family.Value[index];
+						string name = device.Din + " / " + family.Key + " [" + index + "] " + (component.SerialNumber ?? "unreported serial");
 						if (component.Signals is { } signals)
 							foreach (var signal in signals)
 								LocalMeasurements.Add (LocalMeasurementView.FromSignal (name, signal));
@@ -141,9 +151,14 @@ public sealed partial class SystemViewModel : ViewModelBase
 		{
 		async Task Read (string label, Func<Task<object?>> get)
 			{
-			try { AddBusDetails (await get ().ConfigureAwait (true), label); }
+			try
+				{
+				AddBusDetails (await get ().ConfigureAwait (true), label);
+				}
 			catch (Exception exc) when (exc is PowerwallException or System.Net.Http.HttpRequestException)
-				{ AddDetail (label, "Availability", exc.Message); }
+				{
+				AddDetail (label, "Availability", exc.Message);
+				}
 			}
 		await Read ("IEEE 2030.5", async () => await _connection.Powerwall.GetLocalIeee20305Async (cancellationToken: cancellationToken).ConfigureAwait (true)).ConfigureAwait (true);
 		await Read ("Inverter tests", async () => await _connection.Powerwall.GetLocalInverterSelfTestsAsync (cancellationToken: cancellationToken).ConfigureAwait (true)).ConfigureAwait (true);
@@ -163,7 +178,8 @@ public sealed partial class SystemViewModel : ViewModelBase
 				AddDetail (source, "Fan " + fan.Name + " target (RPM)", fan.TargetSpeedRpm);
 				AddDetail (source, "Fan " + fan.Name + " duty (%)", fan.DutyPercent);
 				}
-			foreach (var sensor in component.Temperatures) AddDetail (source, sensor.SignalName + " (°C)", sensor.Celsius);
+			foreach (var sensor in component.Temperatures)
+				AddDetail (source, sensor.SignalName + " (°C)", sensor.Celsius);
 			foreach (var input in component.SolarStrings)
 				{
 				string name = "PV input " + input.Name;
@@ -174,6 +190,22 @@ public sealed partial class SystemViewModel : ViewModelBase
 				AddDetail (source, name + " calculated power (W)", input.PowerWatts);
 				}
 			}
+		}
+
+	/// <summary>Displays configured site ratings with explicit units and without inventing grid settings.</summary>
+	/// <param name="site">Reported site configuration, or null.</param>
+	internal void AddSiteDetails (LocalSiteConfiguration? site)
+		{
+		AddDetail ("Site", "Nominal energy (kWh)", site?.NominalEnergyKilowattHours);
+		AddDetail ("Site", "Nominal power (kW)", site?.NominalPowerKilowatts);
+		AddDetail ("Site", "Maximum site-meter limit (reported)", site?.MaximumSiteMeterPower);
+		AddDetail ("Site", "Minimum site-meter limit (reported)", site?.MinimumSiteMeterPower);
+		AddDetail ("Site", "Panel maximum current (A)", site?.PanelMaximumCurrentAmps);
+		AddDetail ("Site", "Grid code", site?.GridCode);
+		AddDetail ("Site", "Country", site?.Country);
+		AddDetail ("Site", "State or region", site?.State);
+		AddDetail ("Site", "Utility", site?.Utility);
+		AddDetail ("Site", "Battery commissioned", site?.BatteryCommissionDate);
 		}
 
 	private void AddMeters (string source, MeterAggregates meters)
@@ -202,13 +234,21 @@ public sealed partial class SystemViewModel : ViewModelBase
 			AddDetail ("Legacy bus", path + " / Availability", "Unavailable (message missing or incomplete)");
 			return;
 			}
-		if (value is LocalDiagnosticScalar scalar) { AddDetail ("Local diagnostics", path, scalar.ToString ()); return; }
+		if (value is LocalDiagnosticScalar scalar)
+			{
+			AddDetail ("Local diagnostics", path, scalar.ToString ());
+			return;
+			}
 		if (value is null || value is string || value.GetType ().IsValueType)
-			{ AddDetail ("Local diagnostics", path, value); return; }
+			{
+			AddDetail ("Local diagnostics", path, value);
+			return;
+			}
 		if (value is System.Collections.IEnumerable entries)
 			{
 			int index = 0;
-			foreach (var entry in entries) AddBusDetails (entry, path + " [" + index++ + "]");
+			foreach (var entry in entries)
+				AddBusDetails (entry, path + " [" + index++ + "]");
 			return;
 			}
 		foreach (var property in value.GetType ().GetProperties (System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
@@ -225,14 +265,20 @@ public sealed partial class SystemViewModel : ViewModelBase
 		LocalMeasurements.Add (new LocalMeasurementView (source, name, value is null ? "Unavailable" : Convert.ToString (value, CultureInfo.CurrentCulture) ?? "Unavailable", null));
 
 	/// <summary>Gets the per-battery block summaries.</summary>
-	public ObservableCollection<BatteryBlockView> Batteries { get; }
+	public ObservableCollection<BatteryBlockView> Batteries
+		{
+		get;
+		}
 
 	/// <summary>Gets or sets whether alert state was successfully read for the current system.</summary>
 	[ObservableProperty]
 	private string _alertsStatus = "Alert status has not been read.";
 
 	/// <summary>Gets the active alert names.</summary>
-	public ObservableCollection<string> Alerts { get; }
+	public ObservableCollection<string> Alerts
+		{
+		get;
+		}
 
 	/// <summary>Gets or sets the gateway firmware version.</summary>
 	[ObservableProperty]
@@ -245,6 +291,14 @@ public sealed partial class SystemViewModel : ViewModelBase
 	/// <summary>Gets or sets the gateway uptime.</summary>
 	[ObservableProperty]
 	private string? _uptime;
+
+	/// <summary>Gets or sets the reported gateway boot time, separately from installation.</summary>
+	[ObservableProperty]
+	private string? _startedAt;
+
+	/// <summary>Gets or sets the cloud-reported installation date.</summary>
+	[ObservableProperty]
+	private string? _installationDate;
 
 	/// <summary>Gets or sets the connection mode label.</summary>
 	[ObservableProperty]
@@ -263,6 +317,8 @@ public sealed partial class SystemViewModel : ViewModelBase
 		Version = null;
 		Din = null;
 		Uptime = null;
+		StartedAt = null;
+		InstallationDate = null;
 		Batteries.Clear ();
 		Alerts.Clear ();
 		HasAlerts = false;
@@ -282,6 +338,8 @@ public sealed partial class SystemViewModel : ViewModelBase
 			Version = status?.Version ?? "unknown";
 			Din = status?.Din ?? "unknown";
 			Uptime = status?.UpTimeSeconds ?? "unknown";
+			StartedAt = status?.StartTime ?? "Unavailable";
+			InstallationDate = status?.InstallationDate ?? "Unavailable";
 
 			await LoadBatteriesAsync (powerwall, cts.Token).ConfigureAwait (true);
 			await LoadAlertsAsync (powerwall, cts.Token).ConfigureAwait (true);
@@ -323,7 +381,8 @@ public sealed partial class SystemViewModel : ViewModelBase
 	internal void ApplyAlerts (System.Collections.Generic.IEnumerable<string> alerts, DateTimeOffset receivedAt)
 		{
 		Alerts.Clear ();
-		foreach (var alert in alerts.Distinct (StringComparer.Ordinal)) Alerts.Add (alert);
+		foreach (var alert in alerts.Distinct (StringComparer.Ordinal))
+			Alerts.Add (alert);
 		HasAlerts = Alerts.Count > 0;
 		AlertsStatus = (HasAlerts ? $"{Alerts.Count} reported status and diagnostic codes." : "No codes returned in this response; this does not confirm system health.")
 			+ $" Response received {receivedAt:g}. Reopen this page or choose Reload to update.";
@@ -344,16 +403,28 @@ public sealed class BatteryBlockView
 		}
 
 	/// <summary>Gets the battery package serial number.</summary>
-	public string Serial { get; }
+	public string Serial
+		{
+		get;
+		}
 
 	/// <summary>Gets the formatted remaining / full pack energy.</summary>
-	public string EnergyText { get; }
+	public string EnergyText
+		{
+		get;
+		}
 
 	/// <summary>Gets the formatted instantaneous output power.</summary>
-	public string PowerText { get; }
+	public string PowerText
+		{
+		get;
+		}
 
 	/// <summary>Gets the inverter grid state.</summary>
-	public string State { get; }
+	public string State
+		{
+		get;
+		}
 
 	/// <summary>Creates a display projection from a battery serial and its <see cref="BatteryBlock"/>.</summary>
 	/// <param name="serial">The battery package serial number.</param>
@@ -385,7 +456,16 @@ public sealed record LocalMeasurementView (string Source, string Name, string Va
 	/// <param name="signal">Typed device signal.</param>
 	/// <returns>A display row retaining false and zero as real readings.</returns>
 	public static LocalMeasurementView FromSignal (string source, LocalSignal signal) =>
-		new (source, signal.Name ?? "Unnamed signal",
+		new (source, signal.Name switch
+			{
+				"BMS_kwhDischargeTotal" => "Lifetime battery discharge (kWh)",
+				"BMS_LOG_ahDischargeTotal" => "Lifetime battery discharge (Ah)",
+				"BMS_LOG_cacAvg" => "Average battery capacity (Ah)",
+				"BMS_LOG_numFullBattCycles" => "Full battery cycles (reported)",
+				"BMS_LOG_overDischargeCounter" => "Over-discharge count",
+				"BMS_LOG_selfDischargeRate" => "Self-discharge rate (reported)",
+				_ => signal.Name ?? "Unnamed signal"
+				},
 			signal.Value?.ToString ("G", CultureInfo.CurrentCulture) ?? signal.TextValue ?? signal.BoolValue?.ToString () ?? "Unavailable",
 			signal.Timestamp);
 	}

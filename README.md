@@ -1,6 +1,6 @@
 # TeslaPowerwallLibrary
 
-**Version 2.1.0** adds local TEDAPI support. Existing 2.0 callers retain their public API and classic gateway defaults. See [upgrading to 2.1](UPGRADING-2.1.md).
+**Version 2.2.0** adds Powerwall 3 battery-health signals, gateway uptime and richer typed site metadata, and fixes Wi-Fi remote-meter configuration and cloud status reporting. Existing public signatures and classic gateway defaults remain compatible. See [release notes and compatibility details](RELEASE-NOTES.md).
 
 For shipped changes, see the [changelog](CHANGELOG.md). Test, CI and build history is recorded separately in [development and validation history](DEVELOPMENT-HISTORY.md).
 
@@ -25,6 +25,7 @@ Tesla and Powerwall are trademarks of Tesla, Inc. This project is an independent
 - Local gateway and TEDAPI telemetry, diagnostics and explicit controls; calendar history uses Owner or Fleet
 - Signed Powerwall 3 LAN access, separate cloud-assisted key enrollment, and hostname/IP configuration with optional discovery
 - Nullable power readings that distinguish unreported values from measured zeroes
+- Typed PW3 health/capacity counters, inverter and safety signals, and nullable gateway sync-board uptime where reported
 - Tesla Owners (cloud) API access, with OAuth credentials acquired through the companion login tools and optional token persistence
 - Control operations such as backup reserve level, operating mode, grid charging, grid export, and Storm Watch (cloud only)
 - Response caching with configurable expiry to reduce load on the gateway
@@ -82,6 +83,33 @@ var readings = await powerwall.GetPowerReadingsAsync();
 Select `PowerwallLocalProtocol.TedapiSigned` and supply the local customer password plus a previously verified, caller-owned RSA-4096 key. See the [local-access guide](LOCAL-ACCESS.md) for a complete example, enrollment through an existing Owner or Fleet account, discovery and query selection. Key enrollment is a separate authorization operation; normal local connections do not use the cloud.
 
 The library reads only when called. `CacheExpireSeconds` controls response reuse, not a polling loop. The consumer chooses when to read. `GetPowerReadingsAsync()` preserves missing flows as null; `PowerAsync()` retains its released zero-default contract for existing callers.
+
+### Battery health, uptime and query selection
+
+Component reads expose the additional PW3 signals through typed `LocalSignal` numeric, text and boolean fields. These include lifetime discharge, capacity and cycle counters; no state-of-health percentage is inferred. Local configuration also exposes site ratings, raw meter limits, panel current, grid-code metadata and the battery commission date.
+
+```csharp
+var uptime = await powerwall.GetLocalGatewayUptimeAsync();
+if (uptime is not null)
+{
+    Console.WriteLine($"Sync-board uptime: {uptime.Uptime}");
+    Console.WriteLine($"Gateway boot estimate: {uptime.StartedAt:O}");
+}
+// Null means this hardware/query cannot provide a usable uptime sample.
+```
+
+The dates in `TedapiQueryVersion` identify captured query formats, not library release dates or firmware age. Both formats remain supported:
+
+| Query set | Selection and capabilities |
+| --- | --- |
+| `June2024` | Default since TEDAPI was introduced in 2.1.0. Supports additional signal-name variables, including the six new BMS health counters and `SYNC_Uptime` on compatible hardware. |
+| `June2026` | Optional newer signed captures. Already selects 17 of the 23 added PW3 signals, but cannot request these six BMS counters or gateway uptime through its captured queries. |
+
+There is no automatic cross-version fallback. The date alone does not identify a richer query set. See [local access](LOCAL-ACCESS.md) for hardware and transport limits.
+
+### Status metadata compatibility
+
+`StartTime`, `UpTimeSeconds` and `GitHash` keep their existing nullable string types. Owner/Fleet status now leaves them null when the cloud does not report them. The cloud installation date is available as `GatewayStatus.InstallationDate`; it is no longer presented as a gateway boot time. `SyncType` is `"unknown"` for these cloud mappings. TEDAPI status uses its reported firmware hash and supported uptime. [Release notes](RELEASE-NOTES.md) describe this intentional correction.
 
 ### Connect using the Tesla Owners cloud API
 
@@ -310,12 +338,3 @@ Fleet connections default to automatic account-region discovery through Tesla's 
 The publish/release workflows support an explicit manual override when the processor or local self-hosted GitHub Actions runner is unavailable. Select `skip_hardware_checks` and provide a single-line `hardware_skip_reason`. Use the workflow's normal source and version controls. The override applies only to that invocation and is recorded with the exact source revision in its warning and job summary; it does not create a passing hardware-test result.
 
 GitHub-hosted validation remains mandatory for the checked-out source, and the normal build, tests and packaging steps still run. Wait for the configured hosted workflows to pass, or run them on the same source revision first. None of these hosted checks needs the local runner or processor. Automatic tag/release-triggered runs retain the normal hardware checks; use a manual invocation of the updated release workflow when an offline override is needed.
-## NUnit 5 test tooling
-
-All maintained NUnit suites use the official NUnit 5.0.0 framework. Async exception assertions are awaited, and discarded-task warnings fail test builds. Processor test packages use CrestronHomeNUnit SDK 2.2.0; workflow and Android suites, where provided, use the released 2.2.0 adapter. Tests remain available in Visual Studio, VS Code and the command line. Live and manual tests still require their documented devices and permissions. This is a test-tooling update; the published product version and runtime behavior are unchanged.
-
-## NUnit 5 test package
-
-Test package **1.1.0** uses **NUnit 5.0.0**. It is independent of the product version. [Download package](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases/download/v2.0.0/TeslaPowerwallLibrary.ProcessorTests-1.1.0.pkg), [documentation](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases/download/v2.0.0/TeslaPowerwallLibrary.ProcessorTests-1.1.0-Documentation.zip), [validation](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases/download/v2.0.0/TeslaPowerwallLibrary.ProcessorTests-1.1.0.validation.json), [exact source revisions](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases/download/v2.0.0/TeslaPowerwallLibrary.ProcessorTests-1.1.0.sources.json), and [SHA-256 checksums](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases/download/v2.0.0/TeslaPowerwallLibrary.ProcessorTests-1.1.0-SHA256SUMS.txt) are attached to the existing product release. No product binary or NuGet version changed for this test update.
-
-Validated on 1 October 2026: 142 offline cases passed in each of two runs from the packaged assembly on Windows. All suite identities were checked against source discovery. Live/manual tests and execution on the processor were not repeated during this migration; earlier hardware results do not certify this new package.

@@ -42,8 +42,14 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 	/// <param name="timeout">Per-request timeout.</param>
 	/// <param name="host">Hostname or IP address with an optional HTTPS port.</param>
 	public PowerwallTedapiClient (string gatewayPassword, int cacheExpireSeconds, TimeSpan timeout, string host = Constants.GW_IP)
-		: this (new PowerwallOptions { Host = host, GatewayPassword = gatewayPassword,
-			LocalProtocol = PowerwallLocalProtocol.Tedapi, CacheExpireSeconds = cacheExpireSeconds, Timeout = timeout })
+		: this (new PowerwallOptions
+			{
+			Host = host,
+			GatewayPassword = gatewayPassword,
+			LocalProtocol = PowerwallLocalProtocol.Tedapi,
+			CacheExpireSeconds = cacheExpireSeconds,
+			Timeout = timeout
+			})
 		{
 		}
 
@@ -91,7 +97,11 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 			UseProxy = false,
 			// Gateway certificates are self-signed. This handler is private to this local endpoint.
 			ServerCertificateCustomValidationCallback = static (_, _, _, _) => true
-			}) { Timeout = options.Timeout, MaxResponseContentBufferSize = 8 * 1024 * 1024 };
+			})
+			{
+			Timeout = options.Timeout,
+			MaxResponseContentBufferSize = 8 * 1024 * 1024
+			};
 		}
 
 	/// <summary>Gets the configured gateway password. Treat this value as a secret.</summary>
@@ -125,6 +135,7 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 			_din = null;
 			_token = null;
 			_nativeToken = null;
+			_gatewayUptime.Reset ();
 			_cache.Clear ();
 			if (BareEnvelope)
 				{
@@ -321,7 +332,15 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 	private async Task<GatewayStatus> ReadStatusAsync (bool force, CancellationToken cancellationToken)
 		{
 		var information = await GetSystemInformationAsync (force, cancellationToken).ConfigureAwait (false);
-		return new GatewayStatus { Din = information.Din, Version = information.Version?.Version };
+		var uptime = await GetGatewayUptimeAsync (force, cancellationToken).ConfigureAwait (false);
+		return new GatewayStatus
+			{
+			Din = information.Din,
+			Version = information.Version?.Version,
+			GitHash = information.Version?.GitHash,
+			StartTime = uptime is null ? null : FormatGatewayStart (uptime.StartedAt),
+			UpTimeSeconds = uptime is null ? null : FormatUptime (uptime.Uptime)
+			};
 		}
 
 	private Legacy.MessageEnvelope Envelope () => new ()
@@ -342,7 +361,7 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 			{
 			byte[] request = IsSigned
 				? TedapiSigning.Sign (_options.LocalSigningKey!, _din!, envelope,
-					checked ((uint)(DateTimeOffset.UtcNow.ToUnixTimeSeconds () + 13))).ToByteArray ()
+					checked((uint)(DateTimeOffset.UtcNow.ToUnixTimeSeconds () + 13))).ToByteArray ()
 				: IsBearer ? new Signed.AuthEnvelope { Payload = ByteString.CopyFrom (envelope), ExternalAuth = new Signed.ExternalAuth { Type = (Signed.ExternalAuthType)1 } }.ToByteArray ()
 				: new Graphql.Frame { Message = ByteString.CopyFrom (envelope), Tail = new Graphql.Tail { Value = routedDin is null ? 1 : 2 } }.ToByteArray ();
 			try
@@ -351,7 +370,8 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 				if (IsBearer)
 					{
 					var payload = Signed.AuthEnvelope.Parser.ParseFrom (response).Payload;
-					if (payload.IsEmpty) throw new PowerwallConnectionException ("The gateway returned an empty authenticated envelope.");
+					if (payload.IsEmpty)
+						throw new PowerwallConnectionException ("The gateway returned an empty authenticated envelope.");
 					return ValidateEnvelope (payload.ToByteArray ());
 					}
 				if (!IsSigned)
@@ -392,7 +412,9 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 		{
 		var login = new LocalLoginRequest
 			{
-			Username = IsBearer ? "installer" : "customer", Password = IsBearer ? GatewayPassword : _options.Password, Email = IsBearer ? "installer@tesla.com" : Email,
+			Username = IsBearer ? "installer" : "customer",
+			Password = IsBearer ? GatewayPassword : _options.Password,
+			Email = IsBearer ? "installer@tesla.com" : Email,
 			ClientInfo = new LocalClientInfo { Timezone = _options.Timezone }
 			};
 		byte[] payload = await SendAsync (HttpMethod.Post, "/api/login/Basic",
@@ -445,7 +467,7 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 			using var expanded = new MemoryStream ();
 			var buffer = new byte[8192];
 			int read;
-			#if NETFRAMEWORK
+#if NETFRAMEWORK
 			while ((read = await gzip.ReadAsync (buffer, 0, buffer.Length, cancellationToken).ConfigureAwait (false)) != 0)
 #else
 			while ((read = await gzip.ReadAsync (buffer.AsMemory (), cancellationToken).ConfigureAwait (false)) != 0)
@@ -490,24 +512,27 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 			}
 		object? result = api switch
 			{
-			"/api/meters/aggregates" => new MeterAggregates
-				{
-				Site = Reading (telemetry, "SITE"), Solar = Reading (telemetry, "SOLAR"),
-				Battery = Reading (telemetry, "BATTERY"), Load = Reading (telemetry, "LOAD")
-				},
-			"/api/system_status/soe" => energy?.FullCapacityWattHours > 0 && energy.RemainingWattHours.HasValue
-				? new StateOfEnergy { Percentage = energy.RemainingWattHours.Value / energy.FullCapacityWattHours.Value * 100 } : null,
-			"/api/system_status" => new SystemStatus
-				{
-				NominalFullPackEnergy = energy?.FullCapacityWattHours, NominalEnergyRemaining = energy?.RemainingWattHours,
-				AvailableBlocks = telemetry.Control?.BatteryBlocks?.Count,
-				BatteryBlocks = batteries,
-				SystemIslandState = telemetry.Control?.Islanding?.ContactorClosed is bool closed ? closed ? "SystemGridConnected" : "SystemIslandedActive" : null
-				},
-			"/api/system_status/grid_status" => telemetry.Control?.Islanding?.ContactorClosed is bool connected
-				? new GridStatusResponse { GridStatus = connected ? "SystemGridConnected" : "SystemIslandedActive" } : null,
-			_ => throw new PowerwallNotSupportedException ("This TEDAPI endpoint is not implemented: " + api)
-			};
+				"/api/meters/aggregates" => new MeterAggregates
+					{
+					Site = Reading (telemetry, "SITE"),
+					Solar = Reading (telemetry, "SOLAR"),
+					Battery = Reading (telemetry, "BATTERY"),
+					Load = Reading (telemetry, "LOAD")
+					},
+				"/api/system_status/soe" => energy?.FullCapacityWattHours > 0 && energy.RemainingWattHours.HasValue
+					? new StateOfEnergy { Percentage = energy.RemainingWattHours.Value / energy.FullCapacityWattHours.Value * 100 } : null,
+				"/api/system_status" => new SystemStatus
+					{
+					NominalFullPackEnergy = energy?.FullCapacityWattHours,
+					NominalEnergyRemaining = energy?.RemainingWattHours,
+					AvailableBlocks = telemetry.Control?.BatteryBlocks?.Count,
+					BatteryBlocks = batteries,
+					SystemIslandState = telemetry.Control?.Islanding?.ContactorClosed is bool closed ? closed ? "SystemGridConnected" : "SystemIslandedActive" : null
+					},
+				"/api/system_status/grid_status" => telemetry.Control?.Islanding?.ContactorClosed is bool connected
+					? new GridStatusResponse { GridStatus = connected ? "SystemGridConnected" : "SystemIslandedActive" } : null,
+				_ => throw new PowerwallNotSupportedException ("This TEDAPI endpoint is not implemented: " + api)
+				};
 		return result is null ? null : JsonHelper.Serialize (result);
 		}
 
@@ -553,6 +578,7 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 			_din = null;
 			_token = null;
 			_nativeToken = null;
+			_gatewayUptime.Reset ();
 			_cache.Clear ();
 			}
 		finally
@@ -574,7 +600,10 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 		using Stream stream = typeof (PowerwallTedapiClient).Assembly.GetManifestResourceStream (
 			"TeslaPowerwallLibrary.Tedapi.Protocol." + resource)!;
 		using var reader = new StreamReader (stream);
-		return JsonHelper.Deserialize<Dictionary<string, QueryDefinition>> (reader.ReadToEnd ())!;
+		var queries = JsonHelper.Deserialize<Dictionary<string, QueryDefinition>> (reader.ReadToEnd ())!;
+		return resource == "Queries.data"
+			? queries.ToDictionary (entry => entry.Key, entry => WithAdditionalSignals (entry.Key, entry.Value), StringComparer.Ordinal)
+			: queries;
 		}
 
 	/// <summary>Issues one June 2026 vendor-signed query through the selected local transport.</summary>

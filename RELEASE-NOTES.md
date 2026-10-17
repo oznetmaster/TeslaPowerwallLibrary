@@ -1,31 +1,56 @@
-# TeslaPowerwallLibrary 2.1.0
+# TeslaPowerwallLibrary 2.2.0
 
-Released 8 October 2026.
+17 October 2026.
 
-This release adds local TEDAPI support to the existing Owner, Fleet and classic gateway clients. Signed Powerwall 3 connections over Ethernet or home Wi-Fi provide on-demand local telemetry without cloud authentication during normal operation.
+This release expands local Powerwall 3 telemetry and corrects remote-meter and cloud status reporting. It targets .NET Framework 4.7.2 and .NET 10, preserves existing public signatures and retains the classic gateway connection defaults.
 
-## Library
+## Battery health and local telemetry
 
-- Typed controller, battery, expansion, meter, PV, temperature, fan, firmware and diagnostic readings.
-- Signed LAN, setup-network Basic and installer bearer transports; explicit RSA signing-key registration and status through an existing Owner or Fleet connection.
-- Hostname/IP configuration, DNS-SD discovery, bounded LAN DNS resolution, configurable caching and optional local read failover.
-- Explicit partial operating settings, manual backup and grid controls. TEDAPI writes require signed access and session permission.
-- Nullable `GetPowerReadingsAsync()` for callers that need to distinguish missing data from a measured zero.
+- Request 23 additional PW3 battery-health, inverter, safety and identity signals through the default June 2024 component query. The six BMS additions expose lifetime discharge, average capacity, cycle count, over-discharge count and reported self-discharge rate.
+- Preserve numeric, text and boolean values through the existing typed signal/component models, including real zero and false. Missing values stay unavailable; no state-of-health percentage or undocumented unit conversion is inferred.
+- Extend typed site configuration with nominal energy/power, raw site-meter limits, panel current, grid-code metadata and battery commission date.
+- Recognize both `trm_mb` and `trm_wifi` remote-meter configuration so location, enabled CT slots and scaling are retained.
 
-The existing `PowerAsync()`/`PowerSnapshot` contract, public API and classic gateway defaults remain compatible with 2.0.0. See [upgrading to 2.1](UPGRADING-2.1.md). The library continues to target .NET Framework 4.7.2 and .NET 10.
+Vendor query text, signatures and signed bytes are unchanged. Additional June 2024 signal names use unsigned request variables.
 
-See [choosing a connection](LOCAL-ACCESS.md#choosing-a-connection) for authentication, data freshness and the tradeoffs between cloud and local access.
+## Gateway uptime
+
+`Powerwall.GetLocalGatewayUptimeAsync()` and `PowerwallTedapiClient.GetGatewayUptimeAsync()` return a nullable `LocalGatewayUptime` with `Uptime`, `GatewayTime` and `StartedAt`. The library matches `SYNC_Uptime` to the actual sync-board serial and uses the gateway clock from the same response. Per-connection boot estimates tolerate publication jitter and reset with the session. Counter precision is consistent on both target runtimes.
+
+Supported TEDAPI `StatusAsync()` and `UptimeAsync()` also expose this measurement, retaining their existing duration-string contract. TEDAPI status may read detailed controller telemetry to obtain uptime; normal caching still applies. Sites without a suitable sync board or usable clock/counter return null. This measures gateway sync-board uptime, not the uptime of each battery or inverter.
+
+## Query formats remain supported
+
+`June2024` and `June2026` identify captured query formats, not library release dates or device firmware age. Neither is marked obsolete. June 2024 remains the default, as it was when TEDAPI support shipped in 2.1.0.
+
+The June 2026 capture already selects 17 of the 23 additional PW3 signals. Its captured signed queries do not select the six additional BMS counters or `SYNC_Uptime`, and cannot accept these additions through the June 2024 variable mechanism. Those values remain unavailable under June 2026. There is no automatic cross-version fallback.
+
+## Cloud status correction and compatibility
+
+Owner/Fleet status no longer presents installation date as gateway boot time or supplies a hard-coded firmware hash and sync type.
+
+| Property | Behavior in 2.2.0 |
+| --- | --- |
+| `StartTime` | Null when the backend does not report an actual gateway boot time. |
+| `UpTimeSeconds` | Existing nullable duration string; null when uptime is unavailable. |
+| `GitHash` | Reported firmware hash for TEDAPI; null for cloud mappings without this information. |
+| `InstallationDate` | New nullable property retaining the cloud installation date separately. |
+| `SyncType` | `"unknown"` for Owner/Fleet status mappings. |
+
+`StartTime`, `UpTimeSeconds` and `GitHash` were already nullable strings; their public types are unchanged. Applications displaying installation metadata should use `InstallationDate`. Consumers that relied on the previous fabricated values will observe this correction.
+
+The assembly identity remains `2.0.0.0`; NuGet/file versions become `2.2.0`/`2.2.0.0`. API/package validation against released 2.1.0 passes on both targets without compatibility suppressions. Runtime dependency versions are unchanged. Deploy the complete resolved dependency graph. Upgrades from 2.0 should also follow [the 2.1 guide](UPGRADING-2.1.md); upgrades from 1.x require [the serialization/logging migration](MIGRATION-SystemTextJson.md).
 
 ## Desktop app and console
 
-The Windows desktop app supports local connections, detailed diagnostics, configurable refresh and read-only controls that can be enabled for a session. Local samples take precedence over overlapping cloud history. Earlier history can be retrieved through a saved Owner or Fleet account for the associated site and cached by the app. Power charts retain missing intervals; energy charts use bars.
-
-The console exposes local discovery, connection details, telemetry, diagnostics, enrollment and guarded commands in one-shot and interactive modes. Reads are on demand. Both tools display missing telemetry as unavailable.
+- Desktop details label battery-health units and show site metadata, sync-board uptime and a boot estimate. Component slot indexes distinguish repeated or unreported serials; slots are not presented as a count of physical batteries.
+- Desktop gateway information and console `status` show installation date separately from boot time.
+- Console `local-uptime` reads typed nullable gateway uptime in both one-shot and interactive modes. `local-components` and `local-configuration` expose the expanded typed data.
 
 ## Validation and limits
 
-The new 2.1.0 package is checked for backward compatibility with the previous 2.0.0 release on both target frameworks, without suppressing API differences. Offline tests cover protocol framing, attributed models, missing values, local defaults, control guards, history, console commands and desktop presentation. See [test instructions](TeslaPowerwallLibrary.Tests/README.md) and [development validation](DEVELOPMENT-HISTORY.md) for results.
+On Windows, all 424 offline library tests passed on each runtime, all 51 console tests passed on each runtime, and 126 desktop tests passed. Read-only live checks passed on both runtimes: four Owner cases, four Fleet cases, classic gateway telemetry, signed June 2024 and signed June 2026. The development device returned the additional BMS readings and usable gateway uptime under June 2024, while June 2026 correctly left those unavailable. Signal/slot counts do not establish physical battery counts.
 
-Signed LAN reads using both bundled query versions were exercised on one Powerwall 3 on net472 and .NET 10. The default signed query set also passed read-only checks through the Powerwall's home Wi-Fi address on both runtimes, confirming the same device identity and existing signing key. Backup reserve and operating-mode changes were confirmed and restored; Owner Storm Watch was separately confirmed and restored. Setup-network access, installer bearer, multiple physical devices and local failover have offline coverage only. Grid switching, backup scheduling, self-test, phase-detection and firmware-update procedures were not executed on the house system.
+These checks did not change device settings, enroll keys, switch the grid or start diagnostic procedures. Basic/setup-network and installer-bearer transport additions have offline wire coverage; this release's live additions were validated through the native gateway and signed LAN. The existing .NET Framework test build emits CS1685 for duplicate `RuntimeHelpers`; it does not cause test failures. This release does not claim new Linux/Mono, multi-device or physical diagnostic coverage.
 
-See [local access](LOCAL-ACCESS.md) for the capability matrix, pinned upstream protocol reference and exact validation boundaries. No unconditional claim of compatibility with every hardware or firmware variant is made.
+See [local access](LOCAL-ACCESS.md), [test instructions](TeslaPowerwallLibrary.Tests/README.md), [development history](DEVELOPMENT-HISTORY.md) and the [changelog](CHANGELOG.md) for capabilities, evidence and earlier changes. Protocol reference work follows [pypowerwall 0.20.0](https://github.com/jasonacox/pypowerwall/releases/tag/v0.20.0).

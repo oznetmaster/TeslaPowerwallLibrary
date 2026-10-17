@@ -2,7 +2,9 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System.CommandLine;
+
 using NUnit.Framework;
+
 using TeslaPowerwallLibrary.TestConsole;
 using TeslaPowerwallLibrary.Tedapi;
 
@@ -65,6 +67,7 @@ public sealed class LocalConsoleTests
 	[TestCase ("local-inverter-tests")]
 	[TestCase ("local-protection-tests")]
 	[TestCase ("local-system")]
+	[TestCase ("local-uptime")]
 	[TestCase ("local-meter-aggregates")]
 	[TestCase ("local-native-meters")]
 	[TestCase ("local-meters")]
@@ -120,9 +123,16 @@ public sealed class LocalConsoleTests
 	[Test]
 	public void SetupRoute_IsExplicitAndReadOnly ()
 		{
-		var primary = new PowerwallOptions { LocalProtocol = PowerwallLocalProtocol.TedapiSigned, Host = "lan.test",
-			Password = "customer-test", AccessToken = "cloud-test", AllowLocalControl = true,
-			LocalQueryVersion = TedapiQueryVersion.June2026, CacheExpireSeconds = 17 };
+		var primary = new PowerwallOptions
+			{
+			LocalProtocol = PowerwallLocalProtocol.TedapiSigned,
+			Host = "lan.test",
+			Password = "customer-test",
+			AccessToken = "cloud-test",
+			AllowLocalControl = true,
+			LocalQueryVersion = TedapiQueryVersion.June2026,
+			CacheExpireSeconds = 17
+			};
 		Assert.That (LocalConsoleResources.SetupOptions (primary, null, "ignored", false, 60), Is.Null);
 		var alternate = LocalConsoleResources.SetupOptions (primary, " setup.test ", "label-test", true, 45)!;
 		Assert.That (alternate.Host, Is.EqualTo ("setup.test"));
@@ -154,7 +164,8 @@ public sealed class LocalConsoleTests
 	private static RootCommand Root (bool canControl, Action connected)
 		{
 		var root = new RootCommand ();
-		foreach (var item in LocalConsoleCommands.Create ((_, _, _) => { connected (); return Task.FromResult (73); }, _ => canControl)) root.Subcommands.Add (item);
+		foreach (var item in LocalConsoleCommands.Create ((_, _, _) => { connected (); return Task.FromResult (73); }, _ => canControl))
+			root.Subcommands.Add (item);
 		return root;
 		}
 	}

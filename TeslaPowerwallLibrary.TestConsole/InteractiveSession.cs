@@ -65,7 +65,8 @@ internal static class InteractiveSession
 
 	private static async Task<bool> DispatchAsync (InteractiveConnection session, string command, string? argument, CancellationToken cancellationToken)
 		{
-		if (await LocalConsoleCommands.TryInteractiveAsync (session, command, argument, cancellationToken).ConfigureAwait (false)) return true;
+		if (await LocalConsoleCommands.TryInteractiveAsync (session, command, argument, cancellationToken).ConfigureAwait (false))
+			return true;
 		var powerwall = session.Powerwall;
 		switch (command)
 			{
@@ -397,7 +398,7 @@ internal static class InteractiveSession
 			return;
 			}
 
-		var tokens = argument!.Split ((char[]?) null, StringSplitOptions.RemoveEmptyEntries);
+		var tokens = argument!.Split ((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
 		var kind = tokens[0];
 		var period = tokens.Length > 1 ? tokens[1] : null;
 
@@ -418,7 +419,7 @@ internal static class InteractiveSession
 			return;
 			}
 
-		var tokens = argument!.Split ((char[]?) null, StringSplitOptions.RemoveEmptyEntries);
+		var tokens = argument!.Split ((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
 		var kind = tokens[0];
 		var period = tokens.Length > 1 ? tokens[1] : null;
 
@@ -444,7 +445,7 @@ internal static class InteractiveSession
 			return;
 			}
 
-		var tokens = argument!.Split ((char[]?) null, StringSplitOptions.RemoveEmptyEntries);
+		var tokens = argument!.Split ((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
 		var outputDirectory = tokens[0];
 		var period = tokens.Length > 1 ? tokens[1] : null;
 
@@ -464,7 +465,7 @@ internal static class InteractiveSession
 		Console.WriteLine ("  timeremaining     Estimated backup time remaining");
 		Console.WriteLine ("  system            Full system status with battery blocks");
 		Console.WriteLine ("  summary           Combined dashboard of the above");
-		Console.WriteLine ("  local-telemetry | local-detailed | local-components | local-devices | local-diagnostics | local-meters | local-system | local-meter-aggregates | local-native-meters | local-configuration   Read typed TEDAPI data once");
+		Console.WriteLine ("  local-telemetry | local-detailed | local-components | local-devices | local-diagnostics | local-meters | local-system | local-uptime | local-meter-aggregates | local-native-meters | local-configuration   Read typed TEDAPI data once");
 		Console.WriteLine ("  local-components [device-din]   Read controller or configured follower components");
 		Console.WriteLine ("  local-backup-events | local-connection | local-discover   Read local state or discover hosts");
 		Console.WriteLine ("  local-settings --reserve <0-100> --mode <mode> --grid-charging <true|false> --grid-export <rule>   Apply only supplied settings");

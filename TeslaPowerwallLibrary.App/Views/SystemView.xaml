@@ -37,6 +37,8 @@
 								<RowDefinition Height="Auto" />
 								<RowDefinition Height="Auto" />
 								<RowDefinition Height="Auto" />
+								<RowDefinition Height="Auto" />
+								<RowDefinition Height="Auto" />
 							</Grid.RowDefinitions>
 
 							<TextBlock Grid.Row="0" Grid.Column="0" Text="Mode" Style="{StaticResource MutedText}" Margin="0,0,0,6" />
@@ -50,6 +52,10 @@
 
 							<TextBlock Grid.Row="3" Grid.Column="0" Text="Uptime" Style="{StaticResource MutedText}" />
 							<TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Uptime}" />
+							<TextBlock Grid.Row="4" Grid.Column="0" Text="Boot time" Style="{StaticResource MutedText}" />
+							<TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding StartedAt}" />
+							<TextBlock Grid.Row="5" Grid.Column="0" Text="Installation date" Style="{StaticResource MutedText}" />
+							<TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding InstallationDate}" />
 						</Grid>
 					</StackPanel>
 				</Border>

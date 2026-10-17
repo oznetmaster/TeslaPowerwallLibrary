@@ -4,6 +4,7 @@
 using System.CommandLine;
 using System.Net.Sockets;
 using System.Text.Json;
+
 using TeslaPowerwallLibrary.Local;
 using TeslaPowerwallLibrary.Tedapi;
 
@@ -40,8 +41,14 @@ internal static class LocalConsoleCommands
 			catch (SocketException) { resolutionError = "Name lookup unavailable"; }
 			catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { resolutionError = "Name lookup timed out"; }
 			}
-		return new { deviceDin = powerwall.LocalDeviceIdentificationNumber, configuredHost = host,
-			resolvedIpAddresses = addresses, resolutionError, usingSetupNetwork = powerwall.IsUsingLocalReadFallback };
+		return new
+			{
+			deviceDin = powerwall.LocalDeviceIdentificationNumber,
+			configuredHost = host,
+			resolvedIpAddresses = addresses,
+			resolutionError,
+			usingSetupNetwork = powerwall.IsUsingLocalReadFallback
+			};
 		}
 
 	/// <summary>Builds the local command catalogue without opening a connection or loading credentials.</summary>
@@ -60,6 +67,7 @@ internal static class LocalConsoleCommands
 		Read ("local-telemetry", "Read current typed TEDAPI telemetry once.", (pw, ct) => pw.GetLocalTelemetryAsync (true, ct));
 		Read ("local-detailed", "Read detailed controller telemetry once.", (pw, ct) => pw.GetLocalDetailedTelemetryAsync (true, ct));
 		Read ("local-system", "Read hardware, firmware and update status without starting an update.", (pw, ct) => pw.GetLocalSystemInformationAsync (true, ct));
+		Read ("local-uptime", "Read gateway sync-board uptime when reported by the selected query.", (pw, ct) => pw.GetLocalGatewayUptimeAsync (true, ct));
 		Read ("local-meter-aggregates", "Read configured meter summaries.", (pw, ct) => pw.GetLocalMeterAggregatesAsync (true, ct));
 		Read ("local-native-meters", "Read native customer meter counters.", (pw, ct) => pw.GetLocalNativeMeterAggregatesAsync (true, ct));
 		Read ("local-meters", "Read configured meter channels.", (pw, ct) => pw.GetLocalMeterReadingsAsync (true, ct));
@@ -77,10 +85,10 @@ internal static class LocalConsoleCommands
 		components.Arguments.Add (device);
 		components.SetAction ((result, ct) => run (result, async (pw, token) =>
 			{
-			string? din = result.GetValue (device);
-			Write (din is null ? await pw.GetLocalComponentsAsync (true, token).ConfigureAwait (false)
-				: await pw.GetLocalComponentsAsync (din, true, token).ConfigureAwait (false));
-			return 0;
+				string? din = result.GetValue (device);
+				Write (din is null ? await pw.GetLocalComponentsAsync (true, token).ConfigureAwait (false)
+					: await pw.GetLocalComponentsAsync (din, true, token).ConfigureAwait (false));
+				return 0;
 			}, ct));
 		commands.Add (components);
 
@@ -88,24 +96,26 @@ internal static class LocalConsoleCommands
 			{
 			var command = new Command (name, "Explicit signed local control; requires --allow-local-control for this session.");
 			var minutes = new Argument<int> ("minutes") { Description = "Maximum-backup duration, 1 through 1440 minutes." };
-			if (name == "local-backup-start") command.Arguments.Add (minutes);
+			if (name == "local-backup-start")
+				command.Arguments.Add (minutes);
 			command.SetAction ((result, ct) =>
 				{
-				if (!canControl (result)) return Denied ();
-				int duration = name == "local-backup-start" ? result.GetValue (minutes) : 0;
-				if (name == "local-backup-start" && (duration < 1 || duration > 1440))
-					return Invalid ("Choose a backup duration between 1 and 1440 minutes.");
-				return run (result, async (pw, token) =>
-					{
-					bool acknowledged = name switch
+					if (!canControl (result))
+						return Denied ();
+					int duration = name == "local-backup-start" ? result.GetValue (minutes) : 0;
+					if (name == "local-backup-start" && (duration < 1 || duration > 1440))
+						return Invalid ("Choose a backup duration between 1 and 1440 minutes.");
+					return run (result, async (pw, token) =>
 						{
-						"local-backup-start" => (await pw.ScheduleLocalMaxBackupAsync (TimeSpan.FromMinutes (duration), token).ConfigureAwait (false)).Acknowledged,
-						"local-backup-cancel" => (await pw.CancelLocalMaxBackupAsync (token).ConfigureAwait (false)).Acknowledged,
-						"local-off-grid" => (await pw.GoOffGridAsync (token).ConfigureAwait (false)).Acknowledged,
-						_ => (await pw.ReconnectGridAsync (token).ConfigureAwait (false)).Acknowledged
-						};
-					return Acknowledgement (acknowledged);
-					}, ct);
+							bool acknowledged = name switch
+								{
+									"local-backup-start" => (await pw.ScheduleLocalMaxBackupAsync (TimeSpan.FromMinutes (duration), token).ConfigureAwait (false)).Acknowledged,
+									"local-backup-cancel" => (await pw.CancelLocalMaxBackupAsync (token).ConfigureAwait (false)).Acknowledged,
+									"local-off-grid" => (await pw.GoOffGridAsync (token).ConfigureAwait (false)).Acknowledged,
+									_ => (await pw.ReconnectGridAsync (token).ConfigureAwait (false)).Acknowledged
+									};
+							return Acknowledgement (acknowledged);
+						}, ct);
 				});
 			commands.Add (command);
 			}
@@ -115,24 +125,33 @@ internal static class LocalConsoleCommands
 		var mode = new Option<string?> ("--mode") { Description = "self_consumption, autonomous or backup." };
 		var charging = new Option<bool?> ("--grid-charging") { Arity = ArgumentArity.ExactlyOne, Description = "true or false; omitted leaves this setting unchanged." };
 		var export = new Option<string?> ("--grid-export") { Description = "battery_ok, pv_only or never." };
-		settings.Options.Add (reserve); settings.Options.Add (mode); settings.Options.Add (charging); settings.Options.Add (export);
+		settings.Options.Add (reserve);
+		settings.Options.Add (mode);
+		settings.Options.Add (charging);
+		settings.Options.Add (export);
 		settings.SetAction ((result, ct) =>
 			{
-			if (!canControl (result)) return Denied ();
-			LocalSettingsUpdate update;
-			try { update = Settings (result.GetValue (reserve), result.GetValue (mode), result.GetValue (charging), result.GetValue (export)); }
-			catch (ArgumentException exc) { return Invalid (exc.Message); }
-			return run (result, async (pw, token) => Acknowledgement ((await pw.UpdateLocalSettingsAsync (update, token).ConfigureAwait (false)).Acknowledged), ct);
+				if (!canControl (result))
+					return Denied ();
+				LocalSettingsUpdate update;
+				try
+					{
+					update = Settings (result.GetValue (reserve), result.GetValue (mode), result.GetValue (charging), result.GetValue (export));
+					}
+				catch (ArgumentException exc) { return Invalid (exc.Message); }
+				return run (result, async (pw, token) => Acknowledgement ((await pw.UpdateLocalSettingsAsync (update, token).ConfigureAwait (false)).Acknowledged), ct);
 			});
 		commands.Add (settings);
 
 		var discover = new Command ("local-discover", "Browse advertised local devices without logging in or selecting one.");
 		discover.SetAction (async (_, ct) =>
 			{
-			var candidates = await PowerwallDiscovery.DiscoverAsync (cancellationToken: ct).ConfigureAwait (false);
-			foreach (var candidate in candidates) Console.WriteLine ($"{candidate.Host}:{candidate.Port} - {string.Join (", ", candidate.Addresses)}");
-			if (candidates.Count == 0) Console.WriteLine ("No advertised devices found. An explicit hostname or IP address can still be used.");
-			return 0;
+				var candidates = await PowerwallDiscovery.DiscoverAsync (cancellationToken: ct).ConfigureAwait (false);
+				foreach (var candidate in candidates)
+					Console.WriteLine ($"{candidate.Host}:{candidate.Port} - {string.Join (", ", candidate.Addresses)}");
+				if (candidates.Count == 0)
+					Console.WriteLine ("No advertised devices found. An explicit hostname or IP address can still be used.");
+				return 0;
 			});
 		commands.Add (discover);
 		return commands;
@@ -146,10 +165,14 @@ internal static class LocalConsoleCommands
 	/// <returns>Typed settings with omitted fields left null.</returns>
 	internal static LocalSettingsUpdate Settings (double? reserve, string? mode, bool? charging, string? export)
 		{
-		if (reserve is double value && (double.IsNaN (value) || double.IsInfinity (value) || value < 0 || value > 100)) throw new ArgumentException ("Reserve must be between zero and 100 percent.");
-		if (mode is not (null or "self_consumption" or "autonomous" or "backup")) throw new ArgumentException ("Unsupported local operation mode.");
-		if (export is not (null or "battery_ok" or "pv_only" or "never")) throw new ArgumentException ("Unsupported local export rule.");
-		if (reserve is null && mode is null && charging is null && export is null) throw new ArgumentException ("Specify at least one setting to change.");
+		if (reserve is double value && (double.IsNaN (value) || double.IsInfinity (value) || value < 0 || value > 100))
+			throw new ArgumentException ("Reserve must be between zero and 100 percent.");
+		if (mode is not (null or "self_consumption" or "autonomous" or "backup"))
+			throw new ArgumentException ("Unsupported local operation mode.");
+		if (export is not (null or "battery_ok" or "pv_only" or "never"))
+			throw new ArgumentException ("Unsupported local export rule.");
+		if (reserve is null && mode is null && charging is null && export is null)
+			throw new ArgumentException ("Specify at least one setting to change.");
 		return new LocalSettingsUpdate { BackupReservePercent = reserve, OperationMode = mode, GridChargingEnabled = charging, GridExport = export };
 		}
 
@@ -163,8 +186,10 @@ internal static class LocalConsoleCommands
 		{
 		var root = new RootCommand ();
 		foreach (var item in Create ((_, action, ct) => action (session.Powerwall, ct),
-			_ => !session.Options.CloudMode && !session.Options.FleetApi && session.Options.LocalProtocol == PowerwallLocalProtocol.TedapiSigned && session.Options.AllowLocalControl)) root.Subcommands.Add (item);
-		if (!root.Subcommands.Any (item => item.Name == command)) return false;
+			_ => !session.Options.CloudMode && !session.Options.FleetApi && session.Options.LocalProtocol == PowerwallLocalProtocol.TedapiSigned && session.Options.AllowLocalControl))
+			root.Subcommands.Add (item);
+		if (!root.Subcommands.Any (item => item.Name == command))
+			return false;
 		await root.Parse (command + (string.IsNullOrWhiteSpace (arguments) ? string.Empty : " " + arguments)).InvokeAsync (cancellationToken: cancellationToken).ConfigureAwait (false);
 		return true;
 		}
@@ -180,14 +205,20 @@ internal static class LocalConsoleCommands
 		var resolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver ();
 		resolver.Modifiers.Add (info =>
 			{
-			if (info.Type != typeof (LocalIeee20305Registration)) return;
-			foreach (var property in info.Properties)
-				if (property.Name == "pin") property.ShouldSerialize = (_, _) => false;
+				if (info.Type != typeof (LocalIeee20305Registration))
+					return;
+				foreach (var property in info.Properties)
+					if (property.Name == "pin")
+						property.ShouldSerialize = (_, _) => false;
 			});
 		return JsonSerializer.Serialize (value, new JsonSerializerOptions { WriteIndented = true, TypeInfoResolver = resolver });
 		}
 	private static Task<int> Denied () => Invalid ("Local controls require a signed LAN session started with --allow-local-control.");
-	private static Task<int> Invalid (string message) { ConsoleHelpers.WriteError (message); return Task.FromResult (2); }
+	private static Task<int> Invalid (string message)
+		{
+		ConsoleHelpers.WriteError (message);
+		return Task.FromResult (2);
+		}
 	private static int Acknowledgement (bool acknowledged)
 		{
 		Console.WriteLine (acknowledged ? "Request acknowledged. Read the reported state to confirm its effect." : "Request was not acknowledged.");

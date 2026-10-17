@@ -1,5 +1,16 @@
 # Development and validation history
 
+## 2.2 release preparation — 17 October 2026
+
+- Compared the maintained 2.1.0 library with pypowerwall 0.19.0/0.20.0. Added the 23 PW3 signal names and `SYNC_Uptime` through unsigned June 2024 request variables; captured query text, signatures and signed bytes remain unchanged. June 2026 does not silently fall back to another query version.
+- Added nullable typed sync-board uptime and a per-connection boot estimate, preserving submillisecond counter precision on .NET Framework and .NET 10. Tests cover matching identities, zero, invalid clocks/counters, null records, jitter, resets, older samples, cancellation, caching and concurrent callers.
+- Corrected Owner/Fleet boot-time and firmware metadata semantics, retained the installation date in a separate nullable property, matched `trm_wifi` configurations and extended typed site metadata. Console and desktop show the additions; component rows include slot indexes so unreported/repeated serials remain distinguishable. No new raw JSON response API was added.
+- Offline validation passed on Windows: 424 library tests per runtime, 51 console tests per runtime and 126 desktop tests. Existing .NET Framework test builds still report CS1685 for duplicate `RuntimeHelpers`; no tests failed.
+- Read-only live validation passed on both runtimes: four Owner cases, four Fleet cases, classic gateway reads and both signed TEDAPI query versions. The June 2024 device response supplied 24 numeric BMS health signals across its component slots and a matched sync-board uptime. These are signal/slot counts, not a count of installed physical batteries. June 2026 supplied no additional BMS health counters and correctly returned null for unsupported uptime. No device settings, keys, grid state or diagnostic procedures were changed. Dedicated cloud test profiles released normally.
+- Prepared NuGet/file versions 2.2.0/2.2.0.0 while retaining assembly identity 2.0.0.0. SDK package/API validation against released 2.1.0 passed for both targets without suppressions. Existing public signatures and nullable property types are preserved. Cloud callers intentionally stop receiving installation dates as boot times or a fabricated firmware hash/sync type.
+- Updated the README, changelog, release notes, local guide and documentation home page for 2.2.0. Earlier independent test-package notes were moved from the README into this history. The package includes the changelog, release/local/upgrade guides, both framework assemblies with XML references and the unchanged upstream MIT notice.
+- Fresh-cache consumers restored the local stable 2.2.0 package with dependencies from public NuGet, then compiled and ran on both targets, checking retained API/assembly identity, release file version, nullable status metadata and typed uptime/site/signal round trips. The DocFX metadata and site preview both built with zero warnings/errors. No package or release has been published during this preparation.
+
 ## 2.1 release preparation — 8 October 2026
 
 - Merged-package discovery identified generated generic helpers inside an attributed live fixture as invalid fixtures. Moved the asynchronous journal helper into the unannotated support class; ordinary test identities and control guards are unchanged. Both library runtime suites still pass.
@@ -126,3 +137,17 @@ See the [product changelog](CHANGELOG.md) for shipped changes. This document pre
 ### Desktop local controls and alert presentation
 
 Added a session-only Settings control unlock without changing the library's read-only default. Offline tests exercise actual WPF reserve, mode and grid-charging controls, reject unexpected writes during unlock, retain the original connection after authentication failure, and clear permission on disconnect. System alert presentation retains firmware codes and response receipt time without treating every entry as a warning.
+
+## Historical test-tooling release notes — 1 October 2026
+
+Moved from the README during 2.2 release preparation; these describe the earlier independent test-package update.
+
+## NUnit 5 test tooling
+
+All maintained NUnit suites use the official NUnit 5.0.0 framework. Async exception assertions are awaited, and discarded-task warnings fail test builds. Processor test packages use CrestronHomeNUnit SDK 2.2.0; workflow and Android suites, where provided, use the released 2.2.0 adapter. Tests remain available in Visual Studio, VS Code and the command line. Live and manual tests still require their documented devices and permissions. This is a test-tooling update; the published product version and runtime behavior are unchanged.
+
+## NUnit 5 test package
+
+Test package **1.1.0** uses **NUnit 5.0.0**. It is independent of the product version. [Download package](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases/download/v2.0.0/TeslaPowerwallLibrary.ProcessorTests-1.1.0.pkg), [documentation](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases/download/v2.0.0/TeslaPowerwallLibrary.ProcessorTests-1.1.0-Documentation.zip), [validation](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases/download/v2.0.0/TeslaPowerwallLibrary.ProcessorTests-1.1.0.validation.json), [exact source revisions](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases/download/v2.0.0/TeslaPowerwallLibrary.ProcessorTests-1.1.0.sources.json), and [SHA-256 checksums](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases/download/v2.0.0/TeslaPowerwallLibrary.ProcessorTests-1.1.0-SHA256SUMS.txt) are attached to the existing product release. No product binary or NuGet version changed for this test update.
+
+Validated on 1 October 2026: 142 offline cases passed in each of two runs from the packaged assembly on Windows. All suite identities were checked against source discovery. Live/manual tests and execution on the processor were not repeated during this migration; earlier hardware results do not certify this new package.

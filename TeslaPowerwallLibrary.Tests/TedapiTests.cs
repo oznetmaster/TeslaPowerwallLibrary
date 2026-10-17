@@ -21,7 +21,7 @@ using Signed = TeslaPowerwallLibrary.Tedapi.Protocol.Signed;
 namespace TeslaPowerwallLibrary.Tests;
 
 [TestFixture]
-public sealed class TedapiTests
+public sealed partial class TedapiTests
 	{
 	private const string DIN = "1707000-00-A--TEST0000000000";
 	private const string STATUS = """{"control":{"systemStatus":{"nominalFullPackEnergyWh":13500,"nominalEnergyRemainingWh":0},"islanding":{"contactorClosed":false,"gridOK":false},"meterAggregates":[{"location":"SITE","realPowerW":-200},{"location":"SOLAR","realPowerW":1400},{"location":"BATTERY","realPowerW":0},{"location":"LOAD","realPowerW":1200}],"alerts":{"active":[]}},"system":{"time":"2026-10-07T12:00:00Z"}}""";
@@ -33,39 +33,55 @@ public sealed class TedapiTests
 		using RSA key = TestRsaKey.Create ();
 		using var handler = new ScriptedHandler (async (request, _) =>
 			{
-			if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
-				{
-				var login = JsonSerializer.Deserialize<LocalLoginRequest> (await request.Content!.ReadAsStringAsync ())!;
-				Assert.That (login.Username, Is.EqualTo (protocol == PowerwallLocalProtocol.TedapiBearer ? "installer" : "customer"));
-				Assert.That (login.ForceSiteManagerOff, Is.False);
-				return Text ("""{"token":"test-token"}""");
-				}
-			if (request.RequestUri.AbsolutePath == "/tedapi/din") return Text (DIN);
-			Assert.That (request.Headers.Authorization!.Scheme, Is.EqualTo (protocol == PowerwallLocalProtocol.Tedapi ? "Basic" : "Bearer"));
-			byte[] bytes = await request.Content!.ReadAsByteArrayAsync ();
-			var envelope = protocol switch
-				{
-				PowerwallLocalProtocol.Tedapi => Legacy.Message.Parser.ParseFrom (bytes).Message_,
-				PowerwallLocalProtocol.TedapiBearer => Legacy.MessageEnvelope.Parser.ParseFrom (Signed.AuthEnvelope.Parser.ParseFrom (bytes).Payload),
-				_ => Legacy.MessageEnvelope.Parser.ParseFrom (Signed.RoutableMessage.Parser.ParseFrom (bytes).ProtobufMessageAsBytes)
-				};
-			Assert.That (envelope.Firmware.IdCase, Is.EqualTo (Legacy.FirmwareType.IdOneofCase.Request));
-			var response = new Legacy.MessageEnvelope { Firmware = new Legacy.FirmwareType { System = new Legacy.FirmwarePayload
-				{
-				Din = DIN, Gateway = new Legacy.EcuId { PartNumber = "part", SerialNumber = "serial" },
-				Version = new Legacy.FirmwareVersion { Text = "26.34.0", Githash = ByteString.CopyFrom (new byte[] { 0xab, 0xcd }) },
-				SystemUpdate = new Legacy.SystemUpdate { TotalBytes = ulong.MaxValue, BytesOffset = 0, UpdateStatus = 7 }
-				} } };
-			bytes = protocol switch
-				{
-				PowerwallLocalProtocol.Tedapi => new Legacy.Message { Message_ = response }.ToByteArray (),
-				PowerwallLocalProtocol.TedapiBearer => new Signed.AuthEnvelope { Payload = response.ToByteString () }.ToByteArray (),
-				_ => new Signed.RoutableMessage { ProtobufMessageAsBytes = response.ToByteString () }.ToByteArray ()
-				};
-			return new HttpResponseMessage (HttpStatusCode.OK) { Content = new ByteArrayContent (bytes) };
+				if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
+					{
+					var login = JsonSerializer.Deserialize<LocalLoginRequest> (await request.Content!.ReadAsStringAsync ())!;
+					Assert.That (login.Username, Is.EqualTo (protocol == PowerwallLocalProtocol.TedapiBearer ? "installer" : "customer"));
+					Assert.That (login.ForceSiteManagerOff, Is.False);
+					return Text ("""{"token":"test-token"}""");
+					}
+				if (request.RequestUri.AbsolutePath == "/tedapi/din")
+					return Text (DIN);
+				Assert.That (request.Headers.Authorization!.Scheme, Is.EqualTo (protocol == PowerwallLocalProtocol.Tedapi ? "Basic" : "Bearer"));
+				byte[] bytes = await request.Content!.ReadAsByteArrayAsync ();
+				var envelope = protocol switch
+					{
+						PowerwallLocalProtocol.Tedapi => Legacy.Message.Parser.ParseFrom (bytes).Message_,
+						PowerwallLocalProtocol.TedapiBearer => Legacy.MessageEnvelope.Parser.ParseFrom (Signed.AuthEnvelope.Parser.ParseFrom (bytes).Payload),
+						_ => Legacy.MessageEnvelope.Parser.ParseFrom (Signed.RoutableMessage.Parser.ParseFrom (bytes).ProtobufMessageAsBytes)
+						};
+				if (envelope.Payload is not null)
+					return WrapLegacyResponse (protocol, new Legacy.MessageEnvelope { Payload = new Legacy.QueryType { Recv = new Legacy.PayloadString { Text = STATUS } } });
+				Assert.That (envelope.Firmware.IdCase, Is.EqualTo (Legacy.FirmwareType.IdOneofCase.Request));
+				var response = new Legacy.MessageEnvelope
+					{
+					Firmware = new Legacy.FirmwareType
+						{
+						System = new Legacy.FirmwarePayload
+							{
+							Din = DIN,
+							Gateway = new Legacy.EcuId { PartNumber = "part", SerialNumber = "serial" },
+							Version = new Legacy.FirmwareVersion { Text = "26.34.0", Githash = ByteString.CopyFrom (new byte[] { 0xab, 0xcd }) },
+							SystemUpdate = new Legacy.SystemUpdate { TotalBytes = ulong.MaxValue, BytesOffset = 0, UpdateStatus = 7 }
+							}
+						}
+					};
+				bytes = protocol switch
+					{
+						PowerwallLocalProtocol.Tedapi => new Legacy.Message { Message_ = response }.ToByteArray (),
+						PowerwallLocalProtocol.TedapiBearer => new Signed.AuthEnvelope { Payload = response.ToByteString () }.ToByteArray (),
+						_ => new Signed.RoutableMessage { ProtobufMessageAsBytes = response.ToByteString () }.ToByteArray ()
+						};
+				return new HttpResponseMessage (HttpStatusCode.OK) { Content = new ByteArrayContent (bytes) };
 			});
 		using var client = new PowerwallTedapiClient (new PowerwallOptions
-			{ Host = "powerwall.test", GatewayPassword = "label", Password = "customer", LocalProtocol = protocol, LocalSigningKey = key }, handler);
+			{
+			Host = "powerwall.test",
+			GatewayPassword = "label",
+			Password = "customer",
+			LocalProtocol = protocol,
+			LocalSigningKey = key
+			}, handler);
 		await client.AuthenticateAsync ();
 		var info = await client.GetSystemInformationAsync ();
 		Assert.That (info.Gateway!.SerialNumber, Is.EqualTo ("serial"));
@@ -75,7 +91,9 @@ public sealed class TedapiTests
 		Assert.That (info.Update.StagedVersion, Is.Null);
 		int count = handler.Count;
 		Assert.That (await client.PollAsync ("/api/status"), Does.Contain ("26.34.0"));
-		Assert.That (handler.Count, Is.EqualTo (count));
+		Assert.That (handler.Count, Is.EqualTo (count + 1), "Status also reads detailed controller uptime once.");
+		await client.PollAsync ("/api/status");
+		Assert.That (handler.Count, Is.EqualTo (count + 1), "Firmware and uptime reads should both be cached.");
 		}
 
 	/// <summary>Native counters use a customer token without changing the configured TEDAPI authentication.</summary>
@@ -85,27 +103,30 @@ public sealed class TedapiTests
 		int meterReads = 0;
 		using var handler = new ScriptedHandler (async (request, _) =>
 			{
-			Assert.That (request.RequestUri!.Host, Is.EqualTo ("powerwall.test"));
-			if (request.RequestUri.AbsolutePath == "/api/login/Basic")
-				{
-				var login = JsonSerializer.Deserialize<LocalLoginRequest> (await request.Content!.ReadAsStringAsync ())!;
-				Assert.That (login.ForceSiteManagerOff, Is.False);
-				if (login.Username == "customer") Assert.That (login.Password, Is.EqualTo ("abcde"));
-				return Text (JsonSerializer.Serialize (new LocalLoginResponse { Token = login.Username }));
-				}
-			if (request.RequestUri.AbsolutePath == "/tedapi/din") return Text (DIN);
-			if (request.RequestUri.AbsolutePath == "/api/meters/aggregates")
-				{
-				Assert.That (request.Method, Is.EqualTo (HttpMethod.Get));
-				Assert.That (request.Headers.Authorization!.Parameter, Is.EqualTo ("customer"));
-				meterReads++;
-				return Text ("""{"site":{"energy_imported":12345.75,"energy_exported":0}}""");
-				}
-			Assert.That (request.Headers.Authorization!.Scheme, Is.EqualTo (protocol == PowerwallLocalProtocol.Tedapi ? "Basic" : "Bearer"));
-			if (protocol == PowerwallLocalProtocol.Tedapi) return QueryResponse (STATUS);
-			Assert.That (request.Headers.Authorization.Parameter, Is.EqualTo ("installer"));
-			var envelope = new Legacy.MessageEnvelope { Payload = new Legacy.QueryType { Recv = new Legacy.PayloadString { Text = STATUS } } };
-			return new HttpResponseMessage (HttpStatusCode.OK) { Content = new ByteArrayContent (new Signed.AuthEnvelope { Payload = envelope.ToByteString () }.ToByteArray ()) };
+				Assert.That (request.RequestUri!.Host, Is.EqualTo ("powerwall.test"));
+				if (request.RequestUri.AbsolutePath == "/api/login/Basic")
+					{
+					var login = JsonSerializer.Deserialize<LocalLoginRequest> (await request.Content!.ReadAsStringAsync ())!;
+					Assert.That (login.ForceSiteManagerOff, Is.False);
+					if (login.Username == "customer")
+						Assert.That (login.Password, Is.EqualTo ("abcde"));
+					return Text (JsonSerializer.Serialize (new LocalLoginResponse { Token = login.Username }));
+					}
+				if (request.RequestUri.AbsolutePath == "/tedapi/din")
+					return Text (DIN);
+				if (request.RequestUri.AbsolutePath == "/api/meters/aggregates")
+					{
+					Assert.That (request.Method, Is.EqualTo (HttpMethod.Get));
+					Assert.That (request.Headers.Authorization!.Parameter, Is.EqualTo ("customer"));
+					meterReads++;
+					return Text ("""{"site":{"energy_imported":12345.75,"energy_exported":0}}""");
+					}
+				Assert.That (request.Headers.Authorization!.Scheme, Is.EqualTo (protocol == PowerwallLocalProtocol.Tedapi ? "Basic" : "Bearer"));
+				if (protocol == PowerwallLocalProtocol.Tedapi)
+					return QueryResponse (STATUS);
+				Assert.That (request.Headers.Authorization.Parameter, Is.EqualTo ("installer"));
+				var envelope = new Legacy.MessageEnvelope { Payload = new Legacy.QueryType { Recv = new Legacy.PayloadString { Text = STATUS } } };
+				return new HttpResponseMessage (HttpStatusCode.OK) { Content = new ByteArrayContent (new Signed.AuthEnvelope { Payload = envelope.ToByteString () }.ToByteArray ()) };
 			});
 		using var client = new PowerwallTedapiClient (new PowerwallOptions { Host = "powerwall.test", GatewayPassword = "label-abcde", LocalProtocol = protocol }, handler);
 		await client.AuthenticateAsync ();
@@ -126,21 +147,28 @@ public sealed class TedapiTests
 		int logins = 0, queries = 0;
 		using var handler = new ScriptedHandler (async (request, _) =>
 			{
-			if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
-				{ logins++; return Text ("""{"token":"installer"}"""); }
-			if (request.RequestUri.AbsolutePath == "/tedapi/din") return Text (DIN);
-			var auth = Signed.AuthEnvelope.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync ());
-			Assert.That ((int)auth.ExternalAuth.Type, Is.EqualTo (1));
-			Assert.That (Legacy.MessageEnvelope.Parser.ParseFrom (auth.Payload).Payload.Send.Payload.Text, Does.Contain ("DeviceControllerQuery"));
-			queries++;
-			if (queries == 1 || rejectAgain) return new HttpResponseMessage (HttpStatusCode.Unauthorized);
-			var answer = new Legacy.MessageEnvelope { Payload = new Legacy.QueryType { Recv = new Legacy.PayloadString { Text = STATUS } } };
-			return new HttpResponseMessage (HttpStatusCode.OK) { Content = new ByteArrayContent (new Signed.AuthEnvelope { Payload = answer.ToByteString () }.ToByteArray ()) };
+				if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
+					{
+					logins++;
+					return Text ("""{"token":"installer"}""");
+					}
+				if (request.RequestUri.AbsolutePath == "/tedapi/din")
+					return Text (DIN);
+				var auth = Signed.AuthEnvelope.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync ());
+				Assert.That ((int)auth.ExternalAuth.Type, Is.EqualTo (1));
+				Assert.That (Legacy.MessageEnvelope.Parser.ParseFrom (auth.Payload).Payload.Send.Payload.Text, Does.Contain ("DeviceControllerQuery"));
+				queries++;
+				if (queries == 1 || rejectAgain)
+					return new HttpResponseMessage (HttpStatusCode.Unauthorized);
+				var answer = new Legacy.MessageEnvelope { Payload = new Legacy.QueryType { Recv = new Legacy.PayloadString { Text = STATUS } } };
+				return new HttpResponseMessage (HttpStatusCode.OK) { Content = new ByteArrayContent (new Signed.AuthEnvelope { Payload = answer.ToByteString () }.ToByteArray ()) };
 			});
 		using var client = new PowerwallTedapiClient (new PowerwallOptions { Host = "powerwall.test", GatewayPassword = "label", LocalProtocol = PowerwallLocalProtocol.TedapiBearer }, handler);
 		await client.AuthenticateAsync ();
-		if (rejectAgain) await Assert.CatchAsync<PowerwallException> (async () => await client.GetTelemetryAsync ());
-		else Assert.That ((await client.GetTelemetryAsync ()).Control!.SystemStatus!.RemainingWattHours, Is.Zero);
+		if (rejectAgain)
+			await Assert.CatchAsync<PowerwallException> (async () => await client.GetTelemetryAsync ());
+		else
+			Assert.That ((await client.GetTelemetryAsync ()).Control!.SystemStatus!.RemainingWattHours, Is.Zero);
 		Assert.That (queries, Is.EqualTo (2));
 		Assert.That (logins, Is.EqualTo (2));
 		}
@@ -150,22 +178,22 @@ public sealed class TedapiTests
 		{
 		using var handler = new ScriptedHandler (async (request, index) =>
 			{
-			Assert.That (request.RequestUri!.Host, Is.EqualTo ("powerwall.test"));
-			Assert.That (request.Headers.Authorization!.Scheme, Is.EqualTo ("Basic"));
-			if (index == 1)
-				{
-				Assert.That (request.Method, Is.EqualTo (HttpMethod.Get));
-				Assert.That (request.RequestUri.AbsolutePath, Is.EqualTo ("/tedapi/din"));
-				return Text (DIN);
-				}
-			Assert.That (request.RequestUri.AbsolutePath, Is.EqualTo ("/tedapi/v1"));
-			Legacy.Message message = Legacy.Message.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync ());
-			Assert.That (message.Message_.Recipient.Din, Is.EqualTo (DIN));
-			Assert.That (message.Message_.Payload.Send.Num, Is.EqualTo (2));
-			Assert.That (message.Message_.Payload.Send.Code.Length, Is.GreaterThan (100));
-			Assert.That (message.Message_.Config, Is.Null);
-			Assert.That (message.Message_.Payload.Send.Payload.Text, Does.Contain ("DeviceControllerQuery"));
-			return QueryResponse (STATUS);
+				Assert.That (request.RequestUri!.Host, Is.EqualTo ("powerwall.test"));
+				Assert.That (request.Headers.Authorization!.Scheme, Is.EqualTo ("Basic"));
+				if (index == 1)
+					{
+					Assert.That (request.Method, Is.EqualTo (HttpMethod.Get));
+					Assert.That (request.RequestUri.AbsolutePath, Is.EqualTo ("/tedapi/din"));
+					return Text (DIN);
+					}
+				Assert.That (request.RequestUri.AbsolutePath, Is.EqualTo ("/tedapi/v1"));
+				Legacy.Message message = Legacy.Message.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync ());
+				Assert.That (message.Message_.Recipient.Din, Is.EqualTo (DIN));
+				Assert.That (message.Message_.Payload.Send.Num, Is.EqualTo (2));
+				Assert.That (message.Message_.Payload.Send.Code.Length, Is.GreaterThan (100));
+				Assert.That (message.Message_.Config, Is.Null);
+				Assert.That (message.Message_.Payload.Send.Payload.Text, Does.Contain ("DeviceControllerQuery"));
+				return QueryResponse (STATUS);
 			});
 		using var client = Create (handler);
 		await client.AuthenticateAsync ();
@@ -217,14 +245,14 @@ public sealed class TedapiTests
 		{
 		using var handler = new ScriptedHandler (async (_, index) =>
 			{
-			using HttpResponseMessage plain = index == 1 ? Text (DIN) : QueryResponse (STATUS);
-			byte[] body = await plain.Content.ReadAsByteArrayAsync ();
-			using var stream = new MemoryStream ();
-			using (var gzip = new GZipStream (stream, CompressionMode.Compress, true))
-				{
-				gzip.Write (body, 0, body.Length);
-				}
-			return new HttpResponseMessage (HttpStatusCode.OK) { Content = new ByteArrayContent (stream.ToArray ()) };
+				using HttpResponseMessage plain = index == 1 ? Text (DIN) : QueryResponse (STATUS);
+				byte[] body = await plain.Content.ReadAsByteArrayAsync ();
+				using var stream = new MemoryStream ();
+				using (var gzip = new GZipStream (stream, CompressionMode.Compress, true))
+					{
+					gzip.Write (body, 0, body.Length);
+					}
+				return new HttpResponseMessage (HttpStatusCode.OK) { Content = new ByteArrayContent (stream.ToArray ()) };
 			});
 		using var client = Create (handler);
 		await client.AuthenticateAsync ();
@@ -316,30 +344,34 @@ public sealed class TedapiTests
 		var queries = new List<Signed.RoutableMessage> ();
 		using var handler = new ScriptedHandler (async (request, _) =>
 			{
-			Assert.That (request.RequestUri!.Host, Is.EqualTo ("powerwall.test"));
-			if (request.RequestUri.AbsolutePath == "/api/login/Basic")
-				{
-				logins++;
-				var payload = await request.Content!.ReadAsStringAsync ();
-				Assert.That (payload, Does.Contain ("\"force_sm_off\":false"));
-				return Text ("{\"token\":\"token-" + logins + "\"}");
-				}
-			if (request.RequestUri.AbsolutePath == "/tedapi/din")
-				{
-				return Text (DIN);
-				}
-			Assert.That (request.RequestUri.AbsolutePath, Is.EqualTo ("/tedapi/v1r"));
-			Assert.That (request.Headers.Authorization!.Parameter, Is.EqualTo ("token-" + logins));
-			queries.Add (Signed.RoutableMessage.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync ()));
-			if (queries.Count == 1)
-				{
-				return new HttpResponseMessage (HttpStatusCode.Unauthorized);
-				}
-			var envelope = new Legacy.MessageEnvelope { Payload = new Legacy.QueryType { Recv = new Legacy.PayloadString { Text = STATUS } } };
-			return Binary (new Signed.RoutableMessage { ProtobufMessageAsBytes = envelope.ToByteString () }.ToByteArray ());
+				Assert.That (request.RequestUri!.Host, Is.EqualTo ("powerwall.test"));
+				if (request.RequestUri.AbsolutePath == "/api/login/Basic")
+					{
+					logins++;
+					var payload = await request.Content!.ReadAsStringAsync ();
+					Assert.That (payload, Does.Contain ("\"force_sm_off\":false"));
+					return Text ("{\"token\":\"token-" + logins + "\"}");
+					}
+				if (request.RequestUri.AbsolutePath == "/tedapi/din")
+					{
+					return Text (DIN);
+					}
+				Assert.That (request.RequestUri.AbsolutePath, Is.EqualTo ("/tedapi/v1r"));
+				Assert.That (request.Headers.Authorization!.Parameter, Is.EqualTo ("token-" + logins));
+				queries.Add (Signed.RoutableMessage.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync ()));
+				if (queries.Count == 1)
+					{
+					return new HttpResponseMessage (HttpStatusCode.Unauthorized);
+					}
+				var envelope = new Legacy.MessageEnvelope { Payload = new Legacy.QueryType { Recv = new Legacy.PayloadString { Text = STATUS } } };
+				return Binary (new Signed.RoutableMessage { ProtobufMessageAsBytes = envelope.ToByteString () }.ToByteArray ());
 			});
 		using var client = new PowerwallTedapiClient (Options () with
-			{ LocalProtocol = PowerwallLocalProtocol.TedapiSigned, Password = "synthetic", LocalSigningKey = key }, handler);
+			{
+			LocalProtocol = PowerwallLocalProtocol.TedapiSigned,
+			Password = "synthetic",
+			LocalSigningKey = key
+			}, handler);
 		await client.AuthenticateAsync ();
 		Assert.That ((await client.GetTelemetryAsync ()).Control, Is.Not.Null);
 		Assert.That (logins, Is.EqualTo (2));
@@ -355,30 +387,33 @@ public sealed class TedapiTests
 		using RSA key = TestRsaKey.Create ();
 		using var handler = new ScriptedHandler (async (request, _) =>
 			{
-			if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
-				return Text ("""{"token":"synthetic"}""");
-			if (request.RequestUri.AbsolutePath == "/tedapi/din")
-				return Text (DIN);
-			byte[] body = await request.Content!.ReadAsByteArrayAsync ();
-			byte[] envelope = signed ? Signed.RoutableMessage.Parser.ParseFrom (body).ProtobufMessageAsBytes.ToByteArray ()
-				: Graphql.Frame.Parser.ParseFrom (body).Message.ToByteArray ();
-			var query = Graphql.Envelope.Parser.ParseFrom (envelope);
-			Assert.That (query.Recipient.Din, Is.EqualTo (DIN));
-			Assert.That (query.Graphql.QueryRequest.Format, Is.EqualTo (2));
-			Assert.That (query.Graphql.QueryRequest.Signature.Length, Is.GreaterThan (64));
-			Assert.That (Encoding.UTF8.GetString (query.Graphql.QueryRequest.Query.ToByteArray ()), Does.Contain ("DeviceControllerQuery"));
-			Assert.That (query.Graphql.QueryRequest.VariablesJson.Value, Is.EqualTo ("{}"));
-			var response = new Graphql.Envelope
-				{ Graphql = new Graphql.GraphQLMessages { QueryResponse = new Graphql.QueryResponse { Status = 1, Data = STATUS } } };
-			return Binary (signed
-				? new Signed.RoutableMessage { ProtobufMessageAsBytes = response.ToByteString () }.ToByteArray ()
-				: new Graphql.Frame { Message = response.ToByteString (), Tail = new Graphql.Tail { Value = 1 } }.ToByteArray ());
+				if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
+					return Text ("""{"token":"synthetic"}""");
+				if (request.RequestUri.AbsolutePath == "/tedapi/din")
+					return Text (DIN);
+				byte[] body = await request.Content!.ReadAsByteArrayAsync ();
+				byte[] envelope = signed ? Signed.RoutableMessage.Parser.ParseFrom (body).ProtobufMessageAsBytes.ToByteArray ()
+					: Graphql.Frame.Parser.ParseFrom (body).Message.ToByteArray ();
+				var query = Graphql.Envelope.Parser.ParseFrom (envelope);
+				Assert.That (query.Recipient.Din, Is.EqualTo (DIN));
+				Assert.That (query.Graphql.QueryRequest.Format, Is.EqualTo (2));
+				Assert.That (query.Graphql.QueryRequest.Signature.Length, Is.GreaterThan (64));
+				Assert.That (Encoding.UTF8.GetString (query.Graphql.QueryRequest.Query.ToByteArray ()), Does.Contain ("DeviceControllerQuery"));
+				Assert.That (query.Graphql.QueryRequest.VariablesJson.Value, Is.EqualTo ("{}"));
+				var response = new Graphql.Envelope
+					{
+					Graphql = new Graphql.GraphQLMessages { QueryResponse = new Graphql.QueryResponse { Status = 1, Data = STATUS } }
+					};
+				return Binary (signed
+					? new Signed.RoutableMessage { ProtobufMessageAsBytes = response.ToByteString () }.ToByteArray ()
+					: new Graphql.Frame { Message = response.ToByteString (), Tail = new Graphql.Tail { Value = 1 } }.ToByteArray ());
 			});
 		using var client = new PowerwallTedapiClient (Options () with
 			{
 			LocalProtocol = signed ? PowerwallLocalProtocol.TedapiSigned : PowerwallLocalProtocol.Tedapi,
 			LocalQueryVersion = TedapiQueryVersion.June2026,
-			Password = "synthetic", LocalSigningKey = signed ? key : null
+			Password = "synthetic",
+			LocalSigningKey = signed ? key : null
 			}, handler);
 		await client.AuthenticateAsync ();
 		var data = await client.GetTelemetryAsync ();
@@ -395,9 +430,14 @@ public sealed class TedapiTests
 			: Binary (new Graphql.Frame
 				{
 				Message = new Graphql.Envelope
-					{ Graphql = new Graphql.GraphQLMessages { QueryResponse = new Graphql.QueryResponse { Status = status, Data = STATUS } } }.ToByteString ()
+					{
+					Graphql = new Graphql.GraphQLMessages { QueryResponse = new Graphql.QueryResponse { Status = status, Data = STATUS } }
+					}.ToByteString ()
 				}.ToByteArray ())));
-		using var client = new PowerwallTedapiClient (Options () with { LocalQueryVersion = TedapiQueryVersion.June2026 }, handler);
+		using var client = new PowerwallTedapiClient (Options () with
+			{
+			LocalQueryVersion = TedapiQueryVersion.June2026
+			}, handler);
 		await client.AuthenticateAsync ();
 		await Assert.ThrowsAsync<PowerwallConnectionException> (async () => await client.GetTelemetryAsync ());
 		Assert.That (handler.Count, Is.EqualTo (2));
@@ -424,40 +464,66 @@ public sealed class TedapiTests
 		var requested = new List<string> ();
 		using var followerHandler = new ScriptedHandler (async (request, _) =>
 			{
-			Assert.That (request.RequestUri!.Host, Is.EqualTo ("setup.test"));
-			Assert.That (request.Headers.Authorization!.Scheme, Is.EqualTo ("Basic"));
-			if (request.RequestUri.AbsolutePath == "/tedapi/din") return Text ("setup--controller");
-			var frame = Graphql.Frame.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync ());
-			var envelope = Graphql.Envelope.Parser.ParseFrom (frame.Message);
-			Assert.That (envelope.Sender.Din, Is.EqualTo ("setup--controller"));
-			requested.Add (envelope.Recipient.Din);
-			Assert.That (request.RequestUri.AbsolutePath, Is.EqualTo ("/tedapi/device/" + envelope.Recipient.Din + "/v1"));
-			const string data = """{"components":{"pch":[]}}""";
-			return version == TedapiQueryVersion.June2024 ? QueryResponse (data)
-				: Binary (new Graphql.Frame { Message = new Graphql.Envelope
-					{ Graphql = new Graphql.GraphQLMessages { QueryResponse = new Graphql.QueryResponse { Status = 1, Data = data } } }.ToByteString () }.ToByteArray ());
+				Assert.That (request.RequestUri!.Host, Is.EqualTo ("setup.test"));
+				Assert.That (request.Headers.Authorization!.Scheme, Is.EqualTo ("Basic"));
+				if (request.RequestUri.AbsolutePath == "/tedapi/din")
+					return Text ("setup--controller");
+				var frame = Graphql.Frame.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync ());
+				var envelope = Graphql.Envelope.Parser.ParseFrom (frame.Message);
+				Assert.That (envelope.Sender.Din, Is.EqualTo ("setup--controller"));
+				requested.Add (envelope.Recipient.Din);
+				Assert.That (request.RequestUri.AbsolutePath, Is.EqualTo ("/tedapi/device/" + envelope.Recipient.Din + "/v1"));
+				const string data = """{"components":{"pch":[]}}""";
+				return version == TedapiQueryVersion.June2024 ? QueryResponse (data)
+					: Binary (new Graphql.Frame
+						{
+						Message = new Graphql.Envelope
+							{
+							Graphql = new Graphql.GraphQLMessages { QueryResponse = new Graphql.QueryResponse { Status = 1, Data = data } }
+							}.ToByteString ()
+						}.ToByteArray ());
 			});
-		using var follower = new PowerwallTedapiClient (Options () with { Host = "setup.test", LocalQueryVersion = version }, followerHandler);
+		using var follower = new PowerwallTedapiClient (Options () with
+			{
+			Host = "setup.test",
+			LocalQueryVersion = version
+			}, followerHandler);
 		using var primaryHandler = new ScriptedHandler (async (request, _) =>
 			{
-			Assert.That (request.RequestUri!.Host, Is.EqualTo ("primary.test"));
-			if (request.RequestUri.AbsolutePath == "/api/login/Basic") return Text ("""{"token":"primary-only"}""");
-			if (request.RequestUri.AbsolutePath == "/tedapi/din") return Text (DIN);
-			Assert.That (request.RequestUri.AbsolutePath, Is.EqualTo ("/tedapi/v1r"));
-			var envelope = Legacy.MessageEnvelope.Parser.ParseFrom (Signed.RoutableMessage.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync ()).ProtobufMessageAsBytes);
-			ByteString reply;
-			if (envelope.Config is not null)
-				reply = new Signed.MessageEnvelope { Filestore = new Signed.FileStoreMessages { ReadFileResponse = new Signed.FileStoreAPIReadFileResponse
-					{ File = new Signed.FileStoreAPIFile { Blob = ByteString.CopyFromUtf8 ("""{"battery_blocks":[{"vin":"part--one","type":"Powerwall3"},{"vin":"part--two","type":"Powerwall3"}]}""") } } } }.ToByteString ();
-			else
-				{
-				Assert.That (envelope.Payload.Send.Payload.Text, Does.Contain ("DeviceControllerQuery"));
-				reply = new Legacy.MessageEnvelope { Payload = new Legacy.QueryType { Recv = new Legacy.PayloadString { Text = "{}" } } }.ToByteString ();
-				}
-			return Binary (new Signed.RoutableMessage { ProtobufMessageAsBytes = reply }.ToByteArray ());
+				Assert.That (request.RequestUri!.Host, Is.EqualTo ("primary.test"));
+				if (request.RequestUri.AbsolutePath == "/api/login/Basic")
+					return Text ("""{"token":"primary-only"}""");
+				if (request.RequestUri.AbsolutePath == "/tedapi/din")
+					return Text (DIN);
+				Assert.That (request.RequestUri.AbsolutePath, Is.EqualTo ("/tedapi/v1r"));
+				var envelope = Legacy.MessageEnvelope.Parser.ParseFrom (Signed.RoutableMessage.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync ()).ProtobufMessageAsBytes);
+				ByteString reply;
+				if (envelope.Config is not null)
+					reply = new Signed.MessageEnvelope
+						{
+						Filestore = new Signed.FileStoreMessages
+							{
+							ReadFileResponse = new Signed.FileStoreAPIReadFileResponse
+								{
+								File = new Signed.FileStoreAPIFile { Blob = ByteString.CopyFromUtf8 ("""{"battery_blocks":[{"vin":"part--one","type":"Powerwall3"},{"vin":"part--two","type":"Powerwall3"}]}""") }
+								}
+							}
+						}.ToByteString ();
+				else
+					{
+					Assert.That (envelope.Payload.Send.Payload.Text, Does.Contain ("DeviceControllerQuery"));
+					reply = new Legacy.MessageEnvelope { Payload = new Legacy.QueryType { Recv = new Legacy.PayloadString { Text = "{}" } } }.ToByteString ();
+					}
+				return Binary (new Signed.RoutableMessage { ProtobufMessageAsBytes = reply }.ToByteArray ());
 			});
-		var options = Options () with { Host = "primary.test", LocalProtocol = PowerwallLocalProtocol.TedapiSigned,
-			Password = "customer", LocalSigningKey = key, LocalFollowerConnection = follower };
+		var options = Options () with
+			{
+			Host = "primary.test",
+			LocalProtocol = PowerwallLocalProtocol.TedapiSigned,
+			Password = "customer",
+			LocalSigningKey = key,
+			LocalFollowerConnection = follower
+			};
 		Assert.That (JsonSerializer.Serialize (options), Does.Not.Contain ("LocalFollowerConnection").And.Not.Contain ("setup.test"));
 		using (var primary = new PowerwallTedapiClient (options, primaryHandler))
 			{
@@ -490,20 +556,28 @@ public sealed class TedapiTests
 		var requested = new List<string> ();
 		using var handler = new ScriptedHandler (async (request, index) =>
 			{
-			if (index == 1)
-				return Text (DIN);
-			var frame = Graphql.Frame.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync ());
-			Assert.That (frame.Tail.Value, Is.EqualTo (2));
-			var envelope = Graphql.Envelope.Parser.ParseFrom (frame.Message);
-			Assert.That (envelope.Sender.Din, Is.EqualTo (DIN));
-			requested.Add (envelope.Recipient.Din);
-			Assert.That (request.RequestUri!.AbsolutePath, Is.EqualTo ("/tedapi/device/" + envelope.Recipient.Din + "/v1"));
-			const string data = """{"components":{"pch":[]}}""";
-			return version == TedapiQueryVersion.June2024 ? QueryResponse (data)
-				: Binary (new Graphql.Frame { Message = new Graphql.Envelope
-					{ Graphql = new Graphql.GraphQLMessages { QueryResponse = new Graphql.QueryResponse { Status = 1, Data = data } } }.ToByteString () }.ToByteArray ());
+				if (index == 1)
+					return Text (DIN);
+				var frame = Graphql.Frame.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync ());
+				Assert.That (frame.Tail.Value, Is.EqualTo (2));
+				var envelope = Graphql.Envelope.Parser.ParseFrom (frame.Message);
+				Assert.That (envelope.Sender.Din, Is.EqualTo (DIN));
+				requested.Add (envelope.Recipient.Din);
+				Assert.That (request.RequestUri!.AbsolutePath, Is.EqualTo ("/tedapi/device/" + envelope.Recipient.Din + "/v1"));
+				const string data = """{"components":{"pch":[]}}""";
+				return version == TedapiQueryVersion.June2024 ? QueryResponse (data)
+					: Binary (new Graphql.Frame
+						{
+						Message = new Graphql.Envelope
+							{
+							Graphql = new Graphql.GraphQLMessages { QueryResponse = new Graphql.QueryResponse { Status = 1, Data = data } }
+							}.ToByteString ()
+						}.ToByteArray ());
 			});
-		using var client = new PowerwallTedapiClient (Options () with { LocalQueryVersion = version }, handler);
+		using var client = new PowerwallTedapiClient (Options () with
+			{
+			LocalQueryVersion = version
+			}, handler);
 		await client.AuthenticateAsync ();
 		await client.GetComponentsAsync ("part--followerA");
 		await client.GetComponentsAsync ("part--followerA");
@@ -521,7 +595,11 @@ public sealed class TedapiTests
 		using var handler = new ScriptedHandler ((request, _) => Task.FromResult (
 			request.RequestUri!.AbsolutePath == "/api/login/Basic" ? Text ("""{"token":"synthetic"}""") : Text (DIN)));
 		using var client = new PowerwallTedapiClient (Options () with
-			{ LocalProtocol = PowerwallLocalProtocol.TedapiSigned, Password = "synthetic", LocalSigningKey = key }, handler);
+			{
+			LocalProtocol = PowerwallLocalProtocol.TedapiSigned,
+			Password = "synthetic",
+			LocalSigningKey = key
+			}, handler);
 		await client.AuthenticateAsync ();
 		int requests = handler.Count;
 		await Assert.ThrowsAsync<PowerwallNotSupportedException> (async () => await client.GetComponentsAsync ("part--follower"));
@@ -535,17 +613,26 @@ public sealed class TedapiTests
 		var queried = new List<string> ();
 		using var handler = new ScriptedHandler (async (request, index) =>
 			{
-			if (index == 1) return Text (DIN);
-			var frame = Graphql.Frame.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync ());
-			var message = Legacy.MessageEnvelope.Parser.ParseFrom (frame.Message);
-			if (message.Config is not null)
-				return Binary (new Legacy.Message { Message_ = new Legacy.MessageEnvelope { Config = new Legacy.ConfigType
-					{ Recv = new Legacy.PayloadConfigRecv { File = new Legacy.ConfigString { Text = """{"battery_blocks":[{"vin":"part--one","type":"Powerwall3"},{"vin":"part--two","type":"Powerwall3"}]}""" } } } } }.ToByteArray ());
-			if (message.Payload.Send.Payload.Text.Contains ("DeviceControllerQuery"))
-				return QueryResponse ("{}");
-			queried.Add (message.Recipient.Din);
-			int energy = message.Recipient.Din == "part--one" ? 4 : 7;
-			return QueryResponse ("{\"components\":{\"bms\":[{\"signals\":[{\"name\":\"BMS_nominalEnergyRemaining\",\"value\":" + energy + "}]}]}}");
+				if (index == 1)
+					return Text (DIN);
+				var frame = Graphql.Frame.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync ());
+				var message = Legacy.MessageEnvelope.Parser.ParseFrom (frame.Message);
+				if (message.Config is not null)
+					return Binary (new Legacy.Message
+						{
+						Message_ = new Legacy.MessageEnvelope
+							{
+							Config = new Legacy.ConfigType
+								{
+								Recv = new Legacy.PayloadConfigRecv { File = new Legacy.ConfigString { Text = """{"battery_blocks":[{"vin":"part--one","type":"Powerwall3"},{"vin":"part--two","type":"Powerwall3"}]}""" } }
+								}
+							}
+						}.ToByteArray ());
+				if (message.Payload.Send.Payload.Text.Contains ("DeviceControllerQuery"))
+					return QueryResponse ("{}");
+				queried.Add (message.Recipient.Din);
+				int energy = message.Recipient.Din == "part--one" ? 4 : 7;
+				return QueryResponse ("{\"components\":{\"bms\":[{\"signals\":[{\"name\":\"BMS_nominalEnergyRemaining\",\"value\":" + energy + "}]}]}}");
 			});
 		using var client = Create (handler);
 		await client.AuthenticateAsync ();
@@ -565,23 +652,38 @@ public sealed class TedapiTests
 		int queries = 0;
 		using var handler = new ScriptedHandler (async (request, _) =>
 			{
-			if (request.RequestUri!.AbsolutePath == "/api/login/Basic") return Text ("""{"token":"synthetic"}""");
-			if (request.RequestUri.AbsolutePath == "/tedapi/din") return Text (DIN);
-			Assert.That (request.RequestUri.AbsolutePath, Is.EqualTo ("/tedapi/v1r"));
-			var envelope = Legacy.MessageEnvelope.Parser.ParseFrom (Signed.RoutableMessage.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync ()).ProtobufMessageAsBytes);
-			Google.Protobuf.ByteString reply;
-			if (envelope.Config is not null)
-				reply = new Signed.MessageEnvelope { Filestore = new Signed.FileStoreMessages { ReadFileResponse = new Signed.FileStoreAPIReadFileResponse
-					{ File = new Signed.FileStoreAPIFile { Blob = ByteString.CopyFromUtf8 ("""{"battery_blocks":[{"vin":"part--follower","type":"Powerwall3"}]}""") } } } }.ToByteString ();
-			else
-				{
-				queries++;
-				Assert.That (envelope.Payload.Send.Payload.Text, Does.Contain ("DeviceControllerQuery"));
-				reply = new Legacy.MessageEnvelope { Payload = new Legacy.QueryType { Recv = new Legacy.PayloadString { Text = "{}" } } }.ToByteString ();
-				}
-			return Binary (new Signed.RoutableMessage { ProtobufMessageAsBytes = reply }.ToByteArray ());
+				if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
+					return Text ("""{"token":"synthetic"}""");
+				if (request.RequestUri.AbsolutePath == "/tedapi/din")
+					return Text (DIN);
+				Assert.That (request.RequestUri.AbsolutePath, Is.EqualTo ("/tedapi/v1r"));
+				var envelope = Legacy.MessageEnvelope.Parser.ParseFrom (Signed.RoutableMessage.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync ()).ProtobufMessageAsBytes);
+				Google.Protobuf.ByteString reply;
+				if (envelope.Config is not null)
+					reply = new Signed.MessageEnvelope
+						{
+						Filestore = new Signed.FileStoreMessages
+							{
+							ReadFileResponse = new Signed.FileStoreAPIReadFileResponse
+								{
+								File = new Signed.FileStoreAPIFile { Blob = ByteString.CopyFromUtf8 ("""{"battery_blocks":[{"vin":"part--follower","type":"Powerwall3"}]}""") }
+								}
+							}
+						}.ToByteString ();
+				else
+					{
+					queries++;
+					Assert.That (envelope.Payload.Send.Payload.Text, Does.Contain ("DeviceControllerQuery"));
+					reply = new Legacy.MessageEnvelope { Payload = new Legacy.QueryType { Recv = new Legacy.PayloadString { Text = "{}" } } }.ToByteString ();
+					}
+				return Binary (new Signed.RoutableMessage { ProtobufMessageAsBytes = reply }.ToByteArray ());
 			});
-		using var client = new PowerwallTedapiClient (Options () with { LocalProtocol = PowerwallLocalProtocol.TedapiSigned, Password = "synthetic", LocalSigningKey = key }, handler);
+		using var client = new PowerwallTedapiClient (Options () with
+			{
+			LocalProtocol = PowerwallLocalProtocol.TedapiSigned,
+			Password = "synthetic",
+			LocalSigningKey = key
+			}, handler);
 		await client.AuthenticateAsync ();
 		var snapshot = await client.GetDeviceSnapshotAsync ();
 		Assert.That (queries, Is.EqualTo (1));
@@ -598,22 +700,38 @@ public sealed class TedapiTests
 		var queried = new List<string> ();
 		using var handler = new ScriptedHandler (async (request, index) =>
 			{
-			if (index == 1) return Text (DIN);
-			var frame = Graphql.Frame.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync ());
-			var message = Legacy.MessageEnvelope.Parser.ParseFrom (frame.Message);
-			if (message.Config is not null)
-				return Binary (new Legacy.Message { Message_ = new Legacy.MessageEnvelope { Config = new Legacy.ConfigType
-					{ Recv = new Legacy.PayloadConfigRecv { File = new Legacy.ConfigString { Text = """{"battery_blocks":[{"vin":"part--one","type":"Powerwall3"},{"vin":"part--two","type":"Powerwall3"}]}""" } } } } }.ToByteArray ());
-			if (message.Payload.Send.Payload.Text.Contains ("DeviceControllerQuery")) return QueryResponse ("{}");
-			queried.Add (message.Recipient.Din);
-			if (message.Recipient.Din == "part--one")
-				{
-				if (failure == "cancel") { cancel.Cancel (); throw new OperationCanceledException (cancel.Token); }
-				if (failure == "network") throw new HttpRequestException ("simulated disconnect");
-				if (failure == "timeout") throw new TaskCanceledException ("simulated HTTP timeout");
-				return QueryResponse ("not-json");
-				}
-			return QueryResponse ("""{"components":{"bms":[{"signals":[{"name":"BMS_nominalEnergyRemaining","value":7}]}]}}""");
+				if (index == 1)
+					return Text (DIN);
+				var frame = Graphql.Frame.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync ());
+				var message = Legacy.MessageEnvelope.Parser.ParseFrom (frame.Message);
+				if (message.Config is not null)
+					return Binary (new Legacy.Message
+						{
+						Message_ = new Legacy.MessageEnvelope
+							{
+							Config = new Legacy.ConfigType
+								{
+								Recv = new Legacy.PayloadConfigRecv { File = new Legacy.ConfigString { Text = """{"battery_blocks":[{"vin":"part--one","type":"Powerwall3"},{"vin":"part--two","type":"Powerwall3"}]}""" } }
+								}
+							}
+						}.ToByteArray ());
+				if (message.Payload.Send.Payload.Text.Contains ("DeviceControllerQuery"))
+					return QueryResponse ("{}");
+				queried.Add (message.Recipient.Din);
+				if (message.Recipient.Din == "part--one")
+					{
+					if (failure == "cancel")
+						{
+						cancel.Cancel ();
+						throw new OperationCanceledException (cancel.Token);
+						}
+					if (failure == "network")
+						throw new HttpRequestException ("simulated disconnect");
+					if (failure == "timeout")
+						throw new TaskCanceledException ("simulated HTTP timeout");
+					return QueryResponse ("not-json");
+					}
+				return QueryResponse ("""{"components":{"bms":[{"signals":[{"name":"BMS_nominalEnergyRemaining","value":7}]}]}}""");
 			});
 		using var client = Create (handler);
 		await client.AuthenticateAsync ();
@@ -641,39 +759,46 @@ public sealed class TedapiTests
 		var names = new List<string> ();
 		using var handler = new ScriptedHandler (async (request, _) =>
 			{
-			if (request.RequestUri!.AbsolutePath == "/api/login/Basic") return Text ("""{"token":"synthetic"}""");
-			if (request.RequestUri.AbsolutePath == "/tedapi/din") return Text (DIN);
-			byte[] body = await request.Content!.ReadAsByteArrayAsync ();
-			ByteString envelope = protocol switch
-				{
-				PowerwallLocalProtocol.TedapiSigned => Signed.RoutableMessage.Parser.ParseFrom (body).ProtobufMessageAsBytes,
-				PowerwallLocalProtocol.TedapiBearer => Signed.AuthEnvelope.Parser.ParseFrom (body).Payload,
-				_ => Graphql.Frame.Parser.ParseFrom (body).Message
-				};
-			var query = Graphql.Envelope.Parser.ParseFrom (envelope).Graphql.QueryRequest;
-			string queryText = query.Query.ToStringUtf8 ();
-			string name = new[] { "IEEE20305Query", "PinvSelfTestQuery", "ProtectionTripTestQuery" }.Single (queryText.Contains);
-			names.Add (name);
-			var definition = definitions.RootElement.GetProperty (name);
-			Assert.That (definition.GetProperty ("text").GetString ()!.TrimStart (), Does.StartWith ("query "));
-			Assert.That (query.Format, Is.EqualTo (2));
-			Assert.That (BitConverter.ToString (query.Query.ToByteArray ()).Replace ("-", "").ToLowerInvariant (), Is.EqualTo (definition.GetProperty ("signed_bytes").GetString ()));
-			Assert.That (BitConverter.ToString (query.Signature.ToByteArray ()).Replace ("-", "").ToLowerInvariant (), Is.EqualTo (definition.GetProperty ("code").GetString ()));
-			string data = name switch
-				{
-				"IEEE20305Query" => """{"ieee20305":{"longFormDeviceID":"synthetic"}}""",
-				"PinvSelfTestQuery" => """{"esCan":{"inverterSelfTests":{"isRunning":false}}}""",
-				_ => """{"control":{"protectionTripTests":{"isRunning":false,"results":[{"status":"not-run"}]}}}"""
-				};
-			var response = new Graphql.Envelope { Graphql = new Graphql.GraphQLMessages { QueryResponse = new Graphql.QueryResponse { Status = 1, Data = data } } };
-			return Binary (protocol switch
-				{
-				PowerwallLocalProtocol.TedapiSigned => new Signed.RoutableMessage { ProtobufMessageAsBytes = response.ToByteString () }.ToByteArray (),
-				PowerwallLocalProtocol.TedapiBearer => new Signed.AuthEnvelope { Payload = response.ToByteString () }.ToByteArray (),
-				_ => new Graphql.Frame { Message = response.ToByteString () }.ToByteArray ()
-				});
+				if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
+					return Text ("""{"token":"synthetic"}""");
+				if (request.RequestUri.AbsolutePath == "/tedapi/din")
+					return Text (DIN);
+				byte[] body = await request.Content!.ReadAsByteArrayAsync ();
+				ByteString envelope = protocol switch
+					{
+						PowerwallLocalProtocol.TedapiSigned => Signed.RoutableMessage.Parser.ParseFrom (body).ProtobufMessageAsBytes,
+						PowerwallLocalProtocol.TedapiBearer => Signed.AuthEnvelope.Parser.ParseFrom (body).Payload,
+						_ => Graphql.Frame.Parser.ParseFrom (body).Message
+						};
+				var query = Graphql.Envelope.Parser.ParseFrom (envelope).Graphql.QueryRequest;
+				string queryText = query.Query.ToStringUtf8 ();
+				string name = new[] { "IEEE20305Query", "PinvSelfTestQuery", "ProtectionTripTestQuery" }.Single (queryText.Contains);
+				names.Add (name);
+				var definition = definitions.RootElement.GetProperty (name);
+				Assert.That (definition.GetProperty ("text").GetString ()!.TrimStart (), Does.StartWith ("query "));
+				Assert.That (query.Format, Is.EqualTo (2));
+				Assert.That (BitConverter.ToString (query.Query.ToByteArray ()).Replace ("-", "").ToLowerInvariant (), Is.EqualTo (definition.GetProperty ("signed_bytes").GetString ()));
+				Assert.That (BitConverter.ToString (query.Signature.ToByteArray ()).Replace ("-", "").ToLowerInvariant (), Is.EqualTo (definition.GetProperty ("code").GetString ()));
+				string data = name switch
+					{
+						"IEEE20305Query" => """{"ieee20305":{"longFormDeviceID":"synthetic"}}""",
+						"PinvSelfTestQuery" => """{"esCan":{"inverterSelfTests":{"isRunning":false}}}""",
+						_ => """{"control":{"protectionTripTests":{"isRunning":false,"results":[{"status":"not-run"}]}}}"""
+						};
+				var response = new Graphql.Envelope { Graphql = new Graphql.GraphQLMessages { QueryResponse = new Graphql.QueryResponse { Status = 1, Data = data } } };
+				return Binary (protocol switch
+					{
+						PowerwallLocalProtocol.TedapiSigned => new Signed.RoutableMessage { ProtobufMessageAsBytes = response.ToByteString () }.ToByteArray (),
+						PowerwallLocalProtocol.TedapiBearer => new Signed.AuthEnvelope { Payload = response.ToByteString () }.ToByteArray (),
+						_ => new Graphql.Frame { Message = response.ToByteString () }.ToByteArray ()
+						});
 			});
-		using var client = new PowerwallTedapiClient (Options () with { LocalProtocol = protocol, Password = "synthetic", LocalSigningKey = key }, handler);
+		using var client = new PowerwallTedapiClient (Options () with
+			{
+			LocalProtocol = protocol,
+			Password = "synthetic",
+			LocalSigningKey = key
+			}, handler);
 		await client.AuthenticateAsync ();
 		for (int repeat = 0; repeat < 2; repeat++)
 			{
@@ -693,8 +818,19 @@ public sealed class TedapiTests
 		{
 		int reads = 0;
 		using var handler = new ScriptedHandler ((_, index) => Task.FromResult (index == 1 ? Text (DIN) : Binary (new Graphql.Frame
-			{ Message = new Graphql.Envelope { Graphql = new Graphql.GraphQLMessages { QueryResponse = new Graphql.QueryResponse
-				{ Status = ++reads == 1 ? 2 : 1, Data = """{"ieee20305":{"longFormDeviceID":"synthetic"}}""" } } }.ToByteString () }.ToByteArray ())));
+			{
+			Message = new Graphql.Envelope
+				{
+				Graphql = new Graphql.GraphQLMessages
+					{
+					QueryResponse = new Graphql.QueryResponse
+						{
+						Status = ++reads == 1 ? 2 : 1,
+						Data = """{"ieee20305":{"longFormDeviceID":"synthetic"}}"""
+						}
+					}
+				}.ToByteString ()
+			}.ToByteArray ())));
 		using var client = Create (handler);
 		await client.AuthenticateAsync ();
 		await Assert.ThrowsAsync<PowerwallConnectionException> (async () => await client.GetIeee20305Async ());
@@ -704,8 +840,11 @@ public sealed class TedapiTests
 
 	private static PowerwallOptions Options () => new ()
 		{
-		Host = "powerwall.test", GatewayPassword = "synthetic",
-		LocalProtocol = PowerwallLocalProtocol.Tedapi, CacheExpireSeconds = 60, Timeout = TimeSpan.FromSeconds (2)
+		Host = "powerwall.test",
+		GatewayPassword = "synthetic",
+		LocalProtocol = PowerwallLocalProtocol.Tedapi,
+		CacheExpireSeconds = 60,
+		Timeout = TimeSpan.FromSeconds (2)
 		};
 
 	private static PowerwallTedapiClient Create (HttpMessageHandler handler) => new (Options (), handler);
@@ -713,11 +852,16 @@ public sealed class TedapiTests
 	private static HttpResponseMessage Text (string value) => new (HttpStatusCode.OK) { Content = new StringContent (value) };
 	private static HttpResponseMessage Binary (byte[] value) => new (HttpStatusCode.OK) { Content = new ByteArrayContent (value) };
 	private static HttpResponseMessage QueryResponse (string json) => Binary (new Legacy.Message
-		{ Message_ = new Legacy.MessageEnvelope { Payload = new Legacy.QueryType { Recv = new Legacy.PayloadString { Text = json } } } }.ToByteArray ());
+		{
+		Message_ = new Legacy.MessageEnvelope { Payload = new Legacy.QueryType { Recv = new Legacy.PayloadString { Text = json } } }
+		}.ToByteArray ());
 
 	private sealed class ScriptedHandler (Func<HttpRequestMessage, int, Task<HttpResponseMessage>> callback) : HttpMessageHandler
 		{
-		internal int Count { get; private set; }
+		internal int Count
+			{
+			get; private set;
+			}
 		protected override Task<HttpResponseMessage> SendAsync (HttpRequestMessage request, CancellationToken cancellationToken)
 			{
 			cancellationToken.ThrowIfCancellationRequested ();

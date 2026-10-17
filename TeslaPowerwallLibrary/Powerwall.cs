@@ -851,6 +851,13 @@ public sealed class Powerwall : IDisposable
 	public Task<LocalSystemInformation> GetLocalSystemInformationAsync (bool force = false, CancellationToken cancellationToken = default) =>
 		RequireTedapiClient ().GetSystemInformationAsync (force, cancellationToken);
 
+	/// <summary>Reads the local gateway's reported sync-board uptime and clock.</summary>
+	/// <param name="force">Bypasses cached telemetry but never gateway backoff.</param>
+	/// <param name="cancellationToken">Cancels the read.</param>
+	/// <returns>Gateway uptime, or null when the hardware or selected TEDAPI query cannot provide it.</returns>
+	public Task<LocalGatewayUptime?> GetLocalGatewayUptimeAsync (bool force = false, CancellationToken cancellationToken = default) =>
+		RequireTedapiClient ().GetGatewayUptimeAsync (force, cancellationToken);
+
 	/// <summary>Reads configured local Powerwall devices, legacy bus telemetry and identified battery summaries.</summary>
 	/// <param name="force">Bypasses telemetry caches but never device backoff.</param>
 	/// <param name="cancellationToken">Cancels the operation.</param>

@@ -612,7 +612,7 @@ public sealed class PowerwallFleetApiClient : PowerwallClientBase, IEnergySiteCl
 		return new MappedGatewayStatus
 			{
 			Din = config.Id,
-			StartTime = config.InstallationDate,
+			InstallationDate = config.InstallationDate,
 			Version = config.Version,
 			DeviceType = config.Components?.Gateway
 			};
