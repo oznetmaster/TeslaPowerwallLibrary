@@ -1,6 +1,6 @@
 # TeslaPowerwallLibrary
 
-**Version 2.3.0** adds fourteen PW2 telemetry signals, conservative battery-counter pairing and TEDAPI power ratings that respect inverter derating. It adds nullable `SystemStatus.InverterNominalUsablePower` while preserving existing public signatures, assembly identity and classic gateway defaults. See [release notes and hardware coverage](RELEASE-NOTES.md).
+**Version 2.3.1** fixes signed LAN requests expiring while slower runtimes generate RSA-4096 signatures. It retains the PW2 telemetry and inverter-aware power ratings added in 2.3.0, with the same public API, assembly identity and runtime dependencies. See [release notes and hardware coverage](RELEASE-NOTES.md).
 
 For shipped changes, see the [changelog](CHANGELOG.md). Test, CI and build history is recorded separately in [development and validation history](DEVELOPMENT-HISTORY.md).
 
@@ -323,7 +323,7 @@ Offline tests use NUnit 5.0.0, NUnit3TestAdapter 6.3.0, Microsoft.NET.Test.Sdk 1
 dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj -c Release --filter "TestCategory!=Live" -p:GenerateDocfxDocumentation=false
 ```
 
-Offline tests need neither credentials nor a Powerwall. Live tests are explicit and separate; control tests require per-operation authorization. To check backward compatibility, package validation compares the 2.3.0 assemblies for both target frameworks with the released 2.2.0 baseline. No API differences are suppressed.
+Offline tests need neither credentials nor a Powerwall. Live tests are explicit and separate; control tests require per-operation authorization. To check backward compatibility, package validation compares the 2.3.1 assemblies for both target frameworks with the released 2.3.0 baseline. No API differences are suppressed.
 
 ## Continuous integration tests
 

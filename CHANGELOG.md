@@ -4,6 +4,13 @@ All notable changes are documented here. This project follows [Semantic Versioni
 
 This changelog records shipped features, fixes, compatibility and runtime dependency changes. See [development and validation history](DEVELOPMENT-HISTORY.md) for tests, CI, build tooling and work not yet released.
 
+## 2.3.1 — 2026-10-24
+
+### Fixed
+
+- Allow a finite 60-second signed-request lifetime so RSA-4096 signing on slower supported runtimes can complete before delivery. The former 13-second lifetime could expire before transmission and be rejected with `RrorTimeout`. The per-request HTTP timeout is independent.
+- Preserve the public API, assembly identity, runtime dependencies and existing key/signature protocol.
+
 ## 2.3.0 — 2026-10-24
 
 ### Added

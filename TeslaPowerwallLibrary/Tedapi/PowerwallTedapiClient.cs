@@ -359,9 +359,11 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 			throw new PowerwallConnectionException ("Signed LAN is unavailable. A supported telemetry read must recover LAN before signed-only operations can run.");
 		for (var attempt = 0; attempt < 2; attempt++)
 			{
+			// RSA-4096 signing can exceed 13 seconds on supported embedded runtimes.
+			// Keep a finite 60-second signature lifetime; the HTTP timeout is independent.
 			byte[] request = IsSigned
 				? TedapiSigning.Sign (_options.LocalSigningKey!, _din!, envelope,
-					checked((uint)(DateTimeOffset.UtcNow.ToUnixTimeSeconds () + 13))).ToByteArray ()
+					checked((uint)(DateTimeOffset.UtcNow.ToUnixTimeSeconds () + 60))).ToByteArray ()
 				: IsBearer ? new Signed.AuthEnvelope { Payload = ByteString.CopyFrom (envelope), ExternalAuth = new Signed.ExternalAuth { Type = (Signed.ExternalAuthType)1 } }.ToByteArray ()
 				: new Graphql.Frame { Message = ByteString.CopyFrom (envelope), Tail = new Graphql.Tail { Value = routedDin is null ? 1 : 2 } }.ToByteArray ();
 			try

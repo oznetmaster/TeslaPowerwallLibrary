@@ -52,6 +52,8 @@ Every local mode stays local. There is no cloud login or cloud fallback during l
 
 `Host` accepts a hostname or IP address, optionally with an HTTPS port. `.local` names use the operating system resolver. `PowerwallDiscovery.ResolveAsync` resolves an explicit address; `DiscoverAsync` browses IPv4 mDNS/DNS-SD advertisements and returns unverified candidates. Discovery does not scan a subnet, authenticate candidates or select a device. The tested Powerwall resolved by hostname but returned no candidates during the discovery browse, so manual hostname/IP configuration remains necessary for that installation.
 
+Signed requests have a finite 60-second validity window from the start of signature generation. This includes RSA-4096 signature generation and delivery, allowing slower supported runtimes to sign before the request expires. `PowerwallOptions.Timeout` remains the independent HTTP request timeout; the validity window does not define the total duration of a multi-request poll.
+
 ## Signing-key enrollment
 
 Reuse the existing Owner or Fleet login flow and select the intended energy site. Create or load the signing key in the consumer's secure storage, then call:
