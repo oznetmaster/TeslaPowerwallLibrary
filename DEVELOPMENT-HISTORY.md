@@ -7,7 +7,7 @@
 - Both new query-version regressions failed against the original expiry. All 464 core cases passed on each target framework with the correction. API validation against released 2.3.0 passed; assembly identity remains 2.0.0.0 and runtime dependencies are unchanged.
 - A native integration diagnostic passed six read-only live checks with the corrected expiry and real RSA-4096 signing. Temporary test resources were removed and reservations released. Final committed-source release gates are recorded separately.
 
-## 2.3 release preparation â€” 24 October 2026
+## 2.3 release preparation — 24 October 2026
 
 - Prepared the minor release as NuGet 2.3.0/file version 2.3.0.0 with assembly identity 2.0.0.0 retained and API validation baseline advanced to released 2.2.0. Updated release notes, changelog, README, local guide and documentation home page. Final-metadata offline solution validation passed 1,211 cases: 462 library cases per runtime, 51 console cases per runtime, 126 desktop cases and 59 credential-tool cases.
 
@@ -18,7 +18,7 @@
 - Final Release validation passed the same 462 cases on each runtime. A local `2.3.0-validation` package passed SDK package/API validation against released 2.2.0; both framework XML files include the new property documentation. DocFX metadata and HTML generation reported zero warnings/errors. Project release versions and assembly identity were not changed, and the validation package was not published.
 - Authorized read-only signed LAN validation passed both June 2024 and June 2026 query versions on net10.0 and net472, run sequentially (four live cases). The PW3 installation on firmware 26.34.0 reported configured power 11.04 kW, all three maximum-power ratings 11040, and usable legacy inverter power 0 on both query versions. June 2024 returned all fourteen additional MSA names, with two populated false readings; June 2026 returned none of those added signals, as expected. The live assertions exercise public status serialization, typed signal availability, existing telemetry/diagnostics, native meter reads and configured battery snapshots. PW2 module pairing remains covered by synthetic fixtures, not local PW2 hardware. Existing protected credentials and the verified CNG key were reused; no settings, grid commands, key enrollment, firmware procedures or publication were performed. Clients and key handles were disposed and temporary process environment overrides restored.
 
-## 2.2 release preparation â€” 17 October 2026
+## 2.2 release preparation — 17 October 2026
 
 - Compared the maintained 2.1.0 library with pypowerwall 0.19.0/0.20.0. Added the 23 PW3 signal names and `SYNC_Uptime` through unsigned June 2024 request variables; captured query text, signatures and signed bytes remain unchanged. June 2026 does not silently fall back to another query version.
 - Added nullable typed sync-board uptime and a per-connection boot estimate, preserving submillisecond counter precision on .NET Framework and .NET 10. Tests cover matching identities, zero, invalid clocks/counters, null records, jitter, resets, older samples, cancellation, caching and concurrent callers.
@@ -29,7 +29,7 @@
 - Updated the README, changelog, release notes, local guide and documentation home page for 2.2.0. Earlier independent test-package notes were moved from the README into this history. The package includes the changelog, release/local/upgrade guides, both framework assemblies with XML references and the unchanged upstream MIT notice.
 - Fresh-cache consumers restored the local stable 2.2.0 package with dependencies from public NuGet, then compiled and ran on both targets, checking retained API/assembly identity, release file version, nullable status metadata and typed uptime/site/signal round trips. The DocFX metadata and site preview both built with zero warnings/errors. No package or release has been published during this preparation.
 
-## 2.1 release preparation â€” 8 October 2026
+## 2.1 release preparation — 8 October 2026
 
 - Merged-package discovery identified generated generic helpers inside an attributed live fixture as invalid fixtures. Moved the asynchronous journal helper into the unannotated support class; ordinary test identities and control guards are unchanged. Both library runtime suites still pass.
 
@@ -44,7 +44,7 @@
 - Final package inspection caught and corrected a multi-target outer-build omission of the bundled protocol MIT notice. The package includes the notice byte for byte, both XML references and the release guides. Fresh isolated NuGet consumers compiled and ran on net472 and .NET 10, checking both reading contracts, protocol defaults and retained assembly identity.
 - Release preparation completed for 2.1.0. Historical live evidence and limits remain in LOCAL-ACCESS.md.
 
-## Local API revision â€” included in 2.1.0, 8 October 2026
+## Local API revision — included in 2.1.0, 8 October 2026
 
 Current outcome: the pinned upstream TEDAPI functional scope is implemented. Hardware coverage is documented separately in [local access](LOCAL-ACCESS.md); this revision is included in 2.1.0.
 
@@ -156,7 +156,7 @@ See the [product changelog](CHANGELOG.md) for shipped changes. This document pre
 
 Added a session-only Settings control unlock without changing the library's read-only default. Offline tests exercise actual WPF reserve, mode and grid-charging controls, reject unexpected writes during unlock, retain the original connection after authentication failure, and clear permission on disconnect. System alert presentation retains firmware codes and response receipt time without treating every entry as a warning.
 
-## Historical test-tooling release notes â€” 1 October 2026
+## Historical test-tooling release notes — 1 October 2026
 
 Moved from the README during 2.2 release preparation; these describe the earlier independent test-package update.
 
