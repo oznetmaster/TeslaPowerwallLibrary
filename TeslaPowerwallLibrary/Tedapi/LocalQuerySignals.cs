@@ -8,7 +8,7 @@ namespace TeslaPowerwallLibrary.Tedapi;
 public sealed partial class PowerwallTedapiClient
 	{
 	/// <summary>Appends supported signal names to unsigned variables without modifying vendor-signed query captures.</summary>
-	/// <remarks>Signal names follow pypowerwall v0.20.0's PW3_APP_SIGNAL_NAMES and GATEWAY_MSA_SIGNAL_NAMES.</remarks>
+	/// <remarks>Signal names follow pypowerwall v0.21.0's PW3_APP_SIGNAL_NAMES, GATEWAY_MSA_SIGNAL_NAMES and PW2_MSA_SIGNAL_NAMES.</remarks>
 	/// <param name="name">The June 2024 query role.</param>
 	/// <param name="query">The pristine captured query.</param>
 	/// <returns>A request definition retaining the original text and signature.</returns>
@@ -24,7 +24,12 @@ public sealed partial class PowerwallTedapiClient
 					["pwsSignalNames"] = ["PWS_ExtSwitch_State", "PWS_RSDSelfTest_Result", "PWS_RSDSelfTest_State", "PWS_RSD_State", "PWS_assemblyId", "PWS_pcbaId", "PWS_reversePolarityStrings"],
 					["baggrSignalNames"] = ["BAGGR_ExpectedEnergyRemaining", "BAGGR_ExpectedFullPackEnergy", "BAGGR_OperationType"]
 					},
-				"device_controller_full" => new Dictionary<string, string[]> (StringComparer.Ordinal) { ["msaSignals"] = ["SYNC_Uptime"] },
+				"device_controller_full" => new Dictionary<string, string[]> (StringComparer.Ordinal)
+					{
+					["msaSignals"] = ["SYNC_Uptime", "PINV_EnergyCharged", "PINV_EnergyDischarged", "PINV_LifetimeEnergyCharged", "PINV_LifetimeEnergyDischarged",
+						"PINV_HeatsinkTemp", "PINV_PllFrequency", "PINV_PllLocked", "PINV_Qout", "PINV_ReadyForGridForming", "PINV_HardwareEnableLine", "PINV_PowerLimiter",
+						"THC_State", "SYNC_ExternallyPowered", "SYNC_SiteSwitchEnabled"]
+					},
 				_ => null
 				};
 		if (extras is null)

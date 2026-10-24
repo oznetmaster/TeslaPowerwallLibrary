@@ -4,9 +4,9 @@ A typed .NET client for Tesla™ Powerwall™ classic gateway, local TEDAPI, Own
 
 Tesla and Powerwall are trademarks of Tesla, Inc. This independent, unofficial project is not affiliated with or endorsed by Tesla.
 
-## Version 2.2
+## Version 2.3
 
-Version 2.2 adds PW3 battery-health signals, nullable gateway sync-board uptime and richer typed site metadata. It corrects Wi-Fi remote-meter configuration and cloud boot/installation metadata while retaining existing public signatures and classic gateway defaults. Both supported TEDAPI query formats remain available; June 2024 is still the default and supports telemetry absent from the captured June 2026 queries.
+Version 2.3 adds fourteen PW2 MSA signals, conservative per-battery counter pairing and TEDAPI maximum-power ratings that respect inverter derating. The new nullable `SystemStatus.InverterNominalUsablePower` reports the usable inverter sum. Existing public signatures, assembly identity and classic gateway defaults remain compatible. Both supported TEDAPI query formats remain available; June 2024 is still the default and can request the added signals, while the June 2026 captures remain unchanged.
 
 - [Getting started](articles/intro.md)
 - [Choosing a connection](articles/local-access.md#choosing-a-connection)

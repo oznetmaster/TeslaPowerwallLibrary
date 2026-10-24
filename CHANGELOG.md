@@ -4,6 +4,20 @@ All notable changes are documented here. This project follows [Semantic Versioni
 
 This changelog records shipped features, fixes, compatibility and runtime dependency changes. See [development and validation history](DEVELOPMENT-HISTORY.md) for tests, CI, build tooling and work not yet released.
 
+## 2.3.0 — 2026-10-24
+
+### Added
+
+- Request fourteen additional PW2 inverter, thermal-controller and sync-board MSA signals through the June 2024 detailed-controller query. Existing typed component and vitals values retain numeric zero, false, text and null.
+- Fill per-battery charged/discharged energy and reactive power only when the complete PW2 package/module layout can be paired unambiguously. Ambiguous layouts leave the new battery readings unavailable.
+- Add nullable `SystemStatus.InverterNominalUsablePower`, reported in watts by TEDAPI.
+
+### Fixed
+
+- Populate TEDAPI maximum charge, discharge and apparent power using the configured site kW rating converted to watts, capped by eligible inverter capability where available. Missing or unusable ratings cannot fabricate a maximum-power value.
+
+Existing public signatures, assembly identity, runtime dependencies and classic gateway defaults remain unchanged. Captured query text, signatures and component types are retained; June 2026 queries are not extended. PW3 read-only hardware validation passed on both runtimes; PW2 pairing has offline coverage. See [release notes](RELEASE-NOTES.md).
+
 ## 2.2.0 — 2026-10-17
 
 ### Added

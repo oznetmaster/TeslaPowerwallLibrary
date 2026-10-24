@@ -228,6 +228,37 @@ public sealed class LocalReadOnlyLiveTests
 		Assert.That (snapshot.Devices.Any (device => device.Din == client.DeviceIdentificationNumber
 			&& device.Telemetry is not null), Is.True, "The authenticated Powerwall must have its own component readings.");
 		Assert.That (snapshot.Batteries, Is.Not.Null.And.Not.Empty);
+		var systemStatus = JsonHelper.Deserialize<Models.SystemStatus> ((await client.PollAsync ("/api/system_status", cancellationToken: deadline.Token))!)!;
+		Assert.That (systemStatus.MaxDischargePower, Is.EqualTo (systemStatus.MaxChargePower));
+		Assert.That (systemStatus.MaxApparentPower, Is.EqualTo (systemStatus.MaxChargePower));
+		Assert.That (systemStatus.InverterNominalUsablePower, Is.Not.Null.And.GreaterThanOrEqualTo (0));
+		if (configuration.Site?.NominalPowerKilowatts is double kilowatts && kilowatts > 0)
+			{
+			Assert.That (systemStatus.MaxChargePower, Is.GreaterThan (0).And.LessThanOrEqualTo (Math.Round (kilowatts * 1000)));
+			if (systemStatus.InverterNominalUsablePower == 0)
+				Assert.That (systemStatus.MaxChargePower, Is.EqualTo (Math.Round (kilowatts * 1000)), "Without legacy inverter capabilities the site kW rating must be converted to watts.");
+			}
+		TestContext.Out.WriteLine ("TEDAPI power ratings: " + JsonSerializer.Serialize (new
+			{
+			ConfiguredKilowatts = configuration.Site?.NominalPowerKilowatts,
+			systemStatus.MaxChargePower, systemStatus.MaxDischargePower, systemStatus.MaxApparentPower, systemStatus.InverterNominalUsablePower
+			}));
+		string[] additionalNames = ["PINV_EnergyCharged", "PINV_EnergyDischarged", "PINV_LifetimeEnergyCharged", "PINV_LifetimeEnergyDischarged",
+			"PINV_HeatsinkTemp", "PINV_PllFrequency", "PINV_PllLocked", "PINV_Qout", "PINV_ReadyForGridForming", "PINV_HardwareEnableLine", "PINV_PowerLimiter",
+			"THC_State", "SYNC_ExternallyPowered", "SYNC_SiteSwitchEnabled"];
+		var msa = detailed.Components is { } allComponents && allComponents.TryGetValue ("msa", out var msaComponents)
+			? msaComponents : Array.Empty<LocalComponent> ();
+		var additional = msa.SelectMany (component => component.Signals ?? Array.Empty<LocalSignal> ())
+			.Where (signal => additionalNames.Contains (signal.Name, StringComparer.Ordinal)).ToArray ();
+		Assert.That (additional.All (signal => !signal.Value.HasValue || !double.IsNaN (signal.Value.Value) && !double.IsInfinity (signal.Value.Value)), Is.True);
+		TestContext.Out.WriteLine ("Additional MSA signal availability: " + JsonSerializer.Serialize (new
+			{
+			QueryVersion = queryVersion.ToString (),
+			ReportedNames = additional.Select (signal => signal.Name).Distinct (StringComparer.Ordinal).OrderBy (name => name, StringComparer.Ordinal).ToArray (),
+			PopulatedReadings = additional.Count (signal => signal.Value.HasValue || signal.BoolValue.HasValue || signal.TextValue is not null),
+			FalseReadings = additional.Count (signal => signal.BoolValue == false),
+			ConfiguredBatteryTypes = configuration.Batteries?.Select (battery => battery.Type).Distinct (StringComparer.Ordinal).ToArray ()
+			}));
 		var diagnostics = LocalDiagnosticsProjection.Create (snapshot);
 		Assert.That (diagnostics.Any (component => component.DeviceDin == client.DeviceIdentificationNumber && component.SolarStrings.Count > 0), Is.True);
 		TestContext.Out.WriteLine ("Component diagnostics: " + JsonSerializer.Serialize (diagnostics));

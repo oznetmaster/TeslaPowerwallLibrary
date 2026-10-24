@@ -61,7 +61,12 @@ public sealed partial class TedapiTests
 						Assert.That (System.Text.Json.Nodes.JsonNode.DeepEquals (System.Text.Json.Nodes.JsonNode.Parse (actual.GetRawText ()),
 						System.Text.Json.Nodes.JsonNode.Parse (property.Value.GetRawText ())), Is.True);
 					}
-				var extras = components ? expected : new Dictionary<string, string[]> { ["msaSignals"] = ["SYNC_Uptime"] };
+				var extras = components ? expected : new Dictionary<string, string[]>
+					{
+					["msaSignals"] = ["SYNC_Uptime", "PINV_EnergyCharged", "PINV_EnergyDischarged", "PINV_LifetimeEnergyCharged", "PINV_LifetimeEnergyDischarged",
+						"PINV_HeatsinkTemp", "PINV_PllFrequency", "PINV_PllLocked", "PINV_Qout", "PINV_ReadyForGridForming", "PINV_HardwareEnableLine", "PINV_PowerLimiter",
+						"THC_State", "SYNC_ExternallyPowered", "SYNC_SiteSwitchEnabled"]
+					};
 				foreach (var group in extras)
 					{
 					string?[] names = variables.RootElement.GetProperty (group.Key).EnumerateArray ().Select (n => n.GetString ()).ToArray ();

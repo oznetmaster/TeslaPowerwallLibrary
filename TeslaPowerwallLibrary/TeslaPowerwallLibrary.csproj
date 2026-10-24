@@ -23,13 +23,13 @@
 		<Product>TeslaPowerwallLibrary</Product>
 		<Copyright>Copyright © 2026 Neil Colvin</Copyright>
 		<AssemblyVersion>2.0.0.0</AssemblyVersion>
-		<FileVersion>2.2.0.0</FileVersion>
+		<FileVersion>2.3.0.0</FileVersion>
 		<PackageId>TeslaPowerwallLibrary</PackageId>
-		<Version>2.2.0</Version>
+		<Version>2.3.0</Version>
 		<!-- Retain AssemblyVersion 2.0.0.0 for existing binary consumers. -->
 		<EnablePackageValidation>true</EnablePackageValidation>
-		<PackageValidationBaselineVersion>2.1.0</PackageValidationBaselineVersion>
-		<PackageReleaseNotes>Add 23 PW3 battery-health, inverter and safety signals, typed nullable gateway uptime and richer site configuration. Correct Wi-Fi remote-meter scaling and cloud status metadata; preserve installation date separately from boot time. Update desktop details and console commands. Retain existing public signatures, classic gateway defaults and both supported TEDAPI query formats. See RELEASE-NOTES.md and LOCAL-ACCESS.md for availability and compatibility details.</PackageReleaseNotes>
+		<PackageValidationBaselineVersion>2.2.0</PackageValidationBaselineVersion>
+		<PackageReleaseNotes>Add fourteen PW2 MSA signals and conservative per-battery charged/discharged energy and reactive-power projection. Fill TEDAPI maximum-power ratings using site power capped by usable inverter capability; expose nullable SystemStatus.InverterNominalUsablePower. Preserve existing public signatures, assembly identity and captured query signatures. See RELEASE-NOTES.md and LOCAL-ACCESS.md for availability and hardware limits.</PackageReleaseNotes>
 		<Authors>Neil Colvin</Authors>
 		<PackageTags>tesla;powerwall;smart-home;iot;rest;api;nuget</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>

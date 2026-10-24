@@ -35,6 +35,10 @@ public sealed record SystemStatus
 	[JsonPropertyName ("max_apparent_power")]
 	public double? MaxApparentPower { get; init; }
 
+	/// <summary>Sum of usable inverter nominal power in watts; zero when no inverter reports a usable capability, or null when unavailable.</summary>
+	[JsonPropertyName ("inverter_nominal_usable_power")]
+	public double? InverterNominalUsablePower { get; init; }
+
 	/// <summary>Island state of the system; mirrors the grid status value.</summary>
 	[JsonPropertyName ("system_island_state")]
 	public string? SystemIslandState { get; init; }

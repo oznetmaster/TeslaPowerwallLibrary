@@ -79,6 +79,7 @@ public sealed partial class PowerwallTedapiClient
 				}
 			}
 		blocks = LocalBatteryProjection.ApplyLegacy (blocks, controller.EnergyBus?.Devices);
+		blocks = LocalBatteryProjection.ApplyMsa (blocks, controller);
 		return new LocalDeviceSnapshot { Configuration = config, Controller = controller, Devices = devices, Batteries = blocks };
 		}
 	}

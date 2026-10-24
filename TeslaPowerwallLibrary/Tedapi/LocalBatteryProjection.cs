@@ -6,7 +6,7 @@ using TeslaPowerwallLibrary.Models;
 namespace TeslaPowerwallLibrary.Tedapi;
 
 /// <summary>Projects identified local Powerwall components into the shared battery-summary contract.</summary>
-internal static class LocalBatteryProjection
+internal static partial class LocalBatteryProjection
 	{
 	/// <summary>Builds configured battery identities and attaches measurements only from the queried unit.</summary>
 	/// <param name="configuration">Non-secret configured device identities.</param>

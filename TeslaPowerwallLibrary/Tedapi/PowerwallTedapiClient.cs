@@ -505,10 +505,10 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 			}
 		LocalTelemetry telemetry = await GetTelemetryAsync (force, cancellationToken).ConfigureAwait (false);
 		LocalBatteryEnergy? energy = telemetry.Control?.SystemStatus;
-		IReadOnlyList<BatteryBlock>? batteries = null;
 		if (api == "/api/system_status")
 			{
-			batteries = (await GetDeviceSnapshotAsync (force, cancellationToken).ConfigureAwait (false)).Batteries;
+			var snapshot = await GetDeviceSnapshotAsync (force, cancellationToken).ConfigureAwait (false);
+			return JsonHelper.Serialize (LocalSystemStatusProjection.Create (telemetry, snapshot));
 			}
 		object? result = api switch
 			{
@@ -521,14 +521,6 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 					},
 				"/api/system_status/soe" => energy?.FullCapacityWattHours > 0 && energy.RemainingWattHours.HasValue
 					? new StateOfEnergy { Percentage = energy.RemainingWattHours.Value / energy.FullCapacityWattHours.Value * 100 } : null,
-				"/api/system_status" => new SystemStatus
-					{
-					NominalFullPackEnergy = energy?.FullCapacityWattHours,
-					NominalEnergyRemaining = energy?.RemainingWattHours,
-					AvailableBlocks = telemetry.Control?.BatteryBlocks?.Count,
-					BatteryBlocks = batteries,
-					SystemIslandState = telemetry.Control?.Islanding?.ContactorClosed is bool closed ? closed ? "SystemGridConnected" : "SystemIslandedActive" : null
-					},
 				"/api/system_status/grid_status" => telemetry.Control?.Islanding?.ContactorClosed is bool connected
 					? new GridStatusResponse { GridStatus = connected ? "SystemGridConnected" : "SystemIslandedActive" } : null,
 				_ => throw new PowerwallNotSupportedException ("This TEDAPI endpoint is not implemented: " + api)
