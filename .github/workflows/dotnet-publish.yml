@@ -38,6 +38,13 @@ permissions:
   checks: read
   contents: write
 
+# All publication entry points in this repository share this lock.
+# Keep independent repository releases parallel and retain queued requests.
+concurrency:
+  group: public-release
+  cancel-in-progress: false
+  queue: max
+
 jobs:
   publish:
     runs-on: windows-latest
@@ -98,6 +105,37 @@ jobs:
 
           "raw_version=$rawVersion" >> $env:GITHUB_OUTPUT
           "package_version=$packageVersion" >> $env:GITHUB_OUTPUT
+
+      - name: Reject an already published version
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.version.outputs.package_version }}
+        run: |
+          # Run under the repository publication lock: concurrent tasks must not
+          # replace release assets or silently accept somebody else's package.
+          $releaseTags = @(gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" --paginate --jq '.[].tag_name')
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot verify existing GitHub releases.' }
+          if ($releaseTags -ccontains "v$env:RELEASE_VERSION") {
+              throw 'This GitHub release already exists; inspect it before retrying publication.'
+          }
+          $tags = git ls-remote --tags origin "refs/tags/v$env:RELEASE_VERSION" "refs/tags/v$env:RELEASE_VERSION^{}"
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot verify the release tag.' }
+          if ($tags) {
+              $resolved = git rev-parse "v$($env:RELEASE_VERSION)^{commit}"
+              if ($LASTEXITCODE -ne 0 -or $resolved -cne $env:GITHUB_SHA) {
+                  throw 'The release tag belongs to another source commit.'
+              }
+          }
+          $index = $null
+          try {
+              $index = Invoke-RestMethod 'https://api.nuget.org/v3-flatcontainer/teslapowerwalllibrary/index.json'
+          } catch {
+              if ([int]$_.Exception.Response.StatusCode -ne 404) { throw }
+          }
+          if ($index -and @($index.versions | Where-Object { $_ -ieq $env:RELEASE_VERSION }).Count) {
+              throw 'This NuGet version already exists; inspect its provenance before retrying publication.'
+          }
 
       - name: Restore solution
         run: dotnet restore TeslaPowerwallLibrary.slnx
@@ -177,7 +215,8 @@ jobs:
           }
 
           foreach ($package in $packages) {
-              dotnet nuget push $package.FullName --api-key "${{ secrets.NUGET_API_KEY }}" --source "https://api.nuget.org/v3/index.json" --skip-duplicate
+              dotnet nuget push $package.FullName --api-key "${{ secrets.NUGET_API_KEY }}" --source "https://api.nuget.org/v3/index.json"
+              if ($LASTEXITCODE -ne 0) { throw "NuGet publication failed for $($package.Name)." }
           }
 
       - name: Create GitHub release
