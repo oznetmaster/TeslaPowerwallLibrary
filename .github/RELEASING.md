@@ -21,3 +21,5 @@ Each run keeps its checked-out source SHA and isolated workspace. Before publish
 Processor reservations are separate from publication locks. They must be shared across runners and repositories, keyed by physical processor identity and owned by repository/run/attempt. Availability observations are advisory; only atomic reservation acquisition permits use. Release a reservation only after verified cleanup, and retain it for investigation if cleanup cannot be confirmed. Runner eligibility follows required capabilities; preferring HPNEIL must not pin a workflow permanently to that host.
 
 Release gates use the shared CrestronHomeNUnit release-validation action pinned to its full source commit. The action is independent of runner/processor selection. Local legacy policy scripts remain for existing checks; changing the pinned shared action is an explicit source change.
+
+Published changelog headings use inline version links to the verified GitHub release. Keep Unreleased as plain text, preserve entry dates and text, and leave versions without a corresponding GitHub release as plain headings.
