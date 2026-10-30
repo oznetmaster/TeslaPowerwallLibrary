@@ -58,21 +58,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify configured release checks
-        shell: pwsh
-        working-directory: ${{ github.workspace }}/.
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REQUIRED_RELEASE_CHECKS: ${{ vars.RELEASE_REQUIRED_CHECKS }}
-          REQUIRED_HOSTED_WORKFLOWS: '["unit-tests.yml"]'
-          RELEASE_SKIP_HARDWARE_CHECKS: ${{ inputs.skip_hardware_checks }}
-          RELEASE_HARDWARE_SKIP_REASON: ${{ inputs.hardware_skip_reason }}
-          RELEASE_SKIP_DESKTOP_CHECKS: ${{ inputs.skip_desktop_checks }}
-          RELEASE_DESKTOP_SKIP_REASON: ${{ inputs.desktop_skip_reason }}
-          RELEASE_VALIDATION_COMMIT: ${{ inputs.validation_commit }}
-        run: |
-          & ./.github/scripts/Test-RequiredReleaseChecks.ps1
-          & ./.github/scripts/Wait-RequiredReleaseChecks.ps1
+      - name: Verify completed desktop and processor validation
+        uses: oznetmaster/CrestronHomeNUnit/.github/actions/release-validation@2ae8197c6685099c2133e7bb962d1f3568aae9c3
+        with:
+          required-checks: ${{ vars.RELEASE_REQUIRED_CHECKS }}
+          hosted-workflows: '["unit-tests.yml"]'
+          skip-hardware-checks: ${{ inputs.skip_hardware_checks }}
+          hardware-skip-reason: ${{ inputs.hardware_skip_reason }}
+          skip-desktop-checks: ${{ inputs.skip_desktop_checks }}
+          desktop-skip-reason: ${{ inputs.desktop_skip_reason }}
+          validation-commit: ${{ inputs.validation_commit }}
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
