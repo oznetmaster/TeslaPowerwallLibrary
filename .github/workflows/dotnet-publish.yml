@@ -11,12 +11,25 @@ on:
         required: true
         type: string
       skip_hardware_checks:
-        description: Publish without hardware validation when the processor or local runner is unavailable
+        description: Reuse recorded manual processor results, or explicitly override unavailable hardware
         required: false
         type: boolean
         default: false
       hardware_skip_reason:
-        description: Reason for skipping hardware checks (required when selected)
+        description: Tested source, completion time, result and cleanup evidence, or unavailable-hardware reason
+        required: false
+        type: string
+      skip_desktop_checks:
+        description: Reuse recorded desktop tests instead of waiting for another hosted run
+        required: false
+        type: boolean
+        default: false
+      desktop_skip_reason:
+        description: Tested source, completion time, frameworks, pass counts and evidence (required when selected)
+        required: false
+        type: string
+      validation_commit:
+        description: Reuse CI passes within 24h from this ancestor SHA; only release automation/docs may differ
         required: false
         type: string
 
@@ -47,7 +60,12 @@ jobs:
           REQUIRED_HOSTED_WORKFLOWS: '["unit-tests.yml"]'
           RELEASE_SKIP_HARDWARE_CHECKS: ${{ inputs.skip_hardware_checks }}
           RELEASE_HARDWARE_SKIP_REASON: ${{ inputs.hardware_skip_reason }}
-        run: '& ./.github/scripts/Wait-RequiredReleaseChecks.ps1'
+          RELEASE_SKIP_DESKTOP_CHECKS: ${{ inputs.skip_desktop_checks }}
+          RELEASE_DESKTOP_SKIP_REASON: ${{ inputs.desktop_skip_reason }}
+          RELEASE_VALIDATION_COMMIT: ${{ inputs.validation_commit }}
+        run: |
+          & ./.github/scripts/Test-RequiredReleaseChecks.ps1
+          & ./.github/scripts/Wait-RequiredReleaseChecks.ps1
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -56,10 +74,12 @@ jobs:
       - name: Determine package version
         id: version
         shell: pwsh
+        env:
+          RELEASE_INPUT_VERSION: ${{ inputs.version }}
         run: |
-          $rawVersion = switch ('${{ github.event_name }}') {
-              'workflow_dispatch' { '${{ inputs.version }}'; break }
-              'push' { '${{ github.ref_name }}'; break }
+          $rawVersion = switch ($env:GITHUB_EVENT_NAME) {
+              'workflow_dispatch' { $env:RELEASE_INPUT_VERSION; break }
+              'push' { $env:GITHUB_REF_NAME; break }
               default { '' }
           }
 
@@ -72,7 +92,7 @@ jobs:
               $packageVersion = $packageVersion.Substring(1)
           }
 
-          if ($packageVersion -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z\.-]+)?$') {
+          if ($packageVersion -notmatch '^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z\.-]+)?$') {
               throw "Version '$packageVersion' is not a supported NuGet semantic version."
           }
 
@@ -85,21 +105,7 @@ jobs:
       - name: Build solution
         run: dotnet build TeslaPowerwallLibrary.slnx --configuration Release --no-restore -p:GenerateDocfxDocumentation=false -p:ContinuousIntegrationBuild=true -p:Version=${{ steps.version.outputs.package_version }}
 
-      - name: Run tests (net472)
-        run: dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj --configuration Release --no-build --framework net472 --filter "TestCategory!=Live"
-
-      - name: Run tests (net10.0)
-        run: dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj --configuration Release --no-build --framework net10.0 --filter "TestCategory!=Live"
-
-      - name: Test credential helper and callback handling
-        run: dotnet test TeslaPowerwallLibrary.TestCredentials.Tests/TeslaPowerwallLibrary.TestCredentials.Tests.csproj --configuration Release --no-build
-
-      - name: Test console on both runtimes
-        run: dotnet test TeslaPowerwallLibrary.TestConsole.Tests/TeslaPowerwallLibrary.TestConsole.Tests.csproj --configuration Release --no-build
-
-      - name: Test desktop presentation offline
-        run: dotnet test TeslaPowerwallLibrary.App.Tests/TeslaPowerwallLibrary.App.Tests.csproj --configuration Release --no-build
-
+      # Successful validation was checked above; publishing does not execute the same suites again.
       - name: Pack library
         shell: pwsh
         run: |
@@ -174,12 +180,12 @@ jobs:
               dotnet nuget push $package.FullName --api-key "${{ secrets.NUGET_API_KEY }}" --source "https://api.nuget.org/v3/index.json" --skip-duplicate
           }
 
-      - name: Create GitHub release from tag
-        if: github.event_name == 'push'
+      - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.raw_version }}
-          name: ${{ steps.version.outputs.raw_version }}
+          tag_name: v${{ steps.version.outputs.package_version }}
+          name: v${{ steps.version.outputs.package_version }}
+          target_commitish: ${{ github.sha }}
           body_path: RELEASE-NOTES.md
           prerelease: ${{ contains(steps.version.outputs.package_version, '-') }}
           files: |
