@@ -505,6 +505,8 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 			{
 			throw new PowerwallNotSupportedException ("This TEDAPI endpoint is not implemented: " + api);
 			}
+		if (api == "/api/meters/aggregates")
+			return JsonHelper.Serialize (await GetSynthesizedMeterAggregatesAsync (force, cancellationToken).ConfigureAwait (false));
 		LocalTelemetry telemetry = await GetTelemetryAsync (force, cancellationToken).ConfigureAwait (false);
 		LocalBatteryEnergy? energy = telemetry.Control?.SystemStatus;
 		if (api == "/api/system_status")
@@ -514,13 +516,6 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 			}
 		object? result = api switch
 			{
-				"/api/meters/aggregates" => new MeterAggregates
-					{
-					Site = Reading (telemetry, "SITE"),
-					Solar = Reading (telemetry, "SOLAR"),
-					Battery = Reading (telemetry, "BATTERY"),
-					Load = Reading (telemetry, "LOAD")
-					},
 				"/api/system_status/soe" => energy?.FullCapacityWattHours > 0 && energy.RemainingWattHours.HasValue
 					? new StateOfEnergy { Percentage = energy.RemainingWattHours.Value / energy.FullCapacityWattHours.Value * 100 } : null,
 				"/api/system_status/grid_status" => telemetry.Control?.Islanding?.ContactorClosed is bool connected

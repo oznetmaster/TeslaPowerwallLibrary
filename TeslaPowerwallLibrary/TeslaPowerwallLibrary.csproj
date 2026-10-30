@@ -23,13 +23,13 @@
 		<Product>TeslaPowerwallLibrary</Product>
 		<Copyright>Copyright © 2026 Neil Colvin</Copyright>
 		<AssemblyVersion>2.0.0.0</AssemblyVersion>
-		<FileVersion>2.3.1.0</FileVersion>
+		<FileVersion>2.3.2.0</FileVersion>
 		<PackageId>TeslaPowerwallLibrary</PackageId>
-		<Version>2.3.1</Version>
+		<Version>2.3.2</Version>
 		<!-- Retain AssemblyVersion 2.0.0.0 for existing binary consumers. -->
 		<EnablePackageValidation>true</EnablePackageValidation>
-		<PackageValidationBaselineVersion>2.3.0</PackageValidationBaselineVersion>
-		<PackageReleaseNotes>Fix signed LAN requests expiring during RSA-4096 signing on slower runtimes. Use a finite 60-second signature validity window while preserving the independent HTTP timeout, public API, runtime dependencies and assembly identity. See RELEASE-NOTES.md.</PackageReleaseNotes>
+		<PackageValidationBaselineVersion>2.3.1</PackageValidationBaselineVersion>
+		<PackageReleaseNotes>Fix false TEDAPI solar-production dips during brief SolarMeterComms dropouts. Use complete configured remote-meter samples within 60 seconds of gateway time, correct load power by the same delta and expose nullable held-power age. Preserve raw telemetry, measured currents, energy counters, existing signatures, runtime dependencies and assembly identity. See RELEASE-NOTES.md.</PackageReleaseNotes>
 		<Authors>Neil Colvin</Authors>
 		<PackageTags>tesla;powerwall;smart-home;iot;rest;api;nuget</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>

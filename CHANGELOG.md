@@ -4,6 +4,17 @@ All notable changes are documented here. This project follows [Semantic Versioni
 
 This changelog records shipped features, fixes, compatibility and runtime dependency changes. See [development and validation history](DEVELOPMENT-HISTORY.md) for tests, CI, build tooling and work not yet released.
 
+## 2.3.2 — 2026-10-30
+
+### Fixed
+
+- Hold TEDAPI solar power through brief `SolarMeterComms` dropouts using complete, configured wired/Wi-Fi remote-meter samples within 60 seconds of the gateway clock. Correct load power by the same delta; preserve genuine zero production outside the alert, unavailable measurements, raw telemetry, measured currents and energy counters.
+- Apply the correction to both ordinary power helpers and detailed aggregates. Ordinary polling fetches supplementary data only for eligible alert/solar readings, retains controller power when enrichment fails and preserves cancellation and read-route selection.
+
+### Added
+
+- Nullable `MeterReading.PowerHoldAgeSeconds` identifies corrected solar/load power and the retained sample's age relative to the gateway clock.
+
 ## 2.3.1 — 2026-10-24
 
 ### Fixed

@@ -233,4 +233,7 @@ internal static partial class LibraryLog
 	[LoggerMessage (EventId = 76, Level = LogLevel.Debug, Message = " -- local: Returning cached {Api1}")]
 	internal static partial void LocalReturningCached (ILogger logger, object? Api1);
 
+	[LoggerMessage (EventId = 77, Level = LogLevel.Debug, Message = "SolarMeterComms hold enrichment unavailable; retaining controller power.")]
+	internal static partial void SolarMeterHoldUnavailable (ILogger logger, Exception exception);
+
 	}

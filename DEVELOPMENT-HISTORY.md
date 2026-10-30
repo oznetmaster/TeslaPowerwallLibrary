@@ -1,5 +1,13 @@
 # Development and validation history
 
+## 2.3.2 release preparation — 30 October 2026
+
+- Implemented directly in the maintained `C:\Projects\TeslaPowerwallLibrary` checkout. Matched the bounded solar/load correction in pypowerwall commit `6133761da20784fb0fe390c00525cef8fb1c6e92`: exact alert, missing/0–10 W controller solar, positive scaled remote solar total and timezone-aware samples within ±60 seconds of gateway time. There is no new last-good-value cache. Complete enabled CTs and unique meters are required; mixed meter families cannot supply a partial solar total.
+- Ordinary synthesized aggregates conditionally enrich one successful basic read on the same selected transport; detailed projections share the correction. Raw telemetry, native/customer and cloud readings, measured currents and cumulative energy are retained. Unlike upstream's derived current fields, this library does not substitute power divided by voltage for measured RMS current. Corrected solar/load power exposes nullable `PowerHoldAgeSeconds`; solar retains the oldest contributing timestamp.
+- Offline regression coverage includes both remote-meter types, threshold/age boundaries, explicit timezones, incomplete and non-finite data, scaling, sparse CTs, multiple meters, serialization, cache/forced refresh, recovery, supplementary-read failures, cancellation, all three local authentication transports, both query versions and read failover/recovery. Dropout validation was offline; no physical Powerwall operation was performed. Assembly identity and dependencies remain unchanged.
+- Final Release validation passed all 511 offline library cases on each target (.NET 10 and .NET Framework 4.7.2), including 47 added cases per target. The existing .NET Framework test-build `RuntimeHelpers` duplicate-type warning remains; the correction introduces no new build warnings. Results are retained under `TestResults/SolarMeterHold-final/`.
+- Prepared patch release 2.3.2/file version 2.3.2.0 with assembly identity 2.0.0.0. Final-metadata solution validation passed 1,309 offline cases: 511 library cases per runtime, 51 console cases per runtime, 126 desktop cases and 59 credential-tool cases. Package/API validation against released 2.3.1 passed without suppressions. Updated release notes, README, local guide, changelog and documentation home page.
+
 ## 2.3.1 release preparation — 24 October 2026
 
 - Native embedded-runtime validation found signed requests rejected with `RrorTimeout`. A synthetic benchmark measured 18.4–20.0-second RSA-4096 signatures with complete CRT parameters and correct UTC, exceeding the original 13-second request expiry.

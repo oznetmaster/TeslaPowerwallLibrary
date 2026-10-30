@@ -154,7 +154,7 @@ public static partial class LocalMeterProjection
 		return result;
 		}
 
-	/// <summary>Builds location summaries from configured channels while retaining the controller's authoritative power readings.</summary>
+	/// <summary>Builds location summaries, retaining controller power except for a bounded SolarMeterComms hold from configured remote meters.</summary>
 	/// <param name="configuration">Configured channel locations and scale factors.</param>
 	/// <param name="telemetry">Controller measurements and detailed meter readings.</param>
 	/// <returns>Site, solar, battery and load summaries; absent data is never replaced with zero.</returns>
@@ -200,7 +200,8 @@ public static partial class LocalMeterProjection
 				LastCommunicationTime = times.Length == 1 ? times[0] : null
 				};
 			}
-		return new MeterAggregates { Site = At ("site"), Solar = At ("solar"), Battery = At ("battery"), Load = At ("load") };
+		var aggregates = new MeterAggregates { Site = At ("site"), Solar = At ("solar"), Battery = At ("battery"), Load = At ("load") };
+		return LocalSolarMeterHold.Apply (aggregates, configuration, telemetry, telemetry, meters);
 		}
 
 	private static LocalConfiguredMeter Project (LocalConfiguration configuration, string type, string family, string? id,

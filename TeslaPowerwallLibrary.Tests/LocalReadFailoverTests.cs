@@ -192,12 +192,35 @@ public sealed class LocalReadFailoverTests
 		Assert.That (h.PrimaryReads, Is.EqualTo (primaryReads + (coldStart ? 0 : 3)), "Cold connections reject writes; warm ones only attempt LAN once per command.");
 		}
 
+	/// <summary>Aggregate enrichment stays on the selected route without nesting the failover gate.</summary>
+	[TestCase (TedapiQueryVersion.June2024), TestCase (TedapiQueryVersion.June2026)]
+	public async Task SolarMeterHold_FailoverAndRecoveryRemainOnOneRoute (TedapiQueryVersion version)
+		{
+		using var cancel = new CancellationTokenSource (TimeSpan.FromSeconds (20));
+		using var h = new Harness (_key, version: version) { SolarHold = true };
+		await h.ConnectAsync ();
+		h.PrimaryFailure = "network";
+		for (int attempt = 0; attempt < 2; attempt++)
+			await Assert.ThrowsAsync<HttpRequestException> (async () => await h.Primary.GetPowerReadingsAsync (cancel.Token));
+		var power = await h.Primary.GetPowerReadingsAsync (cancel.Token);
+		Assert.That (power!.Solar, Is.EqualTo (3000));
+		Assert.That (power.Load, Is.EqualTo (2500));
+		Assert.That (h.Primary.IsUsingLocalReadFallback, Is.True);
+		Assert.That (h.FallbackReads, Is.EqualTo (3), "Basic, configuration and detailed reads all use setup-network.");
+		h.Now = 61;
+		h.PrimaryFailure = null;
+		Assert.That ((await h.Primary.GetPowerReadingsAsync (cancel.Token))!.Load, Is.EqualTo (2500));
+		Assert.That (h.Primary.IsUsingLocalReadFallback, Is.False);
+		Assert.That (h.FallbackReads, Is.EqualTo (3));
+		}
+
 	private sealed class Harness : IDisposable
 		{
 		internal const string Din = "part--controller";
 		internal string PrimaryDin { get; set; } = Din;
 		internal string? PrimaryFailure { get; set; }
 		internal bool LoginFailure { get; set; }
+		internal bool SolarHold { get; set; }
 		internal double Now { get; set; }
 		internal int PrimaryReads { get; private set; }
 		internal int FallbackReads { get; private set; }
@@ -211,7 +234,7 @@ public sealed class LocalReadFailoverTests
 					if (request.RequestUri!.AbsolutePath == "/tedapi/din") return Text (Din);
 					if (request.RequestUri.AbsolutePath == "/api/login/Basic") return Text ("{\"token\":\"alternate\"}");
 					FallbackReads++;
-					return await Reply (request, 20, false, version);
+					return await Reply (request, 20, false, version, holding: SolarHold);
 					}));
 			Primary = new PowerwallTedapiClient (new PowerwallOptions { Host = "lan.test", LocalProtocol = PowerwallLocalProtocol.TedapiSigned,
 				Password = "customer", LocalSigningKey = key, CacheExpireSeconds = 0, LocalFollowerConnection = Fallback, EnableLocalReadFailover = enabled, LocalQueryVersion = version, AllowLocalControl = allowControl },
@@ -228,13 +251,13 @@ public sealed class LocalReadFailoverTests
 					if (PrimaryFailure == "network") throw new HttpRequestException ("LAN unavailable");
 					if (PrimaryFailure == "timeout") throw new TaskCanceledException ("Request timed out");
 					if (int.TryParse (PrimaryFailure, out int status)) return new HttpResponseMessage ((HttpStatusCode)status);
-					return await Reply (request, 10, true, version, PrimaryFailure == "malformed");
+					return await Reply (request, 10, true, version, PrimaryFailure == "malformed", SolarHold);
 					}), () => Now);
 			}
 		internal async Task ConnectAsync () { await Fallback.AuthenticateAsync (); await Primary.AuthenticateAsync (); }
 		public void Dispose () { Primary.Dispose (); Fallback.Dispose (); }
 		private static HttpResponseMessage Text (string text) => new (HttpStatusCode.OK) { Content = new StringContent (text) };
-		private static async Task<HttpResponseMessage> Reply (HttpRequestMessage request, int watts, bool signed, TedapiQueryVersion version, bool malformed = false)
+		private static async Task<HttpResponseMessage> Reply (HttpRequestMessage request, int watts, bool signed, TedapiQueryVersion version, bool malformed = false, bool holding = false)
 			{
 			if (request.RequestUri!.AbsolutePath == "/api/meters/aggregates") return Text ("{\"site\":{\"instant_power\":0}}");
 			byte[] body = await request.Content!.ReadAsByteArrayAsync ();
@@ -245,7 +268,7 @@ public sealed class LocalReadFailoverTests
 			ByteString reply;
 			if (query.Config is not null)
 				{
-				string json = "{\"vin\":\"" + Din + "\"}";
+				string json = holding ? System.Text.Json.JsonSerializer.Serialize (LocalSolarMeterHoldTests.Configuration ()) : "{\"vin\":\"" + Din + "\"}";
 				reply = signed ? new Signed.MessageEnvelope { Filestore = new Signed.FileStoreMessages { ReadFileResponse = new Signed.FileStoreAPIReadFileResponse
 					{ File = new Signed.FileStoreAPIFile { Blob = ByteString.CopyFromUtf8 (json) } } } }.ToByteString ()
 					: new Legacy.Message { Message_ = new Legacy.MessageEnvelope { Config = new Legacy.ConfigType
@@ -260,7 +283,8 @@ public sealed class LocalReadFailoverTests
 				}
 			else
 				{
-				string json = malformed ? "invalid json" : "{\"components\":{},\"control\":{\"meterAggregates\":[{\"location\":\"SOLAR\",\"realPowerW\":" + watts + "}]}}";
+				string json = malformed ? "invalid json" : holding ? System.Text.Json.JsonSerializer.Serialize (LocalSolarMeterHoldTests.Telemetry ())
+					: "{\"components\":{},\"control\":{\"meterAggregates\":[{\"location\":\"SOLAR\",\"realPowerW\":" + watts + "}]}}";
 				if (version == TedapiQueryVersion.June2026)
 					{
 					Assert.That (Graphql.Envelope.Parser.ParseFrom (incoming).Graphql.QueryRequest.Format, Is.EqualTo (2));

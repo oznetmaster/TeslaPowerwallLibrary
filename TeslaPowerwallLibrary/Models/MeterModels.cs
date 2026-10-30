@@ -62,6 +62,12 @@ public sealed record PowerReadings
 /// </summary>
 public sealed record MeterReading
 	{
+	/// <summary>Age in seconds, relative to the gateway clock, of a retained solar sample used to correct this power reading.
+	/// Null means no SolarMeterComms hold was applied. Applies only to real power; other measurements retain their reported values.</summary>
+	[JsonPropertyName ("power_hold_age_seconds")]
+	[JsonIgnore (Condition = JsonIgnoreCondition.WhenWritingNull)]
+	public double? PowerHoldAgeSeconds { get; init; }
+
 	/// <summary>Timestamp of the most recent communication with the meter.</summary>
 	[JsonPropertyName ("last_communication_time")]
 	public string? LastCommunicationTime { get; init; }
