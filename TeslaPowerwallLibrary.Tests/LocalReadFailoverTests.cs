@@ -196,20 +196,19 @@ public sealed class LocalReadFailoverTests
 	[TestCase (TedapiQueryVersion.June2024), TestCase (TedapiQueryVersion.June2026)]
 	public async Task SolarMeterHold_FailoverAndRecoveryRemainOnOneRoute (TedapiQueryVersion version)
 		{
-		using var cancel = new CancellationTokenSource (TimeSpan.FromSeconds (20));
 		using var h = new Harness (_key, version: version) { SolarHold = true };
 		await h.ConnectAsync ();
 		h.PrimaryFailure = "network";
 		for (int attempt = 0; attempt < 2; attempt++)
-			await Assert.ThrowsAsync<HttpRequestException> (async () => await h.Primary.GetPowerReadingsAsync (cancel.Token));
-		var power = await h.Primary.GetPowerReadingsAsync (cancel.Token);
+			await Assert.ThrowsAsync<HttpRequestException> (async () => await h.Primary.GetPowerReadingsAsync ());
+		var power = await h.Primary.GetPowerReadingsAsync ();
 		Assert.That (power!.Solar, Is.EqualTo (3000));
 		Assert.That (power.Load, Is.EqualTo (2500));
 		Assert.That (h.Primary.IsUsingLocalReadFallback, Is.True);
 		Assert.That (h.FallbackReads, Is.EqualTo (3), "Basic, configuration and detailed reads all use setup-network.");
 		h.Now = 61;
 		h.PrimaryFailure = null;
-		Assert.That ((await h.Primary.GetPowerReadingsAsync (cancel.Token))!.Load, Is.EqualTo (2500));
+		Assert.That ((await h.Primary.GetPowerReadingsAsync ())!.Load, Is.EqualTo (2500));
 		Assert.That (h.Primary.IsUsingLocalReadFallback, Is.False);
 		Assert.That (h.FallbackReads, Is.EqualTo (3));
 		}
