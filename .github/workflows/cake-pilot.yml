@@ -1,0 +1,35 @@
+name: Cake Frosting pilot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-pilot:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore the pinned build tool
+        run: dotnet restore build/Build.csproj --locked-mode
+      - name: Test artifact comparison safeguards
+        run: dotnet test build/Tests/Build.Tests.csproj -c Release --logger "trx;LogFileName=build-tests.trx" --results-directory artifacts/cake-build-tests
+      - name: Build, test, package and verify offline
+        run: dotnet run --project build/Build.csproj -c Release --no-restore -- --target=Verify --output=artifacts/cake-pilot/ci
+      - name: Retain pilot results and packages
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cake-pilot-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/cake-pilot/ci/*.json
+            artifacts/cake-pilot/ci/*.log
+            artifacts/cake-pilot/ci/test-results/*.trx
+            artifacts/cake-pilot/ci/nuget/*.nupkg
+            artifacts/cake-pilot/ci/release/*
+            artifacts/cake-build-tests/*.trx
+          if-no-files-found: warn

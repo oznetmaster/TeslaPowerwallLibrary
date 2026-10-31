@@ -1,0 +1,37 @@
+name: Run a Cake build target
+description: Restore the pinned build tool and run the same compiled target used locally.
+inputs:
+  target:
+    description: Cake target
+    required: true
+  suite:
+    description: Optional named offline suite
+    default: ''
+  framework:
+    description: Optional framework selector, validated against the suite
+    default: ''
+  output:
+    description: New per-job output directory
+    default: artifacts/cake-pilot/ci
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+    - name: Restore the pinned Cake tool
+      shell: pwsh
+      run: dotnet restore build/Build.csproj --locked-mode
+    - name: Run Cake
+      shell: pwsh
+      env:
+        CAKE_TARGET: ${{ inputs.target }}
+        CAKE_SUITE: ${{ inputs.suite }}
+        CAKE_FRAMEWORK: ${{ inputs.framework }}
+        CAKE_OUTPUT: ${{ inputs.output }}
+      run: |
+        $cakeArguments = @('run', '--project', 'build/Build.csproj', '-c', 'Release', '--no-restore', '--', "--target=$env:CAKE_TARGET", "--output=$env:CAKE_OUTPUT")
+        if ($env:CAKE_SUITE) { $cakeArguments += "--suite=$env:CAKE_SUITE" }
+        if ($env:CAKE_FRAMEWORK) { $cakeArguments += "--framework=$env:CAKE_FRAMEWORK" }
+        & dotnet @cakeArguments
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -4,6 +4,8 @@
 
 For shipped changes, see the [changelog](CHANGELOG.md). Test, CI and build history is recorded separately in [development and validation history](DEVELOPMENT-HISTORY.md).
 
+An optional [Cake Frosting pilot](build/README.md) runs the offline build, tests and packaging locally or through a manual CI workflow.
+
 
 A .NET client library for the Tesla™ Powerwall™ Energy Gateway, providing classic gateway and TEDAPI local access alongside Tesla Owner and Fleet cloud APIs to status, power flow, energy history, and control operations.
 

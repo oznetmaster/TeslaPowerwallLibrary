@@ -20,18 +20,19 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
       - name: Test private credential storage and authorization callbacks without live credentials
-        run: dotnet test TeslaPowerwallLibrary.TestCredentials.Tests/TeslaPowerwallLibrary.TestCredentials.Tests.csproj -c Release --logger "trx;LogFileName=credentials.trx" --results-directory TestResults
-      - name: Build the Windows setup application
-        run: dotnet build TeslaPowerwallLibrary.Setup/TeslaPowerwallLibrary.Setup.csproj -c Release
+        uses: ./.github/actions/cake
+        with:
+          target: CredentialTools
+          suite: credentials
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: credential-tool-tests
-          path: TestResults/*.trx
+          path: |
+            artifacts/cake-pilot/ci/test-results/*.trx
+            artifacts/cake-pilot/ci/*.json
+            artifacts/cake-pilot/ci/*.log
           if-no-files-found: warn
   test:
     runs-on: windows-latest
@@ -44,18 +45,21 @@ jobs:
             project: TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
       - name: Run unit tests
-        shell: pwsh
-        run: dotnet test "${{ matrix.suite.project }}" -c Release -f "${{ matrix.framework }}" --filter "TestCategory!=Live" --logger "trx;LogFileName=tests.trx" --results-directory TestResults
+        uses: ./.github/actions/cake
+        with:
+          target: Suite
+          suite: ${{ matrix.suite.name }}
+          framework: ${{ matrix.framework }}
       - name: Retain unit-test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: unit-tests-${{ matrix.suite.name }}-${{ matrix.framework }}
-          path: TestResults/*.trx
+          path: |
+            artifacts/cake-pilot/ci/test-results/*.trx
+            artifacts/cake-pilot/ci/*.json
+            artifacts/cake-pilot/ci/*.log
           if-no-files-found: warn
 
   companion-tests:
@@ -75,23 +79,55 @@ jobs:
             framework: net10.0-windows
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
       - name: Test companion application offline
-        run: dotnet test "${{ matrix.project }}" -c Release -f "${{ matrix.framework }}" -p:GenerateDocfxDocumentation=false --logger "trx;LogFileName=tests.trx" --results-directory TestResults
+        uses: ./.github/actions/cake
+        with:
+          target: Suite
+          suite: ${{ matrix.suite }}
+          framework: ${{ matrix.framework }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: tests-${{ matrix.suite }}
-          path: TestResults/*.trx
+          path: |
+            artifacts/cake-pilot/ci/test-results/*.trx
+            artifacts/cake-pilot/ci/*.json
+            artifacts/cake-pilot/ci/*.log
 
   package-compatibility:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pack and compare public API with the released baseline
+        uses: ./.github/actions/cake
+        with:
+          target: ReleaseArtifacts
+      - name: Retain verified local packages and release assets
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-compatibility
+          path: |
+            artifacts/cake-pilot/ci/nuget/*.nupkg
+            artifacts/cake-pilot/ci/release/*
+            artifacts/cake-pilot/ci/*.json
+            artifacts/cake-pilot/ci/*.log
+          if-no-files-found: warn
+
+  build-tool-tests:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      - name: Pack and compare public API with the released baseline
-        run: dotnet pack TeslaPowerwallLibrary/TeslaPowerwallLibrary.csproj -c Release -p:GenerateDocfxDocumentation=false --output artifacts/nuget
+      - name: Restore the pinned build tool
+        run: dotnet restore build/Build.csproj --locked-mode
+      - name: Test artifact comparison and CI task safeguards
+        run: dotnet test build/Tests/Build.Tests.csproj -c Release --logger "trx;LogFileName=build-tests.trx" --results-directory artifacts/cake-build-tests
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-tool-tests
+          path: artifacts/cake-build-tests/*.trx
+          if-no-files-found: warn

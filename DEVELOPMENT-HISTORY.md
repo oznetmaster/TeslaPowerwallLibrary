@@ -1,5 +1,18 @@
 # Development and validation history
 
+## Cake CI integration — 31 October 2026
+
+- The existing `Unit tests` workflow delegates its original six offline desktop runs to named Cake targets, retaining its job IDs and matrix labels. The credential job retains the setup-application build. Package compatibility now also exercises the five application bundles through an artifact-only target, and a separate job checks build-tool safeguards.
+- A local composite action supplies the .NET SDK, locked Cake restore and argument-safe invocation. GitHub still owns triggers, runners, parallelism, permissions and artifacts. The public release workflow, shared validation policy, processor checks and publication locks remain unchanged; the artifact-only Cake target runs no desktop tests and publishes nothing.
+- Local CI-selector, zero-test and dependency-graph safeguards passed 19 cases. Hosted validation is recorded below after execution.
+
+## Cake Frosting build pilot — 31 October 2026
+
+- Added an optional compiled build project under `build/`, with pinned Cake.Frosting 6.3.0, for the existing solution, six offline desktop test runs, NuGet package/API validation and five application bundles. Runtime project dependencies, versions and the public release workflow are unchanged.
+- The manual-only pilot workflow invokes the same entry point as a local build. It retains command logs, test reports and artifact inventories. Processor reservations, release-validation reuse, publication locking and external publication remain in their existing workflows and tools.
+- Optional reference comparison checks every release file and uncompressed archive payload while accounting for ZIP container metadata and generated NuGet OPC identifiers. Ten comparison/version safeguards passed. The final Cake run passed all 1,309 offline cases, SDK package/API validation and five application bundles; all 228 manifest payload entries matched local reference assets generated with the existing release commands after a solution clean. The successful warm-build pipeline took 52.5 seconds on .NET SDK 10.0.403. Evidence is retained under `artifacts/cake-pilot/verified-20261031/` and `artifacts/cake-reference-20261031-clean/`; no hosted CI, live hardware or processor run is claimed.
+- Initial comparisons detected differing application dependency metadata. Matching the workflow's unversioned restore removed one cause; an exact publish-command probe and a clean reference build identified cached files in the original warm reference. Earlier failed comparisons remain preserved. No dependency-file differences were normalized away. See `build/README.md` for commands and the comparison limits.
+
 ## 2.3.2 release preparation — 30 October 2026
 
 - Implemented directly in the maintained `C:\Projects\TeslaPowerwallLibrary` checkout. Matched the bounded solar/load correction in pypowerwall commit `6133761da20784fb0fe390c00525cef8fb1c6e92`: exact alert, missing/0–10 W controller solar, positive scaled remote solar total and timezone-aware samples within ±60 seconds of gateway time. There is no new last-good-value cache. Complete enabled CTs and unique meters are required; mixed meter families cannot supply a partial solar total.
