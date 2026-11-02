@@ -2,6 +2,10 @@
 
 Normal tag releases require successful hosted and configured processor checks for the exact release commit. Publishing restores/builds, validates the package API, packages and publishes; it does not execute the desktop suites a second time. Public tags and NuGet versions have three numeric parts.
 
+NuGet publication uses [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing) through the official `NuGet/login` action, pinned to a full commit. The publish job requests GitHub OIDC credentials immediately before pushing and consumes the resulting masked, one-hour NuGet credential through a step environment variable. It does not use the repository's long-lived `NUGET_API_KEY` secret or fall back to that secret if authentication fails.
+
+The NuGet policy is owned and created by profile `oznetmaster`, named `TeslaPowerwallLibrary`, and restricted to repository owner `oznetmaster`, repository `TeslaPowerwallLibrary` (GitHub repository ID `1289905248`), workflow file `dotnet-publish.yml`, with no GitHub environment. Its only scope is **Push only new package versions**, with exact package pattern `TeslaPowerwallLibrary`. If the repository, workflow filename, policy creator or job environment changes, review both the policy and workflow together. Keep `id-token: write` confined to the publishing job; retain the existing validation and publication locks.
+
 For a release-only follow-up commit, manually run **Publish .NET Package** with `version` and `validation_commit`. The latter must be a full ancestor SHA whose hosted and processor checks completed successfully within the last 24 hours. The script compares the commits: only root Markdown, documentation-site files, and the specifically listed release-automation files may differ. Runtime sources, tests, projects, dependencies, compiler settings and validation-workflow changes require fresh checks. The checked SHA and release SHA appear in the run summary; this is reuse of an existing pass, not a new execution.
 
 Recently completed manual desktop and processor runs can also be used independently:
