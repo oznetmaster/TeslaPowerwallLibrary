@@ -9,6 +9,7 @@ namespace TeslaPowerwallLibrary.Tedapi;
 public sealed record LocalPvacFirmware : LocalBusMessage
 	{
 	/// <summary>Firmware hash elements exactly as reported; not reinterpreted as text.</summary>
+	/// <value>Firmware hash elements exactly as reported; not reinterpreted as text.</value>
 	[JsonPropertyName ("PVAC_appGitHash")]
 	public IReadOnlyList<long>? ApplicationGitHash { get; init; }
 
@@ -18,6 +19,7 @@ public sealed record LocalPvacFirmware : LocalBusMessage
 public sealed record LocalThcFirmware : LocalBusMessage
 	{
 	/// <summary>Firmware hash elements exactly as reported; not reinterpreted as text.</summary>
+	/// <value>Firmware hash elements exactly as reported; not reinterpreted as text.</value>
 	[JsonPropertyName ("THC_appGitHash")]
 	public IReadOnlyList<long>? ApplicationGitHash { get; init; }
 
@@ -27,6 +29,7 @@ public sealed record LocalThcFirmware : LocalBusMessage
 public sealed record LocalPodFirmware : LocalBusMessage
 	{
 	/// <summary>Firmware hash elements exactly as reported; not reinterpreted as text.</summary>
+	/// <value>Firmware hash elements exactly as reported; not reinterpreted as text.</value>
 	[JsonPropertyName ("POD_appGitHash")]
 	public IReadOnlyList<long>? ApplicationGitHash { get; init; }
 
@@ -36,10 +39,12 @@ public sealed record LocalPodFirmware : LocalBusMessage
 public sealed record LocalSyncFirmware : LocalBusMessage
 	{
 	/// <summary>Firmware hash elements exactly as reported; not reinterpreted as text.</summary>
+	/// <value>Firmware hash elements exactly as reported; not reinterpreted as text.</value>
 	[JsonPropertyName ("SYNC_appGitHash")]
 	public IReadOnlyList<long>? ApplicationGitHash { get; init; }
 
 	/// <summary>Native assembly identifier.</summary>
+	/// <value>Native assembly identifier.</value>
 	[JsonPropertyName ("SYNC_assemblyId")]
 	public long? AssemblyId { get; init; }
 
@@ -49,10 +54,12 @@ public sealed record LocalSyncFirmware : LocalBusMessage
 public sealed record LocalSolarStringsLogging : LocalBusMessage
 	{
 	/// <summary>Reported string lockout bit field; bit meanings remain firmware-defined.</summary>
+	/// <value>Reported string lockout bit field; bit meanings remain firmware-defined.</value>
 	[JsonPropertyName ("PVS_numStringsLockoutBits")]
 	public long? StringLockoutBits { get; init; }
 
 	/// <summary>Native SBS completion flag, without inferring connected strings.</summary>
+	/// <value>Native SBS completion flag, without inferring connected strings.</value>
 	[JsonPropertyName ("PVS_sbsComplete")]
 	public bool? SbsComplete { get; init; }
 
@@ -62,6 +69,7 @@ public sealed record LocalSolarStringsLogging : LocalBusMessage
 public sealed record LocalThermalLogging : LocalBusMessage
 	{
 	/// <summary>Firmware-provided enable-line state.</summary>
+	/// <value>Firmware-provided enable-line state.</value>
 	[JsonPropertyName ("THC_LOG_PW_2_0_EnableLineState")]
 	public string? EnableLineState { get; init; }
 
@@ -71,26 +79,32 @@ public sealed record LocalThermalLogging : LocalBusMessage
 public sealed record LocalLegacyFirmwareUpdate
 	{
 	/// <summary>Whether the bus reports an update in progress; null means unreported.</summary>
+	/// <value>Whether the bus reports an update in progress; null means unreported.</value>
 	[JsonPropertyName ("isUpdating")]
 	public bool? IsUpdating { get; init; }
 
 	/// <summary>Reported msa firmware progress, preserving object/array encoding and null slots.</summary>
+	/// <value>Reported msa firmware progress, preserving object/array encoding and null slots.</value>
 	[JsonPropertyName ("msa")]
 	public LocalDiagnosticRecords<LocalUpdateProgress>? MeterAssembly { get; init; }
 
 	/// <summary>Reported msa1 firmware progress, preserving object/array encoding and null slots.</summary>
+	/// <value>Reported msa1 firmware progress, preserving object/array encoding and null slots.</value>
 	[JsonPropertyName ("msa1")]
 	public LocalDiagnosticRecords<LocalUpdateProgress>? MeterAssembly1 { get; init; }
 
 	/// <summary>Reported sync firmware progress, preserving object/array encoding and null slots.</summary>
+	/// <value>Reported sync firmware progress, preserving object/array encoding and null slots.</value>
 	[JsonPropertyName ("sync")]
 	public LocalDiagnosticRecords<LocalUpdateProgress>? SiteController { get; init; }
 
 	/// <summary>Reported pvInverters firmware progress, preserving object/array encoding and null slots.</summary>
+	/// <value>Reported pvInverters firmware progress, preserving object/array encoding and null slots.</value>
 	[JsonPropertyName ("pvInverters")]
 	public LocalDiagnosticRecords<LocalUpdateProgress>? SolarInverters { get; init; }
 
 	/// <summary>Powerwall update slots in device order. Null slots are retained and do not imply completed updates.</summary>
+	/// <value>Powerwall update slots in device order. Null slots are retained and do not imply completed updates.</value>
 	[JsonPropertyName ("powerwalls")]
 	public IReadOnlyList<LocalUpdateProgress?>? Powerwalls { get; init; }
 	}

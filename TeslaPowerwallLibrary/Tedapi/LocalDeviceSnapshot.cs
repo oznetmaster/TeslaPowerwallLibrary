@@ -10,12 +10,15 @@ namespace TeslaPowerwallLibrary.Tedapi;
 public sealed record LocalDeviceComponents
 	{
 	/// <summary>Configured device identification number.</summary>
+	/// <value>Configured device identification number.</value>
 	[JsonPropertyName ("din")]
 	public string Din { get; init; } = string.Empty;
 	/// <summary>Measurements from this device only; null if this transport cannot obtain them.</summary>
+	/// <value>Measurements from this device only; null if this transport cannot obtain them.</value>
 	[JsonPropertyName ("telemetry")]
 	public LocalComponentTelemetry? Telemetry { get; init; }
 	/// <summary>Reason measurements are unavailable; null on success.</summary>
+	/// <value>Reason measurements are unavailable; null on success.</value>
 	[JsonPropertyName ("unavailableReason")]
 	public string? UnavailableReason { get; init; }
 	}
@@ -25,15 +28,19 @@ public sealed record LocalDeviceComponents
 public sealed record LocalDeviceSnapshot
 	{
 	/// <summary>Non-secret configured device and meter identities.</summary>
+	/// <value>Non-secret configured device and meter identities.</value>
 	[JsonPropertyName ("configuration")]
 	public LocalConfiguration Configuration { get; init; } = new ();
 	/// <summary>Detailed controller telemetry, including the legacy energy bus.</summary>
+	/// <value>Detailed controller telemetry, including the legacy energy bus.</value>
 	[JsonPropertyName ("controller")]
 	public LocalTelemetry Controller { get; init; } = new ();
 	/// <summary>One result for each configured Powerwall 3, retaining unavailable followers explicitly.</summary>
+	/// <value>One result for each configured Powerwall 3, retaining unavailable followers explicitly.</value>
 	[JsonPropertyName ("devices")]
 	public IReadOnlyList<LocalDeviceComponents> Devices { get; init; } = Array.Empty<LocalDeviceComponents> ();
 	/// <summary>Configured batteries with measurements attached only to matching device identities.</summary>
+	/// <value>Configured batteries with measurements attached only to matching device identities.</value>
 	[JsonPropertyName ("batteries")]
 	public IReadOnlyList<BatteryBlock>? Batteries { get; init; }
 	}

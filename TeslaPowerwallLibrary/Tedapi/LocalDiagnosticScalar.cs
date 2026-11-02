@@ -30,12 +30,16 @@ public sealed record LocalDiagnosticScalar
 	/// <param name="value">Decoded text, numeric token, or normalized boolean.</param>
 	internal LocalDiagnosticScalar (LocalDiagnosticScalarKind kind, string value) { Kind = kind; _value = value; }
 	/// <summary>Gets the actual reported scalar kind.</summary>
+	/// <value>The actual reported scalar kind.</value>
 	public LocalDiagnosticScalarKind Kind { get; }
 	/// <summary>Gets decoded text only when the device supplied text; otherwise null.</summary>
+	/// <value>Decoded text only when the device supplied text; otherwise null.</value>
 	public string? Text => Kind == LocalDiagnosticScalarKind.Text ? _value : null;
 	/// <summary>Gets the invariant numeric token without precision loss, only for a reported number.</summary>
+	/// <value>The invariant numeric token without precision loss, only for a reported number.</value>
 	public string? NumberText => Kind == LocalDiagnosticScalarKind.Number ? _value : null;
 	/// <summary>Gets a reported boolean, or null for a different scalar kind.</summary>
+	/// <value>A reported boolean, or null for a different scalar kind.</value>
 	public bool? Boolean => Kind == LocalDiagnosticScalarKind.Boolean ? _value == "true" : null;
 	/// <summary>Attempts numeric conversion without treating numeric-looking text as a measurement.</summary>
 	/// <param name="value">Converted decimal, or zero on failure; the return value indicates availability.</param>

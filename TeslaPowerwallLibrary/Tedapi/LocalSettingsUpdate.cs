@@ -17,15 +17,19 @@ namespace TeslaPowerwallLibrary.Tedapi;
 public sealed record LocalSettingsUpdate
 	{
 	/// <summary>Backup reserve on the Tesla app scale, from zero through 100 percent.</summary>
+	/// <value>Backup reserve on the Tesla app scale, from zero through 100 percent.</value>
 	[JsonPropertyName ("backup_reserve_percent"), JsonIgnore (Condition = JsonIgnoreCondition.WhenWritingNull)]
 	public double? BackupReservePercent { get; init; }
 	/// <summary>Operating mode: self_consumption, autonomous, or backup.</summary>
+	/// <value>Operating mode: self_consumption, autonomous, or backup.</value>
 	[JsonPropertyName ("operation_mode"), JsonIgnore (Condition = JsonIgnoreCondition.WhenWritingNull)]
 	public string? OperationMode { get; init; }
 	/// <summary>Whether charging from the grid is allowed.</summary>
+	/// <value>Whether charging from the grid is allowed.</value>
 	[JsonPropertyName ("grid_charging_enabled"), JsonIgnore (Condition = JsonIgnoreCondition.WhenWritingNull)]
 	public bool? GridChargingEnabled { get; init; }
 	/// <summary>Export rule: battery_ok, pv_only, or never.</summary>
+	/// <value>Export rule: battery_ok, pv_only, or never.</value>
 	[JsonPropertyName ("grid_export"), JsonIgnore (Condition = JsonIgnoreCondition.WhenWritingNull)]
 	public string? GridExport { get; init; }
 	}

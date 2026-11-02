@@ -13,21 +13,27 @@ namespace TeslaPowerwallLibrary.Tedapi;
 public sealed record LocalSystemInformation
 	{
 	/// <summary>Gateway hardware identifiers.</summary>
+	/// <value>Gateway hardware identifiers.</value>
 	[JsonPropertyName ("gateway")]
 	public LocalHardwareIdentity? Gateway { get; init; }
 	/// <summary>Reported system device identifier.</summary>
+	/// <value>Reported system device identifier.</value>
 	[JsonPropertyName ("din")]
 	public string? Din { get; init; }
 	/// <summary>Installed firmware version and hexadecimal Git hash.</summary>
+	/// <value>Installed firmware version and hexadecimal Git hash.</value>
 	[JsonPropertyName ("version")]
 	public LocalFirmwareVersion? Version { get; init; }
 	/// <summary>Native protobuf device-type number; zero denotes its default value.</summary>
+	/// <value>Native protobuf device-type number; zero denotes its default value.</value>
 	[JsonPropertyName ("deviceType")]
 	public int DeviceType { get; init; }
 	/// <summary>Read-only system update state, when the message is present.</summary>
+	/// <value>Read-only system update state, when the message is present.</value>
 	[JsonPropertyName ("update")]
 	public LocalSystemUpdate? Update { get; init; }
 	/// <summary>Reported radio compliance information.</summary>
+	/// <value>Reported radio compliance information.</value>
 	[JsonPropertyName ("wireless")]
 	public IReadOnlyList<LocalRadioInformation>? Wireless { get; init; }
 	}
@@ -36,9 +42,11 @@ public sealed record LocalSystemInformation
 public sealed record LocalHardwareIdentity
 	{
 	/// <summary>Package part number.</summary>
+	/// <value>Package part number.</value>
 	[JsonPropertyName ("partNumber")]
 	public string? PartNumber { get; init; }
 	/// <summary>Package serial number.</summary>
+	/// <value>Package serial number.</value>
 	[JsonPropertyName ("serialNumber")]
 	public string? SerialNumber { get; init; }
 	}
@@ -47,15 +55,19 @@ public sealed record LocalHardwareIdentity
 public sealed record LocalRadioInformation
 	{
 	/// <summary>Radio manufacturer.</summary>
+	/// <value>Radio manufacturer.</value>
 	[JsonPropertyName ("company")]
 	public string? Company { get; init; }
 	/// <summary>Radio model.</summary>
+	/// <value>Radio model.</value>
 	[JsonPropertyName ("model")]
 	public string? Model { get; init; }
 	/// <summary>FCC identifier.</summary>
+	/// <value>FCC identifier.</value>
 	[JsonPropertyName ("fccId")]
 	public string? FccId { get; init; }
 	/// <summary>Industry Canada identifier.</summary>
+	/// <value>Industry Canada identifier.</value>
 	[JsonPropertyName ("industryCanadaId")]
 	public string? IndustryCanadaId { get; init; }
 	}
@@ -64,33 +76,43 @@ public sealed record LocalRadioInformation
 public sealed record LocalSystemUpdate
 	{
 	/// <summary>Native handshake result code.</summary>
+	/// <value>Native handshake result code.</value>
 	[JsonPropertyName ("handshakeResult")]
 	public int HandshakeResult { get; init; }
 	/// <summary>Native update status code.</summary>
+	/// <value>Native update status code.</value>
 	[JsonPropertyName ("status")]
 	public int Status { get; init; }
 	/// <summary>Server-staged firmware version.</summary>
+	/// <value>Server-staged firmware version.</value>
 	[JsonPropertyName ("stagedVersion")]
 	public LocalFirmwareVersion? StagedVersion { get; init; }
 	/// <summary>Reported total download bytes.</summary>
+	/// <value>Reported total download bytes.</value>
 	[JsonPropertyName ("totalBytes")]
 	public decimal TotalBytes { get; init; }
 	/// <summary>Reported downloaded byte offset.</summary>
+	/// <value>Reported downloaded byte offset.</value>
 	[JsonPropertyName ("bytesOffset")]
 	public decimal BytesOffset { get; init; }
 	/// <summary>Estimated download bytes per second.</summary>
+	/// <value>Estimated download bytes per second.</value>
 	[JsonPropertyName ("bytesPerSecond")]
 	public decimal BytesPerSecond { get; init; }
 	/// <summary>Native handshake timestamp.</summary>
+	/// <value>Native handshake timestamp.</value>
 	[JsonPropertyName ("lastHandshakeTimestamp")]
 	public decimal LastHandshakeTimestamp { get; init; }
 	/// <summary>Native last-update result code.</summary>
+	/// <value>Native last-update result code.</value>
 	[JsonPropertyName ("lastUpdateResult")]
 	public int LastUpdateResult { get; init; }
 	/// <summary>Whether the gateway reports sideloading.</summary>
+	/// <value>Whether the gateway reports sideloading.</value>
 	[JsonPropertyName ("isSideloading")]
 	public bool IsSideloading { get; init; }
 	/// <summary>Server-staged firmware packages.</summary>
+	/// <value>Server-staged firmware packages.</value>
 	[JsonPropertyName ("packages")]
 	public IReadOnlyList<LocalStagedFirmware>? Packages { get; init; }
 	}
@@ -99,15 +121,19 @@ public sealed record LocalSystemUpdate
 public sealed record LocalStagedFirmware
 	{
 	/// <summary>Reported package identifier.</summary>
+	/// <value>Reported package identifier.</value>
 	[JsonPropertyName ("packageId")]
 	public decimal PackageId { get; init; }
 	/// <summary>Device-provided download URL; may contain authorization data and should not be logged.</summary>
+	/// <value>Device-provided download URL; may contain authorization data and should not be logged.</value>
 	[JsonPropertyName ("downloadUrl")]
 	public string? DownloadUrl { get; init; }
 	/// <summary>Reported package signature encoded as hexadecimal.</summary>
+	/// <value>Reported package signature encoded as hexadecimal.</value>
 	[JsonPropertyName ("signatureHex")]
 	public string? SignatureHex { get; init; }
 	/// <summary>Staged package firmware version.</summary>
+	/// <value>Staged package firmware version.</value>
 	[JsonPropertyName ("version")]
 	public LocalFirmwareVersion? Version { get; init; }
 	}

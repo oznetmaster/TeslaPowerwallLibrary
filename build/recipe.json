@@ -88,6 +88,22 @@
         "site": "docfx_project/_site",
         "title": "TeslaPowerwallLibrary"
       }
+    },
+    "xml-documentation": {
+      "commands": [
+        {
+          "executable": "dotnet",
+          "arguments": [
+            "--version"
+          ]
+        }
+      ]
     }
+  },
+  "xmlDocumentation": {
+    "projects": [
+      "TeslaPowerwallLibrary/TeslaPowerwallLibrary.csproj",
+      "TeslaPowerwallLibrary.Login/TeslaPowerwallLibrary.Login.csproj"
+    ]
   }
 }

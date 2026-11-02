@@ -9,34 +9,42 @@ namespace TeslaPowerwallLibrary.Tedapi;
 public sealed record LocalComponentDiagnostics
 	{
 	/// <summary>Parent device DIN, when known; no hardware identity is synthesized.</summary>
+	/// <value>Parent device DIN, when known; no hardware identity is synthesized.</value>
 	[JsonPropertyName ("deviceDin")]
 	public string? DeviceDin { get; init; }
 
 	/// <summary>Protocol component family.</summary>
+	/// <value>Protocol component family.</value>
 	[JsonPropertyName ("family")]
 	public string Family { get; init; } = string.Empty;
 
 	/// <summary>Original component index within its family.</summary>
+	/// <value>Original component index within its family.</value>
 	[JsonPropertyName ("index")]
 	public int Index { get; init; }
 
 	/// <summary>Reported component part number.</summary>
+	/// <value>Reported component part number.</value>
 	[JsonPropertyName ("partNumber")]
 	public string? PartNumber { get; init; }
 
 	/// <summary>Reported component serial number.</summary>
+	/// <value>Reported component serial number.</value>
 	[JsonPropertyName ("serialNumber")]
 	public string? SerialNumber { get; init; }
 
 	/// <summary>Reported fans; an empty collection means no fan signals were supplied.</summary>
+	/// <value>Reported fans; an empty collection means no fan signals were supplied.</value>
 	[JsonPropertyName ("fans")]
 	public IReadOnlyList<LocalFanReading> Fans { get; init; } = Array.Empty<LocalFanReading> ();
 
 	/// <summary>Reported temperature sensors and their native Celsius readings.</summary>
+	/// <value>Reported temperature sensors and their native Celsius readings.</value>
 	[JsonPropertyName ("temperatures")]
 	public IReadOnlyList<LocalTemperatureReading> Temperatures { get; init; } = Array.Empty<LocalTemperatureReading> ();
 
 	/// <summary>Reported photovoltaic inputs, retaining unavailable values as null.</summary>
+	/// <value>Reported photovoltaic inputs, retaining unavailable values as null.</value>
 	[JsonPropertyName ("solarStrings")]
 	public IReadOnlyList<LocalSolarStringReading> SolarStrings { get; init; } = Array.Empty<LocalSolarStringReading> ();
 
@@ -46,18 +54,22 @@ public sealed record LocalComponentDiagnostics
 public sealed record LocalFanReading
 	{
 	/// <summary>Fan identifier within its component.</summary>
+	/// <value>Fan identifier within its component.</value>
 	[JsonPropertyName ("name")]
 	public string Name { get; init; } = string.Empty;
 
 	/// <summary>Reported rotational speed in revolutions per minute; zero means stopped.</summary>
+	/// <value>Reported rotational speed in revolutions per minute; zero means stopped.</value>
 	[JsonPropertyName ("speedRpm")]
 	public double? SpeedRpm { get; init; }
 
 	/// <summary>Reported target speed in revolutions per minute, when provided.</summary>
+	/// <value>Reported target speed in revolutions per minute, when provided.</value>
 	[JsonPropertyName ("targetSpeedRpm")]
 	public double? TargetSpeedRpm { get; init; }
 
 	/// <summary>Reported fan drive duty percentage; not a target RPM.</summary>
+	/// <value>Reported fan drive duty percentage; not a target RPM.</value>
 	[JsonPropertyName ("dutyPercent")]
 	public double? DutyPercent { get; init; }
 
@@ -67,14 +79,17 @@ public sealed record LocalFanReading
 public sealed record LocalTemperatureReading
 	{
 	/// <summary>Original firmware signal identifying the sensor.</summary>
+	/// <value>Original firmware signal identifying the sensor.</value>
 	[JsonPropertyName ("signalName")]
 	public string SignalName { get; init; } = string.Empty;
 
 	/// <summary>Temperature in degrees Celsius; null means unavailable.</summary>
+	/// <value>Temperature in degrees Celsius; null means unavailable.</value>
 	[JsonPropertyName ("celsius")]
 	public double? Celsius { get; init; }
 
 	/// <summary>Device timestamp for this signal, when supplied.</summary>
+	/// <value>Device timestamp for this signal, when supplied.</value>
 	[JsonPropertyName ("timestamp")]
 	public string? Timestamp { get; init; }
 
@@ -84,26 +99,32 @@ public sealed record LocalTemperatureReading
 public sealed record LocalSolarStringReading
 	{
 	/// <summary>Input identifier, such as A through F.</summary>
+	/// <value>Input identifier, such as A through F.</value>
 	[JsonPropertyName ("name")]
 	public string Name { get; init; } = string.Empty;
 
 	/// <summary>Native state string; not inferred from voltage or power.</summary>
+	/// <value>Native state string; not inferred from voltage or power.</value>
 	[JsonPropertyName ("state")]
 	public string? State { get; init; }
 
 	/// <summary>Explicit connection flag when reported; not inferred from active or standby state.</summary>
+	/// <value>Explicit connection flag when reported; not inferred from active or standby state.</value>
 	[JsonPropertyName ("connected")]
 	public bool? Connected { get; init; }
 
 	/// <summary>Reported DC voltage in volts.</summary>
+	/// <value>Reported DC voltage in volts.</value>
 	[JsonPropertyName ("voltageVolts")]
 	public double? VoltageVolts { get; init; }
 
 	/// <summary>Reported DC current in amperes.</summary>
+	/// <value>Reported DC current in amperes.</value>
 	[JsonPropertyName ("currentAmps")]
 	public double? CurrentAmps { get; init; }
 
 	/// <summary>DC power in watts calculated only when both reported voltage and current are available.</summary>
+	/// <value>DC power in watts calculated only when both reported voltage and current are available.</value>
 	[JsonIgnore]
 	public double? PowerWatts => VoltageVolts * CurrentAmps;
 	}

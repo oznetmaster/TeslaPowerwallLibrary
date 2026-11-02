@@ -105,18 +105,23 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 		}
 
 	/// <summary>Gets the configured gateway password. Treat this value as a secret.</summary>
+	/// <value>The configured gateway password. Treat this value as a secret.</value>
 	public string GatewayPassword => _options.GatewayPassword;
 
 	/// <summary>Gets the hostname or IP address used for requests; hostnames are retained for DNS resolution.</summary>
+	/// <value>The hostname or IP address used for requests; hostnames are retained for DNS resolution.</value>
 	public string Host => string.IsNullOrWhiteSpace (_options.Host) ? Constants.GW_IP : _options.Host;
 
 	/// <summary>Gets the telemetry cache lifetime in seconds.</summary>
+	/// <value>The telemetry cache lifetime in seconds.</value>
 	public int CacheExpireSeconds => _options.CacheExpireSeconds;
 
 	/// <summary>Gets the per-request HTTP timeout.</summary>
+	/// <value>The per-request HTTP timeout.</value>
 	public TimeSpan Timeout => _options.Timeout;
 
 	/// <summary>Gets the device identifier returned by the local endpoint during authentication, or null before authentication.</summary>
+	/// <value>The device identifier returned by the local endpoint during authentication, or null before authentication.</value>
 	public string? DeviceIdentificationNumber => _din;
 
 	private bool IsBearer => _options.LocalProtocol == PowerwallLocalProtocol.TedapiBearer;

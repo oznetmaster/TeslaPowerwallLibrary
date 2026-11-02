@@ -101,6 +101,13 @@
     "template": [
       "default",
       "modern"
+    ],
+    "overwrite": [
+      {
+        "files": [
+          "apidoc/**.md"
+        ]
+      }
     ]
   }
 }

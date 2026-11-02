@@ -19,12 +19,15 @@ public sealed class LocalDiagnosticRecords<T> : IReadOnlyList<T?> where T : clas
 	/// <param name="array">Whether the device supplied an array.</param>
 	internal LocalDiagnosticRecords (IEnumerable<T?> items, bool array) { _items = Array.AsReadOnly (items.ToArray ()); WasReportedAsArray = array; }
 	/// <summary>Gets whether the device supplied an array rather than a single object.</summary>
+	/// <value>Whether the device supplied an array rather than a single object.</value>
 	public bool WasReportedAsArray { get; }
 	/// <summary>Gets the number of entries, including null slots.</summary>
+	/// <value>The number of entries, including null slots.</value>
 	public int Count => _items.Count;
 	/// <summary>Gets an entry by its original position; null is not replaced by an empty record.</summary>
 	/// <param name="index">Zero-based reported slot.</param>
 	/// <returns>The typed record or null.</returns>
+	/// <value>An entry by its original position; null is not replaced by an empty record.</value>
 	public T? this[int index] => _items[index];
 	/// <summary>Enumerates entries without filtering empty slots.</summary>
 	/// <returns>The ordered enumerator.</returns>

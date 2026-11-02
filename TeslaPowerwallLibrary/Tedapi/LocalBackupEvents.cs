@@ -52,6 +52,7 @@ public sealed record LocalGridCommandResult (
 	[property: JsonPropertyName ("result_code")] int? ResultCode)
 	{
 	/// <summary>Whether the gateway returned the observed successful acknowledgement code.</summary>
+	/// <value>Whether the gateway returned the observed successful acknowledgement code.</value>
 	[JsonPropertyName ("acknowledged")]
 	public bool Acknowledged => ResultCode == 1;
 	}

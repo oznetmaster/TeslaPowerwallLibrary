@@ -112,30 +112,35 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		}
 
 	/// <summary>Gets the configured site identifier, when one was supplied.</summary>
+	/// <value>The configured site identifier, when one was supplied.</value>
 	public string? SiteId
 		{
 		get; private set;
 		}
 
 	/// <summary>Gets the number of seconds before cached responses expire.</summary>
+	/// <value>The number of seconds before cached responses expire.</value>
 	public int CacheExpireSeconds
 		{
 		get;
 		}
 
 	/// <summary>Gets the per-request HTTP timeout.</summary>
+	/// <value>The per-request HTTP timeout.</value>
 	public TimeSpan Timeout
 		{
 		get;
 		}
 
 	/// <summary>Gets the path to cloud authentication and site cache files.</summary>
+	/// <value>The path to cloud authentication and site cache files.</value>
 	public string AuthPath
 		{
 		get;
 		}
 
 	/// <summary>Gets a value indicating whether the library-owned token cache is disabled for this instance.</summary>
+	/// <value>A value indicating whether the library-owned token cache is disabled for this instance.</value>
 	public bool NoCloudTokenPersistence
 		{
 		get;
@@ -152,9 +157,11 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	public event EventHandler<CloudTokensRefreshedEventArgs>? TokensRefreshed;
 
 	/// <summary>Gets the current Tesla Owners API access token, updated after any refresh.</summary>
+	/// <value>The current Tesla Owners API access token, updated after any refresh.</value>
 	public string? CurrentAccessToken => _connection?.AccessToken ?? _accessToken;
 
 	/// <summary>Gets the current Tesla Owners API refresh token, updated after any rotation.</summary>
+	/// <value>The current Tesla Owners API refresh token, updated after any rotation.</value>
 	public string? CurrentRefreshToken => _connection?.RefreshToken ?? _refreshToken;
 
 	private double NowSeconds => _clock.Elapsed.TotalSeconds;

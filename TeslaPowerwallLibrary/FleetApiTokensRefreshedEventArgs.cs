@@ -28,8 +28,13 @@ public sealed class FleetApiTokensRefreshedEventArgs : EventArgs
 	/// Gets the current Tesla FleetAPI access token, or <see langword="null"/> when the connection was
 	/// bootstrapped from a refresh token alone (no access token was supplied).
 	/// </summary>
+	/// <value>
+	/// The current Tesla FleetAPI access token, or <see langword="null"/> when the connection was
+	/// bootstrapped from a refresh token alone (no access token was supplied).
+	/// </value>
 	public string? AccessToken { get; }
 
 	/// <summary>Gets the current Tesla FleetAPI refresh token, which may have been rotated by Tesla.</summary>
+	/// <value>The current Tesla FleetAPI refresh token, which may have been rotated by Tesla.</value>
 	public string? RefreshToken { get; }
 	}

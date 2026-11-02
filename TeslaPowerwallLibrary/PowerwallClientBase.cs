@@ -23,12 +23,15 @@ public abstract class PowerwallClientBase
 			};
 
 	/// <summary>Holds the most recent cached response payloads keyed by API endpoint.</summary>
+	/// <value>Holds the most recent cached response payloads keyed by API endpoint.</value>
 	protected Dictionary<string, string?> Cache { get; } = [];
 
 	/// <summary>Cached bearer token, when token-based authentication is in use.</summary>
+	/// <value>Cached bearer token, when token-based authentication is in use.</value>
 	protected string? Token { get; set; }
 
 	/// <summary>Customer email associated with this client.</summary>
+	/// <value>Customer email associated with this client.</value>
 	public string Email { get; protected set; }
 
 	/// <summary>

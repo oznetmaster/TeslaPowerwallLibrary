@@ -31,6 +31,7 @@ public sealed class Powerwall : IDisposable
 	private readonly ILogger _log;
 
 	/// <summary>Gets the valid <c>kind</c> values accepted by <see cref="GetHistoryAsync"/>.</summary>
+	/// <value>The valid <c>kind</c> values accepted by <see cref="GetHistoryAsync"/>.</value>
 	public static IReadOnlyList<string> HistoryKinds
 		{
 		get;
@@ -38,6 +39,7 @@ public sealed class Powerwall : IDisposable
 		["power", "energy", "backup", "self_consumption"];
 
 	/// <summary>Gets the valid <c>kind</c> values accepted by <see cref="GetCalendarHistoryAsync"/>.</summary>
+	/// <value>The valid <c>kind</c> values accepted by <see cref="GetCalendarHistoryAsync"/>.</value>
 	public static IReadOnlyList<string> CalendarHistoryKinds
 		{
 		get;
@@ -45,6 +47,7 @@ public sealed class Powerwall : IDisposable
 		["power", "soe", "energy", "backup", "self_consumption", "time_of_use_energy", "savings"];
 
 	/// <summary>Gets the valid <c>period</c> values accepted by the energy-history methods.</summary>
+	/// <value>The valid <c>period</c> values accepted by the energy-history methods.</value>
 	public static IReadOnlyList<string> HistoryPeriods
 		{
 		get;
@@ -79,6 +82,7 @@ public sealed class Powerwall : IDisposable
 		}
 
 	/// <summary>Gets the resolved connection mode for this instance.</summary>
+	/// <value>The resolved connection mode for this instance.</value>
 	public PowerwallMode Mode
 		{
 		get; private set;
@@ -90,6 +94,12 @@ public sealed class Powerwall : IDisposable
 	/// the upstream <c>pypowerwall</c> <c>self.email</c> attribute, letting callers display which account is
 	/// currently active even though the token cache can hold entries for many different accounts.
 	/// </summary>
+	/// <value>
+	/// The customer email associated with this connection: the account used for cloud/FleetAPI
+	/// authentication and cloud token cache lookups, or the account label configured for local mode. Mirrors
+	/// the upstream <c>pypowerwall</c> <c>self.email</c> attribute, letting callers display which account is
+	/// currently active even though the token cache can hold entries for many different accounts.
+	/// </value>
 	public string Email => _client?.Email ?? _options.Email;
 
 	/// <summary>
@@ -203,6 +213,7 @@ public sealed class Powerwall : IDisposable
 		}
 
 	/// <summary>Gets a value indicating whether a backend client has been connected.</summary>
+	/// <value>A value indicating whether a backend client has been connected.</value>
 	public bool IsClientConnected => _client is not null;
 
 	/// <summary>
@@ -225,12 +236,20 @@ public sealed class Powerwall : IDisposable
 	/// Gets the current Tesla Owners API access token in cloud mode (updated after any refresh), or
 	/// <see langword="null"/> when not connected in cloud mode.
 	/// </summary>
+	/// <value>
+	/// The current Tesla Owners API access token in cloud mode (updated after any refresh), or
+	/// <see langword="null"/> when not connected in cloud mode.
+	/// </value>
 	public string? CloudAccessToken => (_client as PowerwallCloudClient)?.CurrentAccessToken;
 
 	/// <summary>
 	/// Gets the current Tesla Owners API refresh token in cloud mode (updated after any rotation), or
 	/// <see langword="null"/> when not connected in cloud mode.
 	/// </summary>
+	/// <value>
+	/// The current Tesla Owners API refresh token in cloud mode (updated after any rotation), or
+	/// <see langword="null"/> when not connected in cloud mode.
+	/// </value>
 	public string? CloudRefreshToken => (_client as PowerwallCloudClient)?.CurrentRefreshToken;
 
 	/// <summary>
@@ -238,18 +257,26 @@ public sealed class Powerwall : IDisposable
 	/// requested site or the library-remembered/default one), or <see langword="null"/> when not connected
 	/// in cloud mode.
 	/// </summary>
+	/// <value>
+	/// The Tesla energy site identifier the active cloud connection resolved to (either the caller's
+	/// requested site or the library-remembered/default one), or <see langword="null"/> when not connected
+	/// in cloud mode.
+	/// </value>
 	public string? CloudSiteId => (_client as PowerwallCloudClient)?.SiteId;
 
 	/// <summary>Gets the configured local hostname or IP authority, or null for a cloud connection.</summary>
 	/// <remarks>The hostname is retained across DHCP changes. Use <see cref="PowerwallDiscovery.ResolveAsync"/>
 	/// to resolve its current addresses; these are candidates, not proof of the active socket's remote address.</remarks>
+	/// <value>The configured local hostname or IP authority, or null for a cloud connection.</value>
 	public string? LocalHost => Mode == PowerwallMode.Local ? _options.Host : null;
 
 	/// <summary>Gets the authenticated TEDAPI device identifier without issuing a request; null for other transports or before connection.</summary>
+	/// <value>The authenticated TEDAPI device identifier without issuing a request; null for other transports or before connection.</value>
 	public string? LocalDeviceIdentificationNumber => (_client as PowerwallTedapiClient)?.DeviceIdentificationNumber;
 
 	/// <summary>Whether supported local reads currently use the configured setup-network fallback.</summary>
 	/// <remarks>False for other transports or before connection. This indicates routing, not the success of the latest read.</remarks>
+	/// <value>Whether supported local reads currently use the configured setup-network fallback.</value>
 	public bool IsUsingLocalReadFallback => (_client as PowerwallTedapiClient)?.IsUsingLocalReadFallback ?? false;
 
 
@@ -274,12 +301,20 @@ public sealed class Powerwall : IDisposable
 	/// Gets the current Tesla FleetAPI access token (updated after any refresh), or <see langword="null"/>
 	/// when not connected in FleetAPI mode.
 	/// </summary>
+	/// <value>
+	/// The current Tesla FleetAPI access token (updated after any refresh), or <see langword="null"/>
+	/// when not connected in FleetAPI mode.
+	/// </value>
 	public string? FleetApiAccessToken => (_client as PowerwallFleetApiClient)?.CurrentAccessToken;
 
 	/// <summary>
 	/// Gets the current Tesla FleetAPI refresh token (updated after any rotation), or <see langword="null"/>
 	/// when not connected in FleetAPI mode.
 	/// </summary>
+	/// <value>
+	/// The current Tesla FleetAPI refresh token (updated after any rotation), or <see langword="null"/>
+	/// when not connected in FleetAPI mode.
+	/// </value>
 	public string? FleetApiRefreshToken => (_client as PowerwallFleetApiClient)?.CurrentRefreshToken;
 
 	/// <summary>
@@ -287,6 +322,11 @@ public sealed class Powerwall : IDisposable
 	/// requested site or the library-resolved default one), or <see langword="null"/> when not connected in
 	/// FleetAPI mode.
 	/// </summary>
+	/// <value>
+	/// The Tesla energy site identifier the active FleetAPI connection resolved to (either the caller's
+	/// requested site or the library-resolved default one), or <see langword="null"/> when not connected in
+	/// FleetAPI mode.
+	/// </value>
 	public string? FleetApiSiteId => (_client as PowerwallFleetApiClient)?.SiteId;
 
 	/// <summary>

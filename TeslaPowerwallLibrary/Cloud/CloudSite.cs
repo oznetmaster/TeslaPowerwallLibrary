@@ -11,11 +11,14 @@ namespace TeslaPowerwallLibrary.Cloud;
 public sealed record CloudSite
 	{
 	/// <summary>Gets the Tesla energy site identifier (<c>energy_site_id</c>) used to select the site.</summary>
+	/// <value>The Tesla energy site identifier (<c>energy_site_id</c>) used to select the site.</value>
 	public required string SiteId { get; init; }
 
 	/// <summary>Gets the human-readable site name, when the account provides one.</summary>
+	/// <value>The human-readable site name, when the account provides one.</value>
 	public string? SiteName { get; init; }
 
 	/// <summary>Gets the Tesla resource type for the site (for example <c>battery</c> or <c>solar</c>).</summary>
+	/// <value>The Tesla resource type for the site (for example <c>battery</c> or <c>solar</c>).</value>
 	public string? ResourceType { get; init; }
 	}

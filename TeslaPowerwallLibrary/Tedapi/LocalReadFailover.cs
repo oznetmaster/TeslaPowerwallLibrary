@@ -17,6 +17,7 @@ public sealed partial class PowerwallTedapiClient
 
 	/// <summary>Whether supported reads currently use the explicitly configured setup-network connection.</summary>
 	/// <remarks>This reports routing, not whether the last read succeeded. Signed-only reads and all controls remain on LAN.</remarks>
+	/// <value>Whether supported reads currently use the explicitly configured setup-network connection.</value>
 	public bool IsUsingLocalReadFallback => _readFallbackActive;
 
 	private static bool CanFailOver (Exception error, CancellationToken cancellationToken) =>

@@ -10,6 +10,7 @@ namespace TeslaPowerwallLibrary.Tedapi;
 public sealed record LocalConfiguration
 	{
 	/// <summary>Configured meter identities, channel assignments and real-power scaling.</summary>
+	/// <value>Configured meter identities, channel assignments and real-power scaling.</value>
 	[JsonPropertyName ("meters")]
 	public IReadOnlyList<LocalMeterConfiguration>? Meters
 		{
@@ -17,6 +18,7 @@ public sealed record LocalConfiguration
 		}
 
 	/// <summary>Gateway device identification number.</summary>
+	/// <value>Gateway device identification number.</value>
 	[JsonPropertyName ("vin")]
 	public string? Din
 		{
@@ -24,6 +26,7 @@ public sealed record LocalConfiguration
 		}
 
 	/// <summary>Configured Powerwall units and their battery-only expansion packs.</summary>
+	/// <value>Configured Powerwall units and their battery-only expansion packs.</value>
 	[JsonPropertyName ("battery_blocks")]
 	public IReadOnlyList<LocalBatteryConfiguration>? Batteries
 		{
@@ -31,6 +34,7 @@ public sealed record LocalConfiguration
 		}
 
 	/// <summary>Configured operating mode, such as self_consumption or autonomous.</summary>
+	/// <value>Configured operating mode, such as self_consumption or autonomous.</value>
 	[JsonPropertyName ("default_real_mode")]
 	public string? OperationMode
 		{
@@ -38,6 +42,7 @@ public sealed record LocalConfiguration
 		}
 
 	/// <summary>Site identity, time zone and battery reserve configuration.</summary>
+	/// <value>Site identity, time zone and battery reserve configuration.</value>
 	[JsonPropertyName ("site_info")]
 	public LocalSiteConfiguration? Site
 		{
@@ -49,60 +54,70 @@ public sealed record LocalConfiguration
 public sealed record LocalSiteConfiguration
 	{
 	/// <summary>Configured nominal AC system energy in kilowatt-hours, when reported.</summary>
+	/// <value>Configured nominal AC system energy in kilowatt-hours, when reported.</value>
 	[JsonPropertyName ("nominal_system_energy_ac")]
 	public double? NominalEnergyKilowattHours
 		{
 		get; init;
 		}
 	/// <summary>Configured nominal AC system power in kilowatts, when reported.</summary>
+	/// <value>Configured nominal AC system power in kilowatts, when reported.</value>
 	[JsonPropertyName ("nominal_system_power_ac")]
 	public double? NominalPowerKilowatts
 		{
 		get; init;
 		}
 	/// <summary>Raw configured maximum site-meter AC power limit; no unit conversion is applied.</summary>
+	/// <value>Raw configured maximum site-meter AC power limit; no unit conversion is applied.</value>
 	[JsonPropertyName ("max_site_meter_power_ac")]
 	public double? MaximumSiteMeterPower
 		{
 		get; init;
 		}
 	/// <summary>Raw configured minimum site-meter AC power limit; no unit conversion is applied.</summary>
+	/// <value>Raw configured minimum site-meter AC power limit; no unit conversion is applied.</value>
 	[JsonPropertyName ("min_site_meter_power_ac")]
 	public double? MinimumSiteMeterPower
 		{
 		get; init;
 		}
 	/// <summary>Configured panel maximum current in amperes.</summary>
+	/// <value>Configured panel maximum current in amperes.</value>
 	[JsonPropertyName ("panel_max_current")]
 	public double? PanelMaximumCurrentAmps
 		{
 		get; init;
 		}
 	/// <summary>Gateway-reported grid-code identifier, without inferred phase, voltage or frequency settings.</summary>
+	/// <value>Gateway-reported grid-code identifier, without inferred phase, voltage or frequency settings.</value>
 	[JsonPropertyName ("grid_code")]
 	public string? GridCode
 		{
 		get; init;
 		}
 	/// <summary>Country recorded in the site configuration.</summary>
+	/// <value>Country recorded in the site configuration.</value>
 	[JsonPropertyName ("country")]
 	public string? Country
 		{
 		get; init;
 		}
 	/// <summary>State or region recorded in the site configuration.</summary>
+	/// <value>State or region recorded in the site configuration.</value>
 	[JsonPropertyName ("state")]
 	public string? State
 		{
 		get; init;
 		}
 	/// <summary>Utility recorded in the site configuration.</summary>
+	/// <value>Utility recorded in the site configuration.</value>
 	[JsonPropertyName ("utility")]
 	public string? Utility
 		{
 		get; init;
 		}
 	/// <summary>Battery commissioning date as delivered by the gateway; this is not its boot time.</summary>
+	/// <value>Battery commissioning date as delivered by the gateway; this is not its boot time.</value>
 	[JsonPropertyName ("battery_commission_date")]
 	public string? BatteryCommissionDate
 		{
@@ -110,6 +125,7 @@ public sealed record LocalSiteConfiguration
 		}
 
 	/// <summary>User-assigned site name.</summary>
+	/// <value>User-assigned site name.</value>
 	[JsonPropertyName ("site_name")]
 	public string? Name
 		{
@@ -117,6 +133,7 @@ public sealed record LocalSiteConfiguration
 		}
 
 	/// <summary>IANA time-zone identifier reported by the gateway.</summary>
+	/// <value>IANA time-zone identifier reported by the gateway.</value>
 	[JsonPropertyName ("timezone")]
 	public string? Timezone
 		{
@@ -124,6 +141,7 @@ public sealed record LocalSiteConfiguration
 		}
 
 	/// <summary>Whether the gateway disallows charging from the grid; null means unreported.</summary>
+	/// <value>Whether the gateway disallows charging from the grid; null means unreported.</value>
 	[JsonPropertyName ("disallow_charge_from_grid_with_solar_installed")]
 	public bool? GridChargingDisallowed
 		{
@@ -131,12 +149,14 @@ public sealed record LocalSiteConfiguration
 		}
 
 	/// <summary>Configured export rule: battery_ok, pv_only, or never; null means unreported.</summary>
+	/// <value>Configured export rule: battery_ok, pv_only, or never; null means unreported.</value>
 	[JsonPropertyName ("customer_preferred_export_rule")]
 	public string? GridExport
 		{
 		get; init;
 		}
 	/// <summary>Configured battery reserve on the raw gateway percentage scale.</summary>
+	/// <value>Configured battery reserve on the raw gateway percentage scale.</value>
 	[JsonPropertyName ("backup_reserve_percent")]
 	public double? BackupReservePercent
 		{
@@ -148,18 +168,21 @@ public sealed record LocalSiteConfiguration
 public sealed record LocalBatteryConfiguration
 	{
 	/// <summary>Powerwall device identification number, containing its part and serial numbers.</summary>
+	/// <value>Powerwall device identification number, containing its part and serial numbers.</value>
 	[JsonPropertyName ("vin")]
 	public string? Din
 		{
 		get; init;
 		}
 	/// <summary>Device type reported by the gateway.</summary>
+	/// <value>Device type reported by the gateway.</value>
 	[JsonPropertyName ("type")]
 	public string? Type
 		{
 		get; init;
 		}
 	/// <summary>Configured battery-only expansion packs attached to this unit.</summary>
+	/// <value>Configured battery-only expansion packs attached to this unit.</value>
 	[JsonPropertyName ("battery_expansions")]
 	public IReadOnlyList<LocalBatteryExpansion>? Expansions
 		{
@@ -171,6 +194,7 @@ public sealed record LocalBatteryConfiguration
 public sealed record LocalBatteryExpansion
 	{
 	/// <summary>Expansion device identification number.</summary>
+	/// <value>Expansion device identification number.</value>
 	[JsonPropertyName ("din")]
 	public string? Din
 		{

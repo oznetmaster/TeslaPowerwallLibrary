@@ -16,42 +16,52 @@ namespace TeslaPowerwallLibrary.Models;
 public sealed record SystemStatus
 	{
 	/// <summary>Nominal full pack energy in watt-hours.</summary>
+	/// <value>Nominal full pack energy in watt-hours.</value>
 	[JsonPropertyName ("nominal_full_pack_energy")]
 	public double? NominalFullPackEnergy { get; init; }
 
 	/// <summary>Nominal energy remaining in watt-hours.</summary>
+	/// <value>Nominal energy remaining in watt-hours.</value>
 	[JsonPropertyName ("nominal_energy_remaining")]
 	public double? NominalEnergyRemaining { get; init; }
 
 	/// <summary>Maximum charge power in watts.</summary>
+	/// <value>Maximum charge power in watts.</value>
 	[JsonPropertyName ("max_charge_power")]
 	public double? MaxChargePower { get; init; }
 
 	/// <summary>Maximum discharge power in watts.</summary>
+	/// <value>Maximum discharge power in watts.</value>
 	[JsonPropertyName ("max_discharge_power")]
 	public double? MaxDischargePower { get; init; }
 
 	/// <summary>Maximum apparent power in volt-amperes.</summary>
+	/// <value>Maximum apparent power in volt-amperes.</value>
 	[JsonPropertyName ("max_apparent_power")]
 	public double? MaxApparentPower { get; init; }
 
 	/// <summary>Sum of usable inverter nominal power in watts; zero when no inverter reports a usable capability, or null when unavailable.</summary>
+	/// <value>Sum of usable inverter nominal power in watts; zero when no inverter reports a usable capability, or null when unavailable.</value>
 	[JsonPropertyName ("inverter_nominal_usable_power")]
 	public double? InverterNominalUsablePower { get; init; }
 
 	/// <summary>Island state of the system; mirrors the grid status value.</summary>
+	/// <value>Island state of the system; mirrors the grid status value.</value>
 	[JsonPropertyName ("system_island_state")]
 	public string? SystemIslandState { get; init; }
 
 	/// <summary>Number of available battery blocks.</summary>
+	/// <value>Number of available battery blocks.</value>
 	[JsonPropertyName ("available_blocks")]
 	public int? AvailableBlocks { get; init; }
 
 	/// <summary>Per-battery detail blocks.</summary>
+	/// <value>Per-battery detail blocks.</value>
 	[JsonPropertyName ("battery_blocks")]
 	public IReadOnlyList<BatteryBlock>? BatteryBlocks { get; init; }
 
 	/// <summary>Grid fault entries reported by the system.</summary>
+	/// <value>Grid fault entries reported by the system.</value>
 	[JsonPropertyName ("grid_faults")]
 	public IReadOnlyList<object>? GridFaults { get; init; }
 	}
@@ -62,70 +72,87 @@ public sealed record SystemStatus
 public sealed record BatteryBlock
 	{
 	/// <summary>Battery block type (for example <c>ACPW</c>).</summary>
+	/// <value>Battery block type (for example <c>ACPW</c>).</value>
 	[JsonPropertyName ("Type")]
 	public string? Type { get; init; }
 
 	/// <summary>Manufacturer package part number.</summary>
+	/// <value>Manufacturer package part number.</value>
 	[JsonPropertyName ("PackagePartNumber")]
 	public string? PackagePartNumber { get; init; }
 
 	/// <summary>Manufacturer package serial number; used as the battery identifier.</summary>
+	/// <value>Manufacturer package serial number; used as the battery identifier.</value>
 	[JsonPropertyName ("PackageSerialNumber")]
 	public string? PackageSerialNumber { get; init; }
 
 	/// <summary>Nominal energy remaining for this block in watt-hours.</summary>
+	/// <value>Nominal energy remaining for this block in watt-hours.</value>
 	[JsonPropertyName ("nominal_energy_remaining")]
 	public double? NominalEnergyRemaining { get; init; }
 
 	/// <summary>Nominal full pack energy for this block in watt-hours.</summary>
+	/// <value>Nominal full pack energy for this block in watt-hours.</value>
 	[JsonPropertyName ("nominal_full_pack_energy")]
 	public double? NominalFullPackEnergy { get; init; }
 
 	/// <summary>Inverter state (for example <c>PINV_Active</c>).</summary>
+	/// <value>Inverter state (for example <c>PINV_Active</c>).</value>
 	[JsonPropertyName ("pinv_state")]
 	public string? PinvState { get; init; }
 
 	/// <summary>Inverter grid compliance state.</summary>
+	/// <value>Inverter grid compliance state.</value>
 	[JsonPropertyName ("pinv_grid_state")]
 	public string? PinvGridState { get; init; }
 
 	/// <summary>Real power output in watts.</summary>
+	/// <value>Real power output in watts.</value>
 	[JsonPropertyName ("p_out")]
 	public double? PowerOut { get; init; }
 
 	/// <summary>Reactive power output in volt-amperes reactive.</summary>
+	/// <value>Reactive power output in volt-amperes reactive.</value>
 	[JsonPropertyName ("q_out")]
 	public double? ReactivePowerOut { get; init; }
 
 	/// <summary>Output voltage in volts.</summary>
+	/// <value>Output voltage in volts.</value>
 	[JsonPropertyName ("v_out")]
 	public double? VoltageOut { get; init; }
 
 	/// <summary>Output frequency in hertz.</summary>
+	/// <value>Output frequency in hertz.</value>
 	[JsonPropertyName ("f_out")]
 	public double? FrequencyOut { get; init; }
 
 	/// <summary>Output current in amperes.</summary>
+	/// <value>Output current in amperes.</value>
 	[JsonPropertyName ("i_out")]
 	public double? CurrentOut { get; init; }
 
 	/// <summary>Cumulative energy charged in watt-hours.</summary>
+	/// <value>Cumulative energy charged in watt-hours.</value>
 	[JsonPropertyName ("energy_charged")]
 	public double? EnergyCharged { get; init; }
 
 	/// <summary>Cumulative energy discharged in watt-hours.</summary>
+	/// <value>Cumulative energy discharged in watt-hours.</value>
 	[JsonPropertyName ("energy_discharged")]
 	public double? EnergyDischarged { get; init; }
 
 	/// <summary>Indicates whether the block is currently off grid.</summary>
+	/// <value>Indicates whether the block is currently off grid.</value>
 	[JsonPropertyName ("off_grid")]
 	public bool? OffGrid { get; init; }
 
 	/// <summary>Indicates whether the block is ready to provide backup power.</summary>
+	/// <value>Indicates whether the block is ready to provide backup power.</value>
 	[JsonPropertyName ("backup_ready")]
 	public bool? BackupReady { get; init; }
 
 	/// <summary>Firmware version reported by the block.</summary>
+	/// <value>Firmware version reported by the block.</value>
 	[JsonPropertyName ("version")]
 	public string? Version { get; init; }
 	}
@@ -136,6 +163,7 @@ public sealed record BatteryBlock
 public sealed record StateOfEnergy
 	{
 	/// <summary>Battery charge level as a percentage (raw gateway scale).</summary>
+	/// <value>Battery charge level as a percentage (raw gateway scale).</value>
 	[JsonPropertyName ("percentage")]
 	public double Percentage { get; init; }
 	}
@@ -146,10 +174,12 @@ public sealed record StateOfEnergy
 public sealed record GridStatusResponse
 	{
 	/// <summary>Raw grid status string (for example <c>SystemGridConnected</c>).</summary>
+	/// <value>Raw grid status string (for example <c>SystemGridConnected</c>).</value>
 	[JsonPropertyName ("grid_status")]
 	public string? GridStatus { get; init; }
 
 	/// <summary>Indicates whether grid services are currently active.</summary>
+	/// <value>Indicates whether grid services are currently active.</value>
 	[JsonPropertyName ("grid_services_active")]
 	public bool? GridServicesActive { get; init; }
 	}
@@ -160,10 +190,12 @@ public sealed record GridStatusResponse
 public sealed record OperationResponse
 	{
 	/// <summary>Configured backup reserve percentage (raw gateway scale).</summary>
+	/// <value>Configured backup reserve percentage (raw gateway scale).</value>
 	[JsonPropertyName ("backup_reserve_percent")]
 	public double? BackupReservePercent { get; init; }
 
 	/// <summary>Active battery operation mode (for example <c>self_consumption</c>).</summary>
+	/// <value>Active battery operation mode (for example <c>self_consumption</c>).</value>
 	[JsonPropertyName ("real_mode")]
 	public string? RealMode { get; init; }
 	}

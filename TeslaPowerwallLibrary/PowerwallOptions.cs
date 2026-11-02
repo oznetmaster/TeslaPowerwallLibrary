@@ -41,14 +41,17 @@ public enum PowerwallLocalProtocol
 public sealed record PowerwallOptions
 	{
 	/// <summary>Protocol for direct local access. This does not enable cloud authentication or fallback.</summary>
+	/// <value>Protocol for direct local access. This does not enable cloud authentication or fallback.</value>
 	public PowerwallLocalProtocol LocalProtocol { get; init; }
 
 	/// <summary>Gets the explicit TEDAPI query set; June 2024 is the default. No automatic cross-version fallback occurs.</summary>
+	/// <value>The explicit TEDAPI query set; June 2024 is the default. No automatic cross-version fallback occurs.</value>
 	public Tedapi.TedapiQueryVersion LocalQueryVersion { get; init; } = Tedapi.TedapiQueryVersion.June2024;
 	/// <summary>Optional, already authenticated setup-network connection for follower component reads from a signed LAN client.</summary>
 	/// <remarks>The consumer owns this connection and its lifetime. It must use <see cref="PowerwallLocalProtocol.Tedapi"/>.
 	/// No network connection, authentication, cloud fallback or power-control command is started implicitly.
 	/// Controller reads use it only when <see cref="EnableLocalReadFailover"/> is enabled. Writes always use the primary signed LAN connection.</remarks>
+	/// <value>Optional, already authenticated setup-network connection for follower component reads from a signed LAN client.</value>
 	[System.Text.Json.Serialization.JsonIgnore]
 	public Tedapi.PowerwallTedapiClient? LocalFollowerConnection { get; init; }
 
@@ -56,10 +59,12 @@ public sealed record PowerwallOptions
 	/// <remarks>Defaults to false. Three consecutive network failures or request timeouts switch supported reads to the setup-network connection.
 	/// Initial LAN unavailability can start directly on that connection. Device identities must match. Authentication failures,
 	/// malformed responses, rate limits and caller cancellation never trigger failover. No writes are replayed or redirected.</remarks>
+	/// <value>Enables read-only failover from signed LAN to the explicit, already authenticated <see cref="LocalFollowerConnection"/>.</value>
 	public bool EnableLocalReadFailover { get; init; }
 
 	/// <summary>Delay before a caller's next read retries LAN after failover. Defaults to 60 seconds; must be positive.</summary>
 	/// <remarks>No background timer or polling loop is created. Failed recovery attempts wait another interval.</remarks>
+	/// <value>Delay before a caller's next read retries LAN after failover. Defaults to 60 seconds; must be positive.</value>
 	public TimeSpan LocalReadFailoverRetryInterval { get; init; } = TimeSpan.FromSeconds (60);
 
 	private bool? _noLocalSessionPersistence;
@@ -67,6 +72,7 @@ public sealed record PowerwallOptions
 
 	/// <summary>Disables classic gateway session persistence. Defaults to false for Gateway to preserve existing behavior, and true for TEDAPI.</summary>
 	/// <remarks>TEDAPI sessions are always memory-only. Set this explicitly to true to keep classic gateway sessions memory-only too.</remarks>
+	/// <value>Disables classic gateway session persistence. Defaults to false for Gateway to preserve existing behavior, and true for TEDAPI.</value>
 	public bool NoLocalSessionPersistence
 		{
 		get => _noLocalSessionPersistence ?? LocalProtocol != PowerwallLocalProtocol.Gateway;
@@ -76,6 +82,7 @@ public sealed record PowerwallOptions
 	/// <summary>Permits explicit local control commands. Defaults to true for the classic Gateway protocol and false for TEDAPI.</summary>
 	/// <remarks>Classic gateway defaults preserve the released API behavior. Set false explicitly for read-only access.
 	/// TEDAPI writes require explicit true and signed LAN access. Authentication and reads never send control commands.</remarks>
+	/// <value>Permits explicit local control commands. Defaults to true for the classic Gateway protocol and false for TEDAPI.</value>
 	public bool AllowLocalControl
 		{
 		get => _allowLocalControl ?? (!CloudMode && !FleetApi && LocalProtocol == PowerwallLocalProtocol.Gateway);
@@ -83,15 +90,24 @@ public sealed record PowerwallOptions
 		}
 
 	/// <summary>Full gateway-label password for direct TEDAPI authentication. Separate from Tesla account credentials.</summary>
+	/// <value>Full gateway-label password for direct TEDAPI authentication. Separate from Tesla account credentials.</value>
 	public string GatewayPassword { get; init; } = string.Empty;
 
 	/// <summary>Registered 4096-bit RSA key for signed Powerwall 3 LAN requests. The caller owns and disposes this key.
 	/// The library never registers the key or contacts a cloud API on behalf of a local connection.</summary>
+	/// <value>
+	/// Registered 4096-bit RSA key for signed Powerwall 3 LAN requests. The caller owns and disposes this key.
+	/// The library never registers the key or contacts a cloud API on behalf of a local connection.
+	/// </value>
 	[System.Text.Json.Serialization.JsonIgnore]
 	public System.Security.Cryptography.RSA? LocalSigningKey { get; init; }
 
 	/// <summary>Caller-owned logger used by this connection and its clients. Defaults to no logging.
 	/// Supply a logger with the desired category and scopes to associate messages with an application or device.</summary>
+	/// <value>
+	/// Caller-owned logger used by this connection and its clients. Defaults to no logging.
+	/// Supply a logger with the desired category and scopes to associate messages with an application or device.
+	/// </value>
 	[System.Text.Json.Serialization.JsonIgnore]
 	public Microsoft.Extensions.Logging.ILogger? Logger
 		{
@@ -102,9 +118,14 @@ public sealed record PowerwallOptions
 	/// Hostname or IP address of the Powerwall gateway (for example <c>10.0.1.99</c>), optionally
 	/// including a non-standard HTTPS port (for example <c>10.0.1.99:8443</c>). When empty, cloud mode is assumed.
 	/// </summary>
+	/// <value>
+	/// Hostname or IP address of the Powerwall gateway (for example <c>10.0.1.99</c>), optionally
+	/// including a non-standard HTTPS port (for example <c>10.0.1.99:8443</c>). When empty, cloud mode is assumed.
+	/// </value>
 	public string Host { get; init; } = string.Empty;
 
 	/// <summary>Customer password configured on the Powerwall gateway.</summary>
+	/// <value>Customer password configured on the Powerwall gateway.</value>
 	public string Password { get; init; } = string.Empty;
 
 	/// <summary>
@@ -114,24 +135,36 @@ public sealed record PowerwallOptions
 	/// unless <see cref="NoCloudTokenPersistence"/> is <see langword="true"/>, in which case there is no cache
 	/// to key and the value is not validated.
 	/// </summary>
+	/// <value>
+	/// Customer email. In local mode this is sent to the gateway during login. In cloud/FleetAPI mode Tesla
+	/// authentication is entirely token-based (<see cref="AccessToken"/>/<see cref="RefreshToken"/>) and this
+	/// value is used only as the cloud token cache key and for diagnostic display; a valid email is required
+	/// unless <see cref="NoCloudTokenPersistence"/> is <see langword="true"/>, in which case there is no cache
+	/// to key and the value is not validated.
+	/// </value>
 	public string Email { get; init; } = Constants.DEFAULT_EMAIL;
 
 	/// <summary>IANA time zone for the location of the Powerwall.</summary>
+	/// <value>IANA time zone for the location of the Powerwall.</value>
 	public string Timezone { get; init; } = Constants.DEFAULT_TIMEZONE;
 
 	/// <summary>Number of seconds before cached API responses expire.</summary>
+	/// <value>Number of seconds before cached API responses expire.</value>
 	public int CacheExpireSeconds { get; init; } = Constants.DEFAULT_CACHE_EXPIRE_SECONDS;
 
 	/// <summary>Per-request HTTP timeout.</summary>
+	/// <value>Per-request HTTP timeout.</value>
 	public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds (Constants.DEFAULT_TIMEOUT_SECONDS);
 
 	/// <summary>When <see langword="true"/>, use the Tesla cloud for data instead of local access.</summary>
+	/// <value>When <see langword="true"/>, use the Tesla cloud for data instead of local access.</value>
 	public bool CloudMode
 		{
 		get; init;
 		}
 
 	/// <summary>Site identifier used in cloud mode.</summary>
+	/// <value>Site identifier used in cloud mode.</value>
 	public string? SiteId
 		{
 		get; init;
@@ -146,6 +179,15 @@ public sealed record PowerwallOptions
 	/// later runs, so callers do not need to store tokens themselves. Whether this was supplied also affects how
 	/// often <see cref="Powerwall.CloudTokensRefreshed"/> fires - see that event's documentation.
 	/// </summary>
+	/// <value>
+	/// Tesla Owners API OAuth access token used for cloud mode. Optional: when omitted (or when the supplied
+	/// value is stale or rejected), the library silently derives a new one from <see cref="RefreshToken"/> -
+	/// there is no need to supply this at all for a normal connect. Supply it only as an optimization to skip
+	/// that one derivation round-trip on the very first connect after a fresh login. After the initial connect
+	/// the library persists tokens internally (keyed by <see cref="Email"/>) and reuses them automatically on
+	/// later runs, so callers do not need to store tokens themselves. Whether this was supplied also affects how
+	/// often <see cref="Powerwall.CloudTokensRefreshed"/> fires - see that event's documentation.
+	/// </value>
 	public string? AccessToken
 		{
 		get; init;
@@ -158,6 +200,13 @@ public sealed record PowerwallOptions
 	/// persists the (possibly rotated) refresh token internally and reuses it on later runs, so it too can be
 	/// omitted once a prior connect has succeeded.
 	/// </summary>
+	/// <value>
+	/// Tesla Owners API OAuth refresh token used to renew an expired or absent <see cref="AccessToken"/> in
+	/// cloud mode. This is the one credential a first-time login must supply - obtain it by completing the
+	/// Tesla OAuth flow separately (for example with the upstream <c>pypowerwall setup</c> tool). The library
+	/// persists the (possibly rotated) refresh token internally and reuses it on later runs, so it too can be
+	/// omitted once a prior connect has succeeded.
+	/// </value>
 	public string? RefreshToken
 		{
 		get; init;
@@ -172,6 +221,15 @@ public sealed record PowerwallOptions
 	/// cache file name is appended. Ignored entirely when <see cref="NoCloudTokenPersistence"/> is
 	/// <see langword="true"/>.
 	/// </summary>
+	/// <value>
+	/// Directory or file used by the library to persist cloud-mode Tesla tokens and the selected site, keyed
+	/// by <see cref="Email"/>. When empty, a per-user default under the local application data folder is used
+	/// and storage failures are logged but otherwise ignored. When non-empty, the location is authoritative:
+	/// no fallback is attempted, and a failure to read or write it raises
+	/// <see cref="Cloud.PowerwallCloudTokenCacheStorageException"/>. When a directory is supplied, the default
+	/// cache file name is appended. Ignored entirely when <see cref="NoCloudTokenPersistence"/> is
+	/// <see langword="true"/>.
+	/// </value>
 	public string AuthPath { get; init; } = string.Empty;
 
 	/// <summary>
@@ -185,18 +243,32 @@ public sealed record PowerwallOptions
 	/// changes. Use this on hosts where the library's default per-user file cache is not appropriate (for
 	/// example Mono-hosted embedded environments without a writable per-user profile folder).
 	/// </summary>
+	/// <value>
+	/// When <see langword="true"/>, disables the library's cloud token cache entirely: <see cref="AuthPath"/>
+	/// is ignored and no file is ever read or written. <see cref="Email"/> is not required to pass format
+	/// validation in this mode, since it is otherwise used only as the cache key and for diagnostic display,
+	/// not for Tesla authentication. Callers must supply <see cref="RefreshToken"/> on every run (
+	/// <see cref="AccessToken"/> remains optional and is silently re-derived when absent or stale) and should
+	/// subscribe to <see cref="Powerwall.CloudTokensRefreshed"/> to persist the new value using their own
+	/// storage; when <see cref="AccessToken"/> was omitted, that event only fires when the refresh token itself
+	/// changes. Use this on hosts where the library's default per-user file cache is not appropriate (for
+	/// example Mono-hosted embedded environments without a writable per-user profile folder).
+	/// </value>
 	public bool NoCloudTokenPersistence
 		{
 		get; init;
 		}
 
 	/// <summary>Authentication mode for local access: <c>cookie</c> (default) or <c>token</c>.</summary>
+	/// <value>Authentication mode for local access: <c>cookie</c> (default) or <c>token</c>.</value>
 	public string AuthMode { get; init; } = "cookie";
 
 	/// <summary>Path to the file used to persist the local-mode authentication session.</summary>
+	/// <value>Path to the file used to persist the local-mode authentication session.</value>
 	public string CacheFile { get; init; } = Constants.DEFAULT_CACHE_FILE;
 
 	/// <summary>When <see langword="true"/>, use Tesla FleetAPI for data.</summary>
+	/// <value>When <see langword="true"/>, use Tesla FleetAPI for data.</value>
 	public bool FleetApi
 		{
 		get; init;
@@ -206,6 +278,10 @@ public sealed record PowerwallOptions
 	/// Tesla FleetAPI application Client ID registered at <c>https://developer.tesla.com/</c>. Required for
 	/// FleetAPI mode; used only to identify the application on the OAuth refresh-token grant.
 	/// </summary>
+	/// <value>
+	/// Tesla FleetAPI application Client ID registered at <c>https://developer.tesla.com/</c>. Required for
+	/// FleetAPI mode; used only to identify the application on the OAuth refresh-token grant.
+	/// </value>
 	public string? FleetApiClientId
 		{
 		get; init;
@@ -216,6 +292,11 @@ public sealed record PowerwallOptions
 	/// for future use (for example partner-token flows); it is not required for and not sent on the
 	/// refresh-token grant used to keep <see cref="FleetApiAccessToken"/> current.
 	/// </summary>
+	/// <value>
+	/// Tesla FleetAPI application Client Secret registered at <c>https://developer.tesla.com/</c>. Reserved
+	/// for future use (for example partner-token flows); it is not required for and not sent on the
+	/// refresh-token grant used to keep <see cref="FleetApiAccessToken"/> current.
+	/// </value>
 	public string? FleetApiClientSecret
 		{
 		get; init;
@@ -225,6 +306,10 @@ public sealed record PowerwallOptions
 	/// Tesla FleetAPI OAuth access token. Optional: when omitted (or when the supplied value is stale or
 	/// rejected), the library silently derives a new one from <see cref="FleetApiRefreshToken"/>.
 	/// </summary>
+	/// <value>
+	/// Tesla FleetAPI OAuth access token. Optional: when omitted (or when the supplied value is stale or
+	/// rejected), the library silently derives a new one from <see cref="FleetApiRefreshToken"/>.
+	/// </value>
 	public string? FleetApiAccessToken
 		{
 		get; init;
@@ -237,6 +322,13 @@ public sealed record PowerwallOptions
 	/// (keyed by <see cref="Email"/>) and reuses them automatically on later runs, so callers do not need to
 	/// store tokens themselves, unless <see cref="NoFleetApiTokenPersistence"/> is <see langword="true"/>.
 	/// </summary>
+	/// <value>
+	/// Tesla FleetAPI OAuth refresh token used to renew an expired or absent <see cref="FleetApiAccessToken"/>.
+	/// This is the one credential a first-time FleetAPI connection must supply - obtain it by completing the
+	/// Tesla FleetAPI OAuth flow separately. After the initial connect the library persists tokens internally
+	/// (keyed by <see cref="Email"/>) and reuses them automatically on later runs, so callers do not need to
+	/// store tokens themselves, unless <see cref="NoFleetApiTokenPersistence"/> is <see langword="true"/>.
+	/// </value>
 	public string? FleetApiRefreshToken
 		{
 		get; init;
@@ -248,6 +340,12 @@ public sealed record PowerwallOptions
 	/// Africa), or <c>cn</c> (China). China accounts require their separate registration and explicit region.
 	/// Unrecognized values retain the legacy fallback to <c>na</c>.
 	/// </summary>
+	/// <value>
+	/// Tesla FleetAPI region: <c>auto</c> (default) discovers the account's regional base URL before querying
+	/// sites. Explicit overrides are <c>na</c> (North America / Asia-Pacific), <c>eu</c> (Europe / Middle East /
+	/// Africa), or <c>cn</c> (China). China accounts require their separate registration and explicit region.
+	/// Unrecognized values retain the legacy fallback to <c>na</c>.
+	/// </value>
 	public string FleetApiRegion { get; init; } = "auto";
 
 	/// <summary>
@@ -259,6 +357,15 @@ public sealed record PowerwallOptions
 	/// default cache file name is appended. Ignored entirely when <see cref="NoFleetApiTokenPersistence"/> is
 	/// <see langword="true"/>.
 	/// </summary>
+	/// <value>
+	/// Directory or file used by the library to persist FleetAPI tokens and the selected site, keyed by
+	/// <see cref="Email"/>. When empty, a per-user default under the local application data folder is used and
+	/// storage failures are logged but otherwise ignored. When non-empty, the location is authoritative: no
+	/// fallback is attempted, and a failure to read or write it raises
+	/// <see cref="FleetApi.PowerwallFleetApiTokenCacheStorageException"/>. When a directory is supplied, the
+	/// default cache file name is appended. Ignored entirely when <see cref="NoFleetApiTokenPersistence"/> is
+	/// <see langword="true"/>.
+	/// </value>
 	public string FleetApiAuthPath { get; init; } = string.Empty;
 
 	/// <summary>
@@ -271,6 +378,16 @@ public sealed record PowerwallOptions
 	/// not appropriate (for example Mono-hosted embedded environments without a writable per-user profile
 	/// folder).
 	/// </summary>
+	/// <value>
+	/// When <see langword="true"/>, disables the library's FleetAPI token cache entirely: <see cref="FleetApiAuthPath"/>
+	/// is ignored and no file is ever read or written. Callers must supply <see cref="FleetApiRefreshToken"/> on
+	/// every run (<see cref="FleetApiAccessToken"/> remains optional and is silently re-derived when absent or
+	/// stale) and should subscribe to <see cref="Powerwall.FleetApiTokensRefreshed"/> to persist the new value
+	/// using their own storage; when <see cref="FleetApiAccessToken"/> was omitted, that event only fires when
+	/// the refresh token itself changes. Use this on hosts where the library's default per-user file cache is
+	/// not appropriate (for example Mono-hosted embedded environments without a writable per-user profile
+	/// folder).
+	/// </value>
 	public bool NoFleetApiTokenPersistence
 		{
 		get; init;

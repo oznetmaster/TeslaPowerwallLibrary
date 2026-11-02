@@ -18,10 +18,12 @@ namespace TeslaPowerwallLibrary.Models;
 public sealed record SolarPowerwallAlertsResponse
 	{
 	/// <summary>Active alert flags reported by the PV-AC (solar inverter) controller.</summary>
+	/// <value>Active alert flags reported by the PV-AC (solar inverter) controller.</value>
 	[JsonPropertyName ("pvac_alerts")]
 	public IReadOnlyDictionary<string, bool>? PvacAlerts { get; init; }
 
 	/// <summary>Active alert flags reported by the PVS (solar string) controller.</summary>
+	/// <value>Active alert flags reported by the PVS (solar string) controller.</value>
 	[JsonPropertyName ("pvs_alerts")]
 	public IReadOnlyDictionary<string, bool>? PvsAlerts { get; init; }
 	}

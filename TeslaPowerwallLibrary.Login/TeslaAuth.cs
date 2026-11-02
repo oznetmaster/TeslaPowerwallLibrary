@@ -119,6 +119,7 @@ internal static class TeslaAuth
 	/// Mirrors the redirect handling in upstream <c>_patch_pywebview_win32</c>.
 	/// </summary>
 	/// <param name="uri">The full callback URI intercepted from the browser navigation.</param>
+	/// <param name="callback">The parsed callback values, or the default value when the URI is not a Tesla callback.</param>
 	/// <returns><see langword="true"/> when the URI is a Tesla callback; otherwise <see langword="false"/>.</returns>
 	public static bool TryParseCallback (string uri, out TeslaCallback callback)
 		{

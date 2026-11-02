@@ -16,7 +16,7 @@ inputs:
 runs:
   using: composite
   steps:
-  - uses: oznetmaster/BuildAutomation@c0a215e202dc1e05a37707720ab12032be610518
+  - uses: oznetmaster/BuildAutomation@cb36bb30b23e58aff85435f23ad0c8428d86ecdd
     with:
       task: existing-cake
     env:

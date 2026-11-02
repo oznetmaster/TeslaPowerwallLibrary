@@ -20,6 +20,7 @@ namespace TeslaPowerwallLibrary.Models;
 public sealed record EnergyHistoryPoint
 	{
 	/// <summary>The point's timestamp, used to resample the data into period-appropriate buckets.</summary>
+	/// <value>The point's timestamp, used to resample the data into period-appropriate buckets.</value>
 	[JsonPropertyName ("timestamp")]
 	public DateTimeOffset Timestamp { get; init; }
 
@@ -63,9 +64,11 @@ public sealed record EnergyHistoryPoint
 	private double ConsumerEnergyImportedFromGenerator { get; init; }
 
 	/// <summary>Solar energy produced, in kilowatt-hours.</summary>
+	/// <value>Solar energy produced, in kilowatt-hours.</value>
 	public double SolarKwh => ToKwh (SolarEnergyExported);
 
 	/// <summary>Home (consumer) energy used, in kilowatt-hours.</summary>
+	/// <value>Home (consumer) energy used, in kilowatt-hours.</value>
 	public double HomeKwh => ToKwh (
 		ConsumerEnergyImportedFromGrid
 		+ ConsumerEnergyImportedFromSolar
@@ -73,25 +76,30 @@ public sealed record EnergyHistoryPoint
 		+ ConsumerEnergyImportedFromGenerator);
 
 	/// <summary>Energy imported from the grid, in kilowatt-hours.</summary>
+	/// <value>Energy imported from the grid, in kilowatt-hours.</value>
 	public double FromGridKwh => ToKwh (GridEnergyImported);
 
 	/// <summary>Energy exported to the grid, in kilowatt-hours.</summary>
+	/// <value>Energy exported to the grid, in kilowatt-hours.</value>
 	public double ToGridKwh => ToKwh (
 		GridEnergyExportedFromSolar
 		+ GridEnergyExportedFromBattery
 		+ GridEnergyExportedFromGenerator);
 
 	/// <summary>Energy supplied by the battery specifically to home loads, in kilowatt-hours; null when unreported. Excludes battery exports to the grid.</summary>
+	/// <value>Energy supplied by the battery specifically to home loads, in kilowatt-hours; null when unreported. Excludes battery exports to the grid.</value>
 	[JsonIgnore]
 	public double? BatteryToHomeKwh => ConsumerEnergyImportedFromBattery is double value ? ToKwh (value) : null;
 
 	/// <summary>Gross energy charged into the Powerwall™ battery (from solar, grid, or generator), in kilowatt-hours.</summary>
+	/// <value>Gross energy charged into the Powerwall™ battery (from solar, grid, or generator), in kilowatt-hours.</value>
 	public double BatteryChargeKwh => ToKwh (
 		BatteryEnergyImportedFromGrid
 		+ BatteryEnergyImportedFromSolar
 		+ BatteryEnergyImportedFromGenerator);
 
 	/// <summary>Gross energy discharged from the Powerwall battery, in kilowatt-hours.</summary>
+	/// <value>Gross energy discharged from the Powerwall battery, in kilowatt-hours.</value>
 	public double BatteryDischargeKwh => ToKwh (BatteryEnergyExported);
 
 	private static double ToKwh (double watthours) =>
@@ -105,26 +113,32 @@ public sealed record EnergyHistoryPoint
 public sealed record PowerHistoryPoint
 	{
 	/// <summary>The point's timestamp.</summary>
+	/// <value>The point's timestamp.</value>
 	[JsonPropertyName ("timestamp")]
 	public DateTimeOffset Timestamp { get; init; }
 
 	/// <summary>Solar generation power.</summary>
+	/// <value>Solar generation power.</value>
 	[JsonPropertyName ("solar_power")]
 	public double SolarPower { get; init; }
 
 	/// <summary>Powerwall™ battery power. Positive values indicate discharge.</summary>
+	/// <value>Powerwall™ battery power. Positive values indicate discharge.</value>
 	[JsonPropertyName ("battery_power")]
 	public double BatteryPower { get; init; }
 
 	/// <summary>Grid (site) power. Positive values indicate import from the grid.</summary>
+	/// <value>Grid (site) power. Positive values indicate import from the grid.</value>
 	[JsonPropertyName ("grid_power")]
 	public double GridPower { get; init; }
 
 	/// <summary>Power committed to grid services (for example demand response).</summary>
+	/// <value>Power committed to grid services (for example demand response).</value>
 	[JsonPropertyName ("grid_services_power")]
 	public double GridServicesPower { get; init; }
 
 	/// <summary>Backup generator power.</summary>
+	/// <value>Backup generator power.</value>
 	[JsonPropertyName ("generator_power")]
 	public double GeneratorPower { get; init; }
 	}
@@ -135,10 +149,12 @@ public sealed record PowerHistoryPoint
 public sealed record StateOfEnergyHistoryPoint
 	{
 	/// <summary>The point's timestamp.</summary>
+	/// <value>The point's timestamp.</value>
 	[JsonPropertyName ("timestamp")]
 	public DateTimeOffset Timestamp { get; init; }
 
 	/// <summary>Battery state of energy as a percentage (raw gateway scale).</summary>
+	/// <value>Battery state of energy as a percentage (raw gateway scale).</value>
 	[JsonPropertyName ("soe")]
 	public double Soe { get; init; }
 	}
@@ -149,14 +165,17 @@ public sealed record StateOfEnergyHistoryPoint
 public sealed record SelfConsumptionHistoryPoint
 	{
 	/// <summary>The point's timestamp.</summary>
+	/// <value>The point's timestamp.</value>
 	[JsonPropertyName ("timestamp")]
 	public DateTimeOffset Timestamp { get; init; }
 
 	/// <summary>Percentage of consumption self-supplied from solar.</summary>
+	/// <value>Percentage of consumption self-supplied from solar.</value>
 	[JsonPropertyName ("solar")]
 	public double SolarPercentage { get; init; }
 
 	/// <summary>Percentage of consumption self-supplied from the Powerwall™ battery.</summary>
+	/// <value>Percentage of consumption self-supplied from the Powerwall™ battery.</value>
 	[JsonPropertyName ("battery")]
 	public double BatteryPercentage { get; init; }
 	}
@@ -169,22 +188,27 @@ public sealed record SelfConsumptionHistoryPoint
 public sealed record BackupHistory
 	{
 	/// <summary>The backup events on the requested page, field names preserved as reported by Tesla.</summary>
+	/// <value>The backup events on the requested page, field names preserved as reported by Tesla.</value>
 	[JsonPropertyName ("events")]
 	public IReadOnlyList<IReadOnlyDictionary<string, object?>> Events { get; init; } = Array.Empty<IReadOnlyDictionary<string, object?>> ();
 
 	/// <summary>The number of events included in <see cref="Events"/>.</summary>
+	/// <value>The number of events included in <see cref="Events"/>.</value>
 	[JsonPropertyName ("events_count")]
 	public int EventsCount { get; init; }
 
 	/// <summary>The total number of events available across all pages.</summary>
+	/// <value>The total number of events available across all pages.</value>
 	[JsonPropertyName ("total_events")]
 	public int TotalEvents { get; init; }
 
 	/// <summary>The start of the next page's date range, when more events are available.</summary>
+	/// <value>The start of the next page's date range, when more events are available.</value>
 	[JsonPropertyName ("next_start_date")]
 	public DateTimeOffset? NextStartDate { get; init; }
 
 	/// <summary>The end of the next page's date range, when more events are available.</summary>
+	/// <value>The end of the next page's date range, when more events are available.</value>
 	[JsonPropertyName ("next_end_date")]
 	public DateTimeOffset? NextEndDate { get; init; }
 	}

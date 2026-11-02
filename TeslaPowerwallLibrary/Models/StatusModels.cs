@@ -16,6 +16,7 @@ namespace TeslaPowerwallLibrary.Models;
 public sealed record GatewayStatus
 	{
 	/// <summary>Device identification number (DIN).</summary>
+	/// <value>Device identification number (DIN).</value>
 	[JsonPropertyName ("din")]
 	public string? Din
 		{
@@ -23,6 +24,7 @@ public sealed record GatewayStatus
 		}
 
 	/// <summary>Gateway start time.</summary>
+	/// <value>Gateway start time.</value>
 	[JsonPropertyName ("start_time")]
 	public string? StartTime
 		{
@@ -30,6 +32,7 @@ public sealed record GatewayStatus
 		}
 
 	/// <summary>Cloud-reported installation date, not the gateway's boot time; null when unavailable.</summary>
+	/// <value>Cloud-reported installation date, not the gateway's boot time; null when unavailable.</value>
 	[JsonPropertyName ("installation_date")]
 	public string? InstallationDate
 		{
@@ -37,6 +40,7 @@ public sealed record GatewayStatus
 		}
 
 	/// <summary>System uptime, expressed as a duration string (for example <c>1541h38m20.998412744s</c>).</summary>
+	/// <value>System uptime, expressed as a duration string (for example <c>1541h38m20.998412744s</c>).</value>
 	[JsonPropertyName ("up_time_seconds")]
 	public string? UpTimeSeconds
 		{
@@ -44,6 +48,7 @@ public sealed record GatewayStatus
 		}
 
 	/// <summary>Indicates whether the gateway is newly commissioned.</summary>
+	/// <value>Indicates whether the gateway is newly commissioned.</value>
 	[JsonPropertyName ("is_new")]
 	public bool? IsNew
 		{
@@ -51,6 +56,7 @@ public sealed record GatewayStatus
 		}
 
 	/// <summary>Firmware version string.</summary>
+	/// <value>Firmware version string.</value>
 	[JsonPropertyName ("version")]
 	public string? Version
 		{
@@ -58,6 +64,7 @@ public sealed record GatewayStatus
 		}
 
 	/// <summary>Source control hash for the firmware build.</summary>
+	/// <value>Source control hash for the firmware build.</value>
 	[JsonPropertyName ("git_hash")]
 	public string? GitHash
 		{
@@ -65,6 +72,7 @@ public sealed record GatewayStatus
 		}
 
 	/// <summary>Number of times the gateway has been commissioned.</summary>
+	/// <value>Number of times the gateway has been commissioned.</value>
 	[JsonPropertyName ("commission_count")]
 	public int? CommissionCount
 		{
@@ -72,6 +80,7 @@ public sealed record GatewayStatus
 		}
 
 	/// <summary>Device type identifier.</summary>
+	/// <value>Device type identifier.</value>
 	[JsonPropertyName ("device_type")]
 	public string? DeviceType
 		{
@@ -79,6 +88,7 @@ public sealed record GatewayStatus
 		}
 
 	/// <summary>Synchronization type identifier.</summary>
+	/// <value>Synchronization type identifier.</value>
 	[JsonPropertyName ("sync_type")]
 	public string? SyncType
 		{
@@ -86,6 +96,7 @@ public sealed record GatewayStatus
 		}
 
 	/// <summary>Leader identifier in a multi-gateway configuration.</summary>
+	/// <value>Leader identifier in a multi-gateway configuration.</value>
 	[JsonPropertyName ("leader")]
 	public string? Leader
 		{
@@ -93,6 +104,7 @@ public sealed record GatewayStatus
 		}
 
 	/// <summary>Follower identifiers in a multi-gateway configuration.</summary>
+	/// <value>Follower identifiers in a multi-gateway configuration.</value>
 	[JsonPropertyName ("followers")]
 	public IReadOnlyList<string>? Followers
 		{
@@ -100,6 +112,7 @@ public sealed record GatewayStatus
 		}
 
 	/// <summary>Indicates whether the cellular interface is disabled.</summary>
+	/// <value>Indicates whether the cellular interface is disabled.</value>
 	[JsonPropertyName ("cellular_disabled")]
 	public bool? CellularDisabled
 		{
@@ -113,6 +126,7 @@ public sealed record GatewayStatus
 public sealed record SiteName
 	{
 	/// <summary>Configured site name.</summary>
+	/// <value>Configured site name.</value>
 	[JsonPropertyName ("site_name")]
 	public string? Name
 		{
@@ -120,6 +134,7 @@ public sealed record SiteName
 		}
 
 	/// <summary>Configured site time zone.</summary>
+	/// <value>Configured site time zone.</value>
 	[JsonPropertyName ("timezone")]
 	public string? Timezone
 		{
@@ -133,6 +148,7 @@ public sealed record SiteName
 public sealed record SitemasterStatus
 	{
 	/// <summary>Sitemaster status string (for example <c>StatusUp</c>).</summary>
+	/// <value>Sitemaster status string (for example <c>StatusUp</c>).</value>
 	[JsonPropertyName ("status")]
 	public string? Status
 		{
@@ -140,6 +156,7 @@ public sealed record SitemasterStatus
 		}
 
 	/// <summary>Indicates whether the sitemaster is running.</summary>
+	/// <value>Indicates whether the sitemaster is running.</value>
 	[JsonPropertyName ("running")]
 	public bool? Running
 		{
@@ -147,6 +164,7 @@ public sealed record SitemasterStatus
 		}
 
 	/// <summary>Indicates whether the gateway is connected to Tesla™.</summary>
+	/// <value>Indicates whether the gateway is connected to Tesla™.</value>
 	[JsonPropertyName ("connected_to_tesla")]
 	public bool? ConnectedToTesla
 		{
@@ -154,6 +172,7 @@ public sealed record SitemasterStatus
 		}
 
 	/// <summary>Indicates whether the system is in power supply mode.</summary>
+	/// <value>Indicates whether the system is in power supply mode.</value>
 	[JsonPropertyName ("power_supply_mode")]
 	public bool? PowerSupplyMode
 		{

@@ -13,18 +13,21 @@ namespace TeslaPowerwallLibrary.Tedapi;
 public sealed record LocalGatewayUptime
 	{
 	/// <summary>Reported sync-board uptime, converted from milliseconds.</summary>
+	/// <value>Reported sync-board uptime, converted from milliseconds.</value>
 	[JsonPropertyName ("uptime")]
 	public TimeSpan Uptime
 		{
 		get; init;
 		}
 	/// <summary>Offset-aware gateway clock captured with the uptime counter.</summary>
+	/// <value>Offset-aware gateway clock captured with the uptime counter.</value>
 	[JsonPropertyName ("gatewayTime")]
 	public DateTimeOffset GatewayTime
 		{
 		get; init;
 		}
 	/// <summary>Gateway boot-time estimate, stabilized against normal counter publication jitter.</summary>
+	/// <value>Gateway boot-time estimate, stabilized against normal counter publication jitter.</value>
 	[JsonPropertyName ("startedAt")]
 	public DateTimeOffset StartedAt
 		{

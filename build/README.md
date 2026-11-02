@@ -136,10 +136,18 @@ is recorded separately in the development history and GitHub run linked there.
 
 ## Shared component
 
-CI delegates to [BuildAutomation](https://github.com/oznetmaster/BuildAutomation/tree/c0a215e202dc1e05a37707720ab12032be610518) at the immutable revision in `component.json`. The existing Cake task graph and package equivalence checks remain authoritative. `recipe.json` restores and invokes that graph with the same target, suite, framework and output arguments.
+CI delegates to [BuildAutomation](https://github.com/oznetmaster/BuildAutomation/tree/cb36bb30b23e58aff85435f23ad0c8428d86ecdd) at the immutable revision in `component.json`. The existing Cake task graph and package equivalence checks remain authoritative. `recipe.json` restores and invokes that graph with the same target, suite, framework and output arguments.
 
 For the shared local entry point, set `CAKE_TARGET`, `CAKE_OUTPUT` and optional `CAKE_SUITE`/`CAKE_FRAMEWORK`, then run `./build/Invoke-Shared.ps1 -Task existing-cake`. The original `dotnet run --project build/Build.csproj` interface remains supported. Shared receipts/downloads are ignored under `artifacts/`. Public publishing, validation gates and locks remain in Actions.
 
 ## Pages documentation
 
-`documentation` builds the repository site and checks [the common Pages standard](https://github.com/oznetmaster/BuildAutomation/blob/c0a215e202dc1e05a37707720ab12032be610518/DOCUMENTATION-STANDARD.md): Home, Guides, API Reference, GitHub and NuGet navigation, modern theme, consistent title/footer, searchable content and every API output group. DocFX is locally pinned to 2.81.0. Existing project-specific generation and coverage checks remain in the recipe. GitHub Actions uploads/deploys the verified site; local builds publish nothing.
+`documentation` builds the repository site and checks [the common Pages standard](https://github.com/oznetmaster/BuildAutomation/blob/cb36bb30b23e58aff85435f23ad0c8428d86ecdd/DOCUMENTATION-STANDARD.md): Home, Guides, API Reference, GitHub and NuGet navigation, modern theme, consistent title/footer, searchable content and every API output group. DocFX is locally pinned to 2.81.0. Existing project-specific generation and coverage checks remain in the recipe. GitHub Actions uploads/deploys the verified site; local builds publish nothing.
+
+## Strict XML documentation
+
+Every shared Cake task first checks the public and protected API documentation in the production projects listed in `recipe.json`. The check evaluates the actual Compile items and compiler symbols for every target framework in Debug and Release. Summaries, parameter and type-parameter descriptions, non-void return descriptions, and property/indexer `<value>` descriptions must be present and non-empty. Explicit inheritance is accepted; undocumented overrides are rejected. Compiler XML diagnostics are errors in every production build.
+
+Run `./build/Invoke-Shared.ps1 -Task xml-documentation` to check documentation without running the test suites. The dedicated CI workflow and the unconditional gate in every publishing job use the same check, including when recent test evidence is reused. Existing repository-specific documentation checks remain in place.
+
+Positional-record constructor parameters document their generated properties in source. DocFX exposes those descriptions as property summaries but does not fill Property Value. The reviewed `docfx_project/apidoc/positional-record-values.md` overwrites supply that same text for the value section without changing the record declarations or binaries. Keep these descriptions aligned with the record parameter comments; a new empty value section fails the rendered-output check.

@@ -11,36 +11,42 @@ namespace TeslaPowerwallLibrary.Tedapi;
 public sealed record LocalMeterConfiguration
 	{
 	/// <summary>Meter type, such as neurio_w2_tcp, trm_mb or trm_wifi.</summary>
+	/// <value>Meter type, such as neurio_w2_tcp, trm_mb or trm_wifi.</value>
 	[JsonPropertyName ("type")]
 	public string? Type
 		{
 		get; init;
 		}
 	/// <summary>Configured measurement location, such as site or solar.</summary>
+	/// <value>Configured measurement location, such as site or solar.</value>
 	[JsonPropertyName ("location")]
 	public string? Location
 		{
 		get; init;
 		}
 	/// <summary>Enabled current-transformer slots in their original zero-based order; absent slots are unspecified.</summary>
+	/// <value>Enabled current-transformer slots in their original zero-based order; absent slots are unspecified.</value>
 	[JsonPropertyName ("cts")]
 	public IReadOnlyList<bool>? EnabledChannels
 		{
 		get; init;
 		}
 	/// <summary>Per-slot inversion settings; retained as metadata, not applied a second time to reported power.</summary>
+	/// <value>Per-slot inversion settings; retained as metadata, not applied a second time to reported power.</value>
 	[JsonPropertyName ("inverted")]
 	public IReadOnlyList<bool>? InvertedChannels
 		{
 		get; init;
 		}
 	/// <summary>Real-power multiplier; an omitted multiplier defaults to one, while explicit zero is preserved.</summary>
+	/// <value>Real-power multiplier; an omitted multiplier defaults to one, while explicit zero is preserved.</value>
 	[JsonPropertyName ("real_power_scale_factor")]
 	public double? RealPowerScaleFactor
 		{
 		get; init;
 		}
 	/// <summary>Non-secret meter identity.</summary>
+	/// <value>Non-secret meter identity.</value>
 	[JsonPropertyName ("connection")]
 	public LocalMeterConnection? Connection
 		{
@@ -52,6 +58,7 @@ public sealed record LocalMeterConfiguration
 public sealed record LocalMeterConnection
 	{
 	/// <summary>Neurio serial number or Tesla remote-meter DIN.</summary>
+	/// <value>Neurio serial number or Tesla remote-meter DIN.</value>
 	[JsonPropertyName ("device_serial")]
 	public string? DeviceSerial
 		{
@@ -63,27 +70,32 @@ public sealed record LocalMeterConnection
 public sealed record LocalConfiguredMeter
 	{
 	/// <summary>Reported serial number or DIN; absent identities remain null.</summary>
+	/// <value>Reported serial number or DIN; absent identities remain null.</value>
 	[JsonPropertyName ("deviceId")]
 	public string? DeviceId
 		{
 		get; init;
 		}
 	/// <summary>Telemetry family: Neurio or TeslaRemoteMeter.</summary>
+	/// <value>Telemetry family: Neurio or TeslaRemoteMeter.</value>
 	[JsonPropertyName ("family")]
 	public string Family { get; init; } = string.Empty;
 	/// <summary>Reported firmware version.</summary>
+	/// <value>Reported firmware version.</value>
 	[JsonPropertyName ("firmwareVersion")]
 	public string? FirmwareVersion
 		{
 		get; init;
 		}
 	/// <summary>Device-reported sample time.</summary>
+	/// <value>Device-reported sample time.</value>
 	[JsonPropertyName ("timestamp")]
 	public string? Timestamp
 		{
 		get; init;
 		}
 	/// <summary>Enabled or unconfigured channels, retaining original slot numbers.</summary>
+	/// <value>Enabled or unconfigured channels, retaining original slot numbers.</value>
 	[JsonPropertyName ("channels")]
 	public IReadOnlyList<LocalConfiguredMeterChannel> Channels { get; init; } = Array.Empty<LocalConfiguredMeterChannel> ();
 	}
@@ -92,36 +104,43 @@ public sealed record LocalConfiguredMeter
 public sealed record LocalConfiguredMeterChannel
 	{
 	/// <summary>Original zero-based CT slot, independent of other enabled channels.</summary>
+	/// <value>Original zero-based CT slot, independent of other enabled channels.</value>
 	[JsonPropertyName ("index")]
 	public int Index
 		{
 		get; init;
 		}
 	/// <summary>Configured location; null when the slot has no matching assignment.</summary>
+	/// <value>Configured location; null when the slot has no matching assignment.</value>
 	[JsonPropertyName ("location")]
 	public string? Location
 		{
 		get; init;
 		}
 	/// <summary>Whether an explicit enabled-channel assignment was found.</summary>
+	/// <value>Whether an explicit enabled-channel assignment was found.</value>
 	[JsonPropertyName ("isConfigured")]
 	public bool IsConfigured
 		{
 		get; init;
 		}
 	/// <summary>Configured real-power scale, defaulting to one when omitted.</summary>
+	/// <value>Configured real-power scale, defaulting to one when omitted.</value>
 	[JsonPropertyName ("realPowerScaleFactor")]
 	public double RealPowerScaleFactor { get; init; } = 1;
 	/// <summary>Configured inversion metadata; the firmware's reported sign is retained.</summary>
+	/// <value>Configured inversion metadata; the firmware's reported sign is retained.</value>
 	[JsonPropertyName ("inverted")]
 	public bool? Inverted
 		{
 		get; init;
 		}
 	/// <summary>Unmodified reported measurements, preserving missing values and device units.</summary>
+	/// <value>Unmodified reported measurements, preserving missing values and device units.</value>
 	[JsonPropertyName ("reported")]
 	public LocalMeterChannel Reported { get; init; } = new ();
 	/// <summary>Reported watts multiplied by the configured factor; null when watts are absent.</summary>
+	/// <value>Reported watts multiplied by the configured factor; null when watts are absent.</value>
 	[JsonIgnore]
 	public double? RealPowerWatts => Reported.RealPowerWatts * RealPowerScaleFactor;
 	}
