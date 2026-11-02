@@ -498,8 +498,34 @@ public sealed class Powerwall : IDisposable
 			return null;
 
 		var level = soe.Percentage;
-		return scale ? Math.Max (0d, (level / 0.95) - (5 / 0.95)) : level;
+		return ScaleBatteryLevel (level, scale);
 		}
+
+	/// <summary>
+	/// Returns a validated battery percentage, optionally bypassing the measurement cache.
+	/// </summary>
+	/// <param name="scale">Converts the raw percentage to the Tesla app scale with a zero floor at the 5% reserve.</param>
+	/// <param name="force">Bypasses cached measurements without bypassing transport authentication or device backoff.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The battery percentage, or <see langword="null"/> if the response has no finite numeric percentage.</returns>
+	/// <remarks>
+	/// Performs one battery observation. A forced observation can establish freshness for availability checks;
+	/// a cached result cannot. Unavailable responses remain null; transport exceptions and cancellation propagate to the caller.
+	/// Unlike the legacy <see cref="LevelAsync"/> contract, absent, malformed and nonnumeric measurements remain unavailable.
+	/// </remarks>
+	public async Task<double?> GetBatteryLevelAsync (bool scale = false, bool force = false, CancellationToken cancellationToken = default)
+		{
+		cancellationToken.ThrowIfCancellationRequested ();
+		var payload = await RequireClient ().PollAsync ("/api/system_status/soe", force: force, cancellationToken: cancellationToken).ConfigureAwait (false);
+		cancellationToken.ThrowIfCancellationRequested ();
+		BatteryLevelResponse? response = JsonHelper.DeserializeOrNull<BatteryLevelResponse> (payload);
+		if (response?.Percentage is not double level || double.IsNaN (level) || double.IsInfinity (level))
+			return null;
+		return ScaleBatteryLevel (level, scale);
+		}
+
+	private static double ScaleBatteryLevel (double level, bool scale) =>
+		scale ? Math.Max (0d, (level / 0.95) - (5 / 0.95)) : level;
 
 	/// <summary>
 	/// Returns the instantaneous power flows for site, solar, battery, and load.

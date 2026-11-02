@@ -1,6 +1,10 @@
-# Local access — 2.4.0
+# Local access — 2.5.0
 
-This guide describes local access through version 2.4.0. TEDAPI support was introduced in 2.1.0; the existing connection and control defaults remain compatible. See [release notes](RELEASE-NOTES.md) and [upgrading from 2.0](UPGRADING-2.1.md).
+This guide describes local access through version 2.5.0. TEDAPI support was introduced in 2.1.0; the existing connection and control defaults remain compatible. See [release notes](RELEASE-NOTES.md) and [upgrading from 2.0](UPGRADING-2.1.md).
+
+## Fresh battery observations (2.5.0)
+
+Use `GetBatteryLevelAsync(scale: true, force: true, cancellationToken: token)` when availability depends on a fresh battery observation. This makes one battery read, bypassing its measurement cache without bypassing authentication or device backoff. Valid numeric zero is preserved; missing, malformed, nonnumeric or nonfinite percentages return null. Unavailable responses remain null; transport exceptions and cancellation propagate. Callers must not infer a successful observation from a cached value or treat null as zero. The shared Tesla app scaling floors raw percentages at or below the 5% reserve to zero. Legacy `LevelAsync` retains its existing cache and parsing behavior.
 
 ## PW2 instantaneous battery limits (2.4.0)
 

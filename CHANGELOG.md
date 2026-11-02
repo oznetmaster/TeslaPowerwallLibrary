@@ -4,6 +4,13 @@ All notable changes are documented here. This project follows [Semantic Versioni
 
 This changelog records shipped features, fixes, compatibility and runtime dependency changes. See [development and validation history](DEVELOPMENT-HISTORY.md) for tests, CI, build tooling and work not yet released.
 
+## [2.5.0](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases/tag/v2.5.0) — 2026-11-02
+
+### Added
+
+- Add `GetBatteryLevelAsync` with optional raw/app scaling and forced fresh observations. Missing, malformed, nonnumeric and nonfinite measurements return null; genuine numeric zero is retained. Forced reads bypass measurement caches while retaining authentication, device backoff, cancellation and transport failures.
+- Share the existing reserve-floor calculation between the validated API and legacy `LevelAsync`. Preserve the legacy method's signature, caching and parsing defaults so existing callers remain compatible.
+
 ## [2.4.0](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases/tag/v2.4.0) — 2026-11-02
 
 ### Added

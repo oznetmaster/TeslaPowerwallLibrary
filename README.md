@@ -1,6 +1,6 @@
 # TeslaPowerwallLibrary
 
-**Version 2.4.0** adds nullable PW2 instantaneous available charge/discharge power through June 2024 TEDAPI and displays it in the console. Complete module measurements are summed in watts; unavailable or incomplete totals stay null, and real zeroes are preserved. Scaled battery levels now stop at 0% below the 5% reserve. Existing public signatures, assembly identity and runtime dependencies remain compatible. PW2 validation is offline. See [release notes and validation limits](RELEASE-NOTES.md).
+**Version 2.5.0** adds `GetBatteryLevelAsync(scale: true, force: true)` for a validated fresh battery observation with the Tesla app scale and 0% reserve floor. Missing, malformed and nonnumeric readings remain unavailable, and unavailable responses remain null and cancellation or transport exceptions propagate. The legacy `LevelAsync` API retains its signature, cache behavior and parsing defaults; both APIs share one scaling implementation. Existing assembly identity and runtime dependencies remain compatible. See [release notes and validation limits](RELEASE-NOTES.md).
 
 For shipped changes, see the [changelog](CHANGELOG.md). Test, CI and build history is recorded separately in [development and validation history](DEVELOPMENT-HISTORY.md).
 
@@ -325,7 +325,7 @@ Offline tests use NUnit 5.0.0, NUnit3TestAdapter 6.3.0, Microsoft.NET.Test.Sdk 1
 dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj -c Release --filter "TestCategory!=Live" -p:GenerateDocfxDocumentation=false
 ```
 
-Offline tests need neither credentials nor a Powerwall. Live tests are explicit and separate; control tests require per-operation authorization. To check backward compatibility, package validation compares the 2.4.0 assemblies for both target frameworks with the released 2.3.2 baseline. No API differences are suppressed.
+Offline tests need neither credentials nor a Powerwall. Live tests are explicit and separate; control tests require per-operation authorization. To check backward compatibility, package validation compares the 2.5.0 assemblies for both target frameworks with the released 2.4.0 baseline. No API differences are suppressed.
 
 ## Continuous integration tests
 
