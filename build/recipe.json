@@ -17,6 +17,77 @@
           "shell": "pwsh"
         }
       ]
+    },
+    "documentation": {
+      "commands": [
+        {
+          "executable": "dotnet",
+          "arguments": [
+            "tool",
+            "restore"
+          ]
+        },
+        {
+          "executable": "dotnet",
+          "arguments": [
+            "restore",
+            "TeslaPowerwallLibrary.slnx"
+          ]
+        },
+        {
+          "executable": "dotnet",
+          "arguments": [
+            "build",
+            "TeslaPowerwallLibrary.slnx",
+            "--configuration",
+            "Release",
+            "--no-restore",
+            "-p:GenerateDocfxDocumentation=false"
+          ]
+        },
+        {
+          "executable": "dotnet",
+          "arguments": [
+            "test",
+            "TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj",
+            "--configuration",
+            "Release",
+            "--no-build",
+            "--framework",
+            "net472",
+            "--filter",
+            "TestCategory!=Live"
+          ]
+        },
+        {
+          "executable": "dotnet",
+          "arguments": [
+            "test",
+            "TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj",
+            "--configuration",
+            "Release",
+            "--no-build",
+            "--framework",
+            "net10.0",
+            "--filter",
+            "TestCategory!=Live"
+          ]
+        },
+        {
+          "executable": "dotnet",
+          "arguments": [
+            "tool",
+            "run",
+            "docfx",
+            "docfx_project/docfx.json"
+          ]
+        }
+      ],
+      "documentation": {
+        "config": "docfx_project/docfx.json",
+        "site": "docfx_project/_site",
+        "title": "TeslaPowerwallLibrary"
+      }
     }
   }
 }

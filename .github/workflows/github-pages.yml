@@ -1,60 +1,31 @@
 name: Publish Documentation Site
-
-on:
-  push:
-    branches: [ "master" ]
-  workflow_dispatch:
-
 permissions:
   contents: read
   pages: write
   id-token: write
-
 concurrency:
-  group: "pages"
+  group: pages
   cancel-in-progress: true
-
 jobs:
   build:
     runs-on: windows-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Setup DocFX
-        run: dotnet tool update -g docfx
-
-      - name: Restore solution
-        run: dotnet restore TeslaPowerwallLibrary.slnx
-
-      - name: Build solution
-        run: dotnet build TeslaPowerwallLibrary.slnx --configuration Release --no-restore -p:GenerateDocfxDocumentation=false
-
-      - name: Run tests (net472)
-        run: dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj --configuration Release --no-build --framework net472 --filter "TestCategory!=Live"
-
-      - name: Run tests (net10.0)
-        run: dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj --configuration Release --no-build --framework net10.0 --filter "TestCategory!=Live"
-
-      - name: Build metadata and site
-        shell: pwsh
-        run: |
-          $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
-          docfx docfx_project/docfx.json
-
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: docfx_project/_site
-
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+    - name: Build and verify standard documentation
+      uses: oznetmaster/BuildAutomation@c0a215e202dc1e05a37707720ab12032be610518
+      with:
+        task: documentation
+    - name: Configure Pages
+      uses: actions/configure-pages@v5
+    - name: Upload Pages artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: docfx_project/_site
   deploy:
     environment:
       name: github-pages
@@ -62,32 +33,29 @@ jobs:
     runs-on: windows-latest
     needs: build
     steps:
-      # actions/deploy-pages@v4 occasionally fails immediately with a generic
-      # "Deployment failed, try again later." error from the Pages API. This has
-      # been observed to be transient, so retry a few times with a short delay
-      # before treating it as a real failure.
-      - name: Deploy to GitHub Pages (attempt 1)
-        id: deploy_1
-        uses: actions/deploy-pages@v4
-        continue-on-error: true
-
-      - name: Wait before retry 1
-        if: steps.deploy_1.outcome == 'failure'
-        shell: pwsh
-        run: Start-Sleep -Seconds 20
-
-      - name: Deploy to GitHub Pages (attempt 2)
-        id: deploy_2
-        if: steps.deploy_1.outcome == 'failure'
-        uses: actions/deploy-pages@v4
-        continue-on-error: true
-
-      - name: Wait before retry 2
-        if: steps.deploy_1.outcome == 'failure' && steps.deploy_2.outcome == 'failure'
-        shell: pwsh
-        run: Start-Sleep -Seconds 20
-
-      - name: Deploy to GitHub Pages (attempt 3)
-        id: deploy_3
-        if: steps.deploy_1.outcome == 'failure' && steps.deploy_2.outcome == 'failure'
-        uses: actions/deploy-pages@v4
+    - name: Deploy to GitHub Pages (attempt 1)
+      id: deploy_1
+      uses: actions/deploy-pages@v4
+      continue-on-error: true
+    - name: Wait before retry 1
+      if: steps.deploy_1.outcome == 'failure'
+      shell: pwsh
+      run: Start-Sleep -Seconds 20
+    - name: Deploy to GitHub Pages (attempt 2)
+      id: deploy_2
+      if: steps.deploy_1.outcome == 'failure'
+      uses: actions/deploy-pages@v4
+      continue-on-error: true
+    - name: Wait before retry 2
+      if: steps.deploy_1.outcome == 'failure' && steps.deploy_2.outcome == 'failure'
+      shell: pwsh
+      run: Start-Sleep -Seconds 20
+    - name: Deploy to GitHub Pages (attempt 3)
+      id: deploy_3
+      if: steps.deploy_1.outcome == 'failure' && steps.deploy_2.outcome == 'failure'
+      uses: actions/deploy-pages@v4
+'on':
+  push:
+    branches:
+    - master
+  workflow_dispatch: null

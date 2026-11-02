@@ -372,3 +372,8 @@ docs/
 # Shared Cake downloads and receipts
 /artifacts/build-components/
 /artifacts/build-automation/
+
+# Generated documentation output
+/docfx_project/api/
+/docfx_project/api-login/
+/docfx_project/_site/

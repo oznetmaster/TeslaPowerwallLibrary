@@ -80,10 +80,22 @@
         ],
         "src": "..",
         "dest": "guides"
+      },
+      {
+        "files": [
+          "toc.yml",
+          "guides/**.md",
+          "guides/**/toc.yml",
+          "reference/**.md",
+          "reference/**/toc.yml"
+        ]
       }
     ],
     "globalMetadata": {
-      "_appTitle": "TeslaPowerwallLibrary API"
+      "_appTitle": "TeslaPowerwallLibrary",
+      "_appName": "TeslaPowerwallLibrary",
+      "_appFooter": "Copyright (c) 2026 Neil Colvin.",
+      "_enableSearch": true
     },
     "output": "_site",
     "template": [

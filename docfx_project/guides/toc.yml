@@ -1,0 +1,15 @@
+- name: Guides
+  href: index.md
+- name: Getting Started
+  href: ../articles/intro.md
+- name: Login Library
+  href: ../articles/login.md
+- name: Login Library API Reference
+  href: ../api-login/
+  homepage: ../api-login/index.md
+- name: Local access
+  href: ../articles/local-access.md
+- name: Upgrading to 2.1
+  href: ../articles/upgrading.md
+- name: Release notes
+  href: ../articles/release-notes.md
