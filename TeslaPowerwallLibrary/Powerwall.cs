@@ -487,7 +487,7 @@ public sealed class Powerwall : IDisposable
 	/// <summary>
 	/// Returns the battery charge level percentage.
 	/// </summary>
-	/// <param name="scale">When <see langword="true"/>, converts the raw level to the Tesla app scale.</param>
+	/// <param name="scale">When <see langword="true"/>, converts the raw level to the Tesla app scale, flooring readings at or below the 5% reserve to zero.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>The battery level percentage, or <see langword="null"/> when unavailable.</returns>
 	public async Task<double?> LevelAsync (bool scale = false, CancellationToken cancellationToken = default)
@@ -498,7 +498,7 @@ public sealed class Powerwall : IDisposable
 			return null;
 
 		var level = soe.Percentage;
-		return scale ? (level / 0.95) - (5 / 0.95) : level;
+		return scale ? Math.Max (0d, (level / 0.95) - (5 / 0.95)) : level;
 		}
 
 	/// <summary>

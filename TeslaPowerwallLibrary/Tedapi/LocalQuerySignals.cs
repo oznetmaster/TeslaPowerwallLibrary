@@ -8,7 +8,7 @@ namespace TeslaPowerwallLibrary.Tedapi;
 public sealed partial class PowerwallTedapiClient
 	{
 	/// <summary>Appends supported signal names to unsigned variables without modifying vendor-signed query captures.</summary>
-	/// <remarks>Signal names follow pypowerwall v0.21.0's PW3_APP_SIGNAL_NAMES, GATEWAY_MSA_SIGNAL_NAMES and PW2_MSA_SIGNAL_NAMES.</remarks>
+	/// <remarks>Signal names follow pypowerwall v0.21.0 with the v0.22.0 TEPOD available-power additions.</remarks>
 	/// <param name="name">The June 2024 query role.</param>
 	/// <param name="query">The pristine captured query.</param>
 	/// <returns>A request definition retaining the original text and signature.</returns>
@@ -28,13 +28,20 @@ public sealed partial class PowerwallTedapiClient
 					{
 					["msaSignals"] = ["SYNC_Uptime", "PINV_EnergyCharged", "PINV_EnergyDischarged", "PINV_LifetimeEnergyCharged", "PINV_LifetimeEnergyDischarged",
 						"PINV_HeatsinkTemp", "PINV_PllFrequency", "PINV_PllLocked", "PINV_Qout", "PINV_ReadyForGridForming", "PINV_HardwareEnableLine", "PINV_PowerLimiter",
-						"THC_State", "SYNC_ExternallyPowered", "SYNC_SiteSwitchEnabled"]
+						"THC_State", "SYNC_ExternallyPowered", "SYNC_SiteSwitchEnabled", "POD_available_charge_power", "POD_available_dischg_power"]
 					},
 				_ => null
 				};
 		if (extras is null)
 			return query;
 		var variables = JsonNode.Parse (query.Variables)!.AsObject ();
+		if (name == "device_controller_full")
+			{
+			// TEPOD is appended only to unsigned June 2024 variables. Captured
+			// query text, signatures and the existing type order remain intact.
+			var types = variables["msaComp"]!["types"]!.AsArray ();
+			if (!types.Any (value => value?.GetValue<string> () == "TEPOD")) types.Add ("TEPOD");
+			}
 		foreach (var group in extras)
 			{
 			if (variables[group.Key] is not JsonArray signals)

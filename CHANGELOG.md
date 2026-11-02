@@ -4,6 +4,18 @@ All notable changes are documented here. This project follows [Semantic Versioni
 
 This changelog records shipped features, fixes, compatibility and runtime dependency changes. See [development and validation history](DEVELOPMENT-HISTORY.md) for tests, CI, build tooling and work not yet released.
 
+## [2.4.0](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases/tag/v2.4.0) — 2026-11-02
+
+### Added
+
+- Expose nullable `SystemStatus.InstantaneousMaxChargePower` and `InstantaneousMaxDischargePower` in watts. June 2024 TEDAPI reads request PW2 TEPOD available-power signals and sum complete measurements by module serial; duplicate and serial-less slots cannot inflate totals. Zero remains a real measurement, while unavailable, invalid or incomplete totals remain null. June 2026 signed queries are unchanged.
+- Show available charge and discharge power in the console's `system` output. Owner/Fleet status retains unavailable instantaneous readings as null rather than placeholder zeroes.
+
+
+### Fixed
+
+- Floor `LevelAsync(scale: true)` at 0% when the raw battery level is at or below the 5% reserve. Raw readings and unavailable values are preserved across all transports.
+
 ## [2.3.2](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases/tag/v2.3.2) — 2026-10-30
 
 ### Fixed

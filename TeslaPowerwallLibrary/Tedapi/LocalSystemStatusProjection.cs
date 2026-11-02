@@ -35,12 +35,39 @@ internal static class LocalSystemStatusProjection
 			NominalEnergyRemaining = telemetry.Control?.SystemStatus?.RemainingWattHours,
 			MaxChargePower = limit,
 			MaxDischargePower = limit,
+			InstantaneousMaxChargePower = AvailablePower (snapshot.Controller, "POD_available_charge_power"),
+			InstantaneousMaxDischargePower = AvailablePower (snapshot.Controller, "POD_available_dischg_power"),
 			MaxApparentPower = limit,
 			InverterNominalUsablePower = reportedUsable,
 			AvailableBlocks = telemetry.Control?.BatteryBlocks?.Count,
 			BatteryBlocks = snapshot.Batteries,
 			SystemIslandState = telemetry.Control?.Islanding?.ContactorClosed is bool closed ? closed ? "SystemGridConnected" : "SystemIslandedActive" : null
 			};
+		}
+
+	private static double? AvailablePower (LocalTelemetry controller, string name)
+		{
+		if (controller.Components is null || !controller.Components.TryGetValue ("msa", out var components) || components is null)
+			return null;
+		// pypowerwall #429: deduplicate by module serial, retain the last usable
+		// measurement and reject partial totals independently for each direction.
+		var modules = new Dictionary<string, double?> (StringComparer.Ordinal);
+		foreach (var component in components)
+			{
+			string? serial = component?.SerialNumber;
+			if (string.IsNullOrWhiteSpace (serial)) continue;
+			foreach (var signal in component!.Signals ?? Array.Empty<LocalSignal> ())
+				{
+				if (signal?.Name is not ("POD_available_charge_power" or "POD_available_dischg_power")) continue;
+				if (!modules.ContainsKey (serial!)) modules.Add (serial!, null);
+				if (signal.Name == name && signal.BoolValue is null && signal.TextValue is null
+					&& signal.Value is double value && value >= 0 && !double.IsInfinity (value))
+					modules[serial!] = value;
+				}
+			}
+		if (modules.Count == 0 || modules.Values.Any (value => !value.HasValue)) return null;
+		double total = modules.Values.Sum (value => value!.Value);
+		return double.IsInfinity (total) ? null : total;
 		}
 
 	private static double? PositiveFinite (double? value) =>

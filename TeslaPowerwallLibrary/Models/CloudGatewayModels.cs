@@ -158,9 +158,9 @@ internal sealed record MappedSystemStatus
 		get; init;
 		}
 	[JsonPropertyName ("instantaneous_max_discharge_power")]
-	public double? InstantaneousMaxDischargePower { get; init; } = 0;
+	public double? InstantaneousMaxDischargePower { get; init; }
 	[JsonPropertyName ("instantaneous_max_charge_power")]
-	public double? InstantaneousMaxChargePower { get; init; } = 0;
+	public double? InstantaneousMaxChargePower { get; init; }
 	[JsonPropertyName ("instantaneous_max_apparent_power")]
 	public double? InstantaneousMaxApparentPower { get; init; } = 0;
 	[JsonPropertyName ("hardware_capability_charge_power")]

@@ -57,6 +57,12 @@ public sealed partial class TedapiTests
 					if (property.Value.ValueKind == JsonValueKind.Array)
 						Assert.That (actual.EnumerateArray ().Take (property.Value.GetArrayLength ()).Select (n => n.GetString ()),
 							Is.EqualTo (property.Value.EnumerateArray ().Select (n => n.GetString ())));
+					else if (property.Name == "msaComp")
+						{
+						Assert.That (actual.GetProperty ("types").EnumerateArray ().Select (n => n.GetString ()),
+							Is.EqualTo (property.Value.GetProperty ("types").EnumerateArray ().Select (n => n.GetString ()).Concat (["TEPOD"])));
+						Assert.That (actual.EnumerateObject ().Select (p => p.Name), Is.EqualTo (property.Value.EnumerateObject ().Select (p => p.Name)));
+						}
 					else
 						Assert.That (System.Text.Json.Nodes.JsonNode.DeepEquals (System.Text.Json.Nodes.JsonNode.Parse (actual.GetRawText ()),
 						System.Text.Json.Nodes.JsonNode.Parse (property.Value.GetRawText ())), Is.True);
@@ -65,7 +71,7 @@ public sealed partial class TedapiTests
 					{
 					["msaSignals"] = ["SYNC_Uptime", "PINV_EnergyCharged", "PINV_EnergyDischarged", "PINV_LifetimeEnergyCharged", "PINV_LifetimeEnergyDischarged",
 						"PINV_HeatsinkTemp", "PINV_PllFrequency", "PINV_PllLocked", "PINV_Qout", "PINV_ReadyForGridForming", "PINV_HardwareEnableLine", "PINV_PowerLimiter",
-						"THC_State", "SYNC_ExternallyPowered", "SYNC_SiteSwitchEnabled"]
+						"THC_State", "SYNC_ExternallyPowered", "SYNC_SiteSwitchEnabled", "POD_available_charge_power", "POD_available_dischg_power"]
 					};
 				foreach (var group in extras)
 					{

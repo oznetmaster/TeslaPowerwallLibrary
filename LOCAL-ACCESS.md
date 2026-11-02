@@ -1,6 +1,14 @@
-# Local access — 2.3.2
+# Local access — 2.4.0
 
-This guide describes local access through version 2.3.2. TEDAPI support was introduced in 2.1.0; the existing connection and control defaults remain compatible. See [release notes](RELEASE-NOTES.md) and [upgrading from 2.0](UPGRADING-2.1.md).
+This guide describes local access through version 2.4.0. TEDAPI support was introduced in 2.1.0; the existing connection and control defaults remain compatible. See [release notes](RELEASE-NOTES.md) and [upgrading from 2.0](UPGRADING-2.1.md).
+
+## PW2 instantaneous battery limits (2.4.0)
+
+`SystemStatusAsync()` exposes nullable `InstantaneousMaxChargePower` and `InstantaneousMaxDischargePower` in watts. These are current available battery powers, distinct from the configured static `MaxChargePower` and `MaxDischargePower` ratings. The console's `system` command displays them, and raw component/vitals reads retain the per-module signals.
+
+For June 2024 TEDAPI, the detailed-controller request appends `TEPOD` to the unsigned component filter and requests `POD_available_charge_power` and `POD_available_dischg_power`, following [pypowerwall #429](https://github.com/jasonacox/pypowerwall/pull/429). Captured query text, signatures and existing component order are retained. Modules are identified by nonempty serials and counted once, using the last usable measurement for each direction. Charge and discharge totals are judged independently: a reported zero is valid; missing, negative, non-finite, nonnumeric or overflowing totals remain null rather than a partial sum. Serial-less slots do not count.
+
+The June 2026 signed query is unchanged and cannot request these additions. Powerwall 3 responses without POD measurements and cloud projections without instantaneous telemetry report null. Classic gateway status preserves its reported values. This adds no battery controls or new background polling. Local validation uses synthetic PW2 responses; it does not establish behavior on physical PW2 hardware.
 
 ## Solar-meter communication dropouts (2.3.2)
 

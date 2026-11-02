@@ -27,7 +27,8 @@ public sealed partial class TedapiTests
 			{"control":{"systemStatus":{"nominalFullPackEnergyWh":13500,"nominalEnergyRemainingWh":0},"batteryBlocks":[{"din":"part--package"}],"islanding":{"contactorClosed":false}},
 			"esCan":{"bus":{"THC":[{"packageSerialNumber":"package"}],"PINV":[{"PINV_PowerCapability":{"isMIA":false,"PINV_Pnom":9200}}]}},
 			"components":{"msa":[{"serialNumber":"package","signals":[{"name":"THC_State","textValue":"ACTIVE"}]},
-			{"serialNumber":"module","signals":[{"name":"PINV_EnergyCharged","value":0},{"name":"PINV_EnergyDischarged","value":123},{"name":"PINV_Qout","value":-42},{"name":"PINV_PllLocked","boolValue":false}]}]}}
+			{"serialNumber":"module","signals":[{"name":"PINV_EnergyCharged","value":0},{"name":"PINV_EnergyDischarged","value":123},{"name":"PINV_Qout","value":-42},{"name":"PINV_PllLocked","boolValue":false}]},
+			{"serialNumber":"module","signals":[{"name":"POD_available_charge_power","value":7000},{"name":"POD_available_dischg_power","value":8570}]}]}}
 			""";
 		using RSA key = TestRsaKey.Create ();
 		int configurations = 0, queries = 0;
@@ -62,6 +63,8 @@ public sealed partial class TedapiTests
 		var status = JsonSerializer.Deserialize<SystemStatus> ((await client.PollAsync ("/api/system_status"))!)!;
 		Assert.That (new[] { status.MaxChargePower, status.MaxDischargePower, status.MaxApparentPower, status.InverterNominalUsablePower }, Is.All.EqualTo (9200));
 		Assert.That (status.NominalEnergyRemaining, Is.Zero);
+		Assert.That (status.InstantaneousMaxChargePower, Is.EqualTo (7000));
+		Assert.That (status.InstantaneousMaxDischargePower, Is.EqualTo (8570));
 		Assert.That (status.AvailableBlocks, Is.EqualTo (1));
 		Assert.That (status.BatteryBlocks![0].EnergyCharged, Is.Zero);
 		Assert.That (status.BatteryBlocks[0].EnergyDischarged, Is.EqualTo (123));
@@ -69,6 +72,8 @@ public sealed partial class TedapiTests
 		var vitals = await client.VitalsAsync ();
 		Assert.That (vitals![DIN + "/msa/1/module"]["PINV_PllLocked"], Is.False);
 		Assert.That (vitals[DIN + "/msa/0/package"]["THC_State"], Is.EqualTo ("ACTIVE"));
+		Assert.That (vitals[DIN + "/msa/2/module"]["POD_available_charge_power"], Is.EqualTo (7000));
+		Assert.That (vitals[DIN + "/msa/2/module"]["POD_available_dischg_power"], Is.EqualTo (8570));
 		await client.PollAsync ("/api/system_status");
 		Assert.That (queries, Is.EqualTo (2));
 		Assert.That (configurations, Is.EqualTo (1));

@@ -387,6 +387,9 @@ public sealed partial class TedapiTests
 	public async Task June2026Queries_UseCapturedVendorSignatures_AndCorrectTransportFraming (bool signed)
 		{
 		using RSA key = TestRsaKey.Create ();
+		using var resource = typeof (Powerwall).Assembly.GetManifestResourceStream ("TeslaPowerwallLibrary.Tedapi.Protocol.Queries2026.data")!;
+		using var definitions = JsonDocument.Parse (resource);
+		var capture = definitions.RootElement.GetProperty ("DeviceControllerQuery");
 		using var handler = new ScriptedHandler (async (request, _) =>
 			{
 				if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
@@ -400,6 +403,8 @@ public sealed partial class TedapiTests
 				Assert.That (query.Recipient.Din, Is.EqualTo (DIN));
 				Assert.That (query.Graphql.QueryRequest.Format, Is.EqualTo (2));
 				Assert.That (query.Graphql.QueryRequest.Signature.Length, Is.GreaterThan (64));
+				Assert.That (BitConverter.ToString (query.Graphql.QueryRequest.Signature.ToByteArray ()).Replace ("-", "").ToLowerInvariant (), Is.EqualTo (capture.GetProperty ("code").GetString ()));
+				Assert.That (BitConverter.ToString (query.Graphql.QueryRequest.Query.ToByteArray ()).Replace ("-", "").ToLowerInvariant (), Is.EqualTo (capture.GetProperty ("signed_bytes").GetString ()));
 				Assert.That (Encoding.UTF8.GetString (query.Graphql.QueryRequest.Query.ToByteArray ()), Does.Contain ("DeviceControllerQuery"));
 				Assert.That (query.Graphql.QueryRequest.VariablesJson.Value, Is.EqualTo ("{}"));
 				var response = new Graphql.Envelope
@@ -421,6 +426,8 @@ public sealed partial class TedapiTests
 		var data = await client.GetTelemetryAsync ();
 		Assert.That (data.Control!.SystemStatus!.RemainingWattHours, Is.Zero);
 		Assert.That (data.Control.Islanding!.ContactorClosed, Is.False);
+		var detailed = await client.GetDetailedTelemetryAsync ();
+		Assert.That (detailed.Control!.SystemStatus!.RemainingWattHours, Is.Zero);
 		}
 
 	[TestCase (0)]

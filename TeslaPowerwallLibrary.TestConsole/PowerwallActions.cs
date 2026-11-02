@@ -115,6 +115,8 @@ internal static class PowerwallActions
 
 		ConsoleHelpers.WriteField ("Full pack energy", ConsoleHelpers.FormatWattHours (status.NominalFullPackEnergy));
 		ConsoleHelpers.WriteField ("Energy remaining", ConsoleHelpers.FormatWattHours (status.NominalEnergyRemaining));
+		ConsoleHelpers.WriteField ("Available charge power", ConsoleHelpers.FormatWatts (status.InstantaneousMaxChargePower));
+		ConsoleHelpers.WriteField ("Available discharge power", ConsoleHelpers.FormatWatts (status.InstantaneousMaxDischargePower));
 		ConsoleHelpers.WriteField ("Available blocks", status.AvailableBlocks?.ToString (CultureInfo.InvariantCulture));
 		ConsoleHelpers.WriteField ("Island state", status.SystemIslandState);
 

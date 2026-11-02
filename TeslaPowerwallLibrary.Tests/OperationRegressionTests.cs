@@ -75,6 +75,8 @@ public sealed class OperationRegressionTests
 		Assert.That (system!.NominalFullPackEnergy, Is.EqualTo (13500));
 		Assert.That (system.NominalEnergyRemaining, Is.EqualTo (6750));
 		Assert.That (system.MaxChargePower, Is.EqualTo (5000));
+		Assert.That (system.InstantaneousMaxChargePower, Is.Null, "Cloud nameplate power is not an instantaneous limit.");
+		Assert.That (system.InstantaneousMaxDischargePower, Is.Null);
 		Assert.That (system.AvailableBlocks, Is.EqualTo (1));
 		var vitals = await rig.Powerwall.VitalsAsync ();
 		Assert.That (vitals!["STSTSM--test--din"]["alerts"], Is.InstanceOf<string[]> ());

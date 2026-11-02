@@ -35,6 +35,16 @@ public sealed record SystemStatus
 	[JsonPropertyName ("max_discharge_power")]
 	public double? MaxDischargePower { get; init; }
 
+	/// <summary>Currently available battery charge power in watts, or null when unavailable or incomplete.</summary>
+	/// <value>Currently available battery charge power in watts, or null when unavailable or incomplete; zero is a reported measurement.</value>
+	[JsonPropertyName ("instantaneous_max_charge_power")]
+	public double? InstantaneousMaxChargePower { get; init; }
+
+	/// <summary>Currently available battery discharge power in watts, or null when unavailable or incomplete.</summary>
+	/// <value>Currently available battery discharge power in watts, or null when unavailable or incomplete; zero is a reported measurement.</value>
+	[JsonPropertyName ("instantaneous_max_discharge_power")]
+	public double? InstantaneousMaxDischargePower { get; init; }
+
 	/// <summary>Maximum apparent power in volt-amperes.</summary>
 	/// <value>Maximum apparent power in volt-amperes.</value>
 	[JsonPropertyName ("max_apparent_power")]

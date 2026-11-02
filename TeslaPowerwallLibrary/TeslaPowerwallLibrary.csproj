@@ -23,13 +23,13 @@
 		<Product>TeslaPowerwallLibrary</Product>
 		<Copyright>Copyright © 2026 Neil Colvin</Copyright>
 		<AssemblyVersion>2.0.0.0</AssemblyVersion>
-		<FileVersion>2.3.2.0</FileVersion>
+		<FileVersion>2.4.0.0</FileVersion>
 		<PackageId>TeslaPowerwallLibrary</PackageId>
-		<Version>2.3.2</Version>
+		<Version>2.4.0</Version>
 		<!-- Retain AssemblyVersion 2.0.0.0 for existing binary consumers. -->
 		<EnablePackageValidation>true</EnablePackageValidation>
-		<PackageValidationBaselineVersion>2.3.1</PackageValidationBaselineVersion>
-		<PackageReleaseNotes>Fix false TEDAPI solar-production dips during brief SolarMeterComms dropouts. Use complete configured remote-meter samples within 60 seconds of gateway time, correct load power by the same delta and expose nullable held-power age. Preserve raw telemetry, measured currents, energy counters, existing signatures, runtime dependencies and assembly identity. See RELEASE-NOTES.md.</PackageReleaseNotes>
+		<PackageValidationBaselineVersion>2.3.2</PackageValidationBaselineVersion>
+		<PackageReleaseNotes>Add nullable PW2 instantaneous available charge/discharge power in watts through June 2024 TEDAPI and show it in the console. Preserve real zeroes and leave incomplete or unavailable totals null. Floor scaled battery levels at zero below the 5% reserve. Existing signatures, assembly identity and runtime dependencies remain compatible; June 2026 query captures are unchanged. PW2 validation is offline. See RELEASE-NOTES.md.</PackageReleaseNotes>
 		<Authors>Neil Colvin</Authors>
 		<PackageTags>tesla;powerwall;smart-home;iot;rest;api;nuget</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>

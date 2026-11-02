@@ -4,9 +4,9 @@ A typed .NET client for Tesla™ Powerwall™ classic gateway, local TEDAPI, Own
 
 Tesla and Powerwall are trademarks of Tesla, Inc. This independent, unofficial project is not affiliated with or endorsed by Tesla.
 
-## Version 2.3.2
+## Version 2.4.0
 
-Version 2.3.2 fixes false solar-production dips during brief TEDAPI `SolarMeterComms` dropouts. Complete configured wired/Wi-Fi remote-meter samples within 60 seconds of gateway time supply retained solar power, with load corrected by the same delta. Nullable `MeterReading.PowerHoldAgeSeconds` identifies corrected readings and their age. Raw telemetry, measured currents and energy counters retain their reported values. Existing public signatures, assembly identity, dependencies and classic gateway defaults remain compatible. Both TEDAPI query formats are supported; June 2024 remains the default. Dropout behavior has offline regression coverage; a live remote-meter dropout has not been reproduced locally.
+Version 2.4.0 adds nullable `SystemStatus.InstantaneousMaxChargePower` and `InstantaneousMaxDischargePower` in watts. June 2024 TEDAPI requests PW2 TEPOD available-power measurements and sums complete module values; real zeroes are preserved and incomplete totals stay null. The console displays the available powers. Scaled battery levels now stop at 0% below the 5% reserve. Existing public signatures, assembly identity, dependencies and classic gateway defaults remain compatible. June 2026 captures are unchanged. PW2 behavior has offline regression coverage; no physical PW2 validation is claimed.
 
 - [Getting started](articles/intro.md)
 - [Choosing a connection](articles/local-access.md#choosing-a-connection)

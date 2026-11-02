@@ -15,6 +15,60 @@ namespace TeslaPowerwallLibrary.Tests;
 [TestFixture]
 public sealed class PowerCompatibilityTests
 	{
+	/// <summary>Classic gateway status retains its reported instantaneous power, including zero and absent values.</summary>
+	[TestCase (0d, 8570.5d)]
+	[TestCase (null, null)]
+	public async Task Facade_SystemStatusPreservesReportedInstantaneousLimits (double? charge, double? discharge)
+		{
+		using var handler = new TestHandler (JsonSerializer.Serialize (new
+			{ instantaneous_max_charge_power = charge, instantaneous_max_discharge_power = discharge }));
+		using var client = new PowerwallLocalClient (new PowerwallOptions
+			{ Host = "powerwall.test", AuthMode = "token", NoLocalSessionPersistence = true, AllowLocalControl = false }, handler);
+		await client.AuthenticateAsync ();
+		using var facade = new Powerwall (new PowerwallOptions { Host = "powerwall.test" });
+		OperationRegressionTests.SetField (facade, "_client", client);
+
+		var status = await facade.SystemStatusAsync ();
+		Assert.That (status!.InstantaneousMaxChargePower, Is.EqualTo (charge));
+		Assert.That (status.InstantaneousMaxDischargePower, Is.EqualTo (discharge));
+		}
+
+	/// <summary>Scaled charge stops at zero below the reserve while raw readings remain unchanged.</summary>
+	[TestCase (0d, 0d)]
+	[TestCase (3.9d, 0d)]
+	[TestCase (4.999d, 0d)]
+	[TestCase (5d, 0d)]
+	[TestCase (5.001d, 0.0010526315789473684d)]
+	[TestCase (52.5d, 50d)]
+	[TestCase (100d, 100d)]
+	public async Task Facade_BatteryLevelPreservesRawAndFloorsScaledReserve (double raw, double expectedScaled)
+		{
+		using var handler = new TestHandler (JsonSerializer.Serialize (new { percentage = raw }));
+		using var client = new PowerwallLocalClient (new PowerwallOptions
+			{ Host = "powerwall.test", AuthMode = "token", NoLocalSessionPersistence = true, AllowLocalControl = false }, handler);
+		await client.AuthenticateAsync ();
+		using var facade = new Powerwall (new PowerwallOptions { Host = "powerwall.test" });
+		OperationRegressionTests.SetField (facade, "_client", client);
+
+		Assert.That (await facade.LevelAsync (), Is.EqualTo (raw));
+		Assert.That (await facade.LevelAsync (scale: true), Is.EqualTo (expectedScaled).Within (1e-10));
+		}
+
+	/// <summary>An unavailable battery reading remains unavailable on both scales.</summary>
+	[Test]
+	public async Task Facade_BatteryLevelPreservesUnavailableReading ()
+		{
+		using var handler = new TestHandler ("null");
+		using var client = new PowerwallLocalClient (new PowerwallOptions
+			{ Host = "powerwall.test", AuthMode = "token", NoLocalSessionPersistence = true, AllowLocalControl = false }, handler);
+		await client.AuthenticateAsync ();
+		using var facade = new Powerwall (new PowerwallOptions { Host = "powerwall.test" });
+		OperationRegressionTests.SetField (facade, "_client", client);
+
+		Assert.That (await facade.LevelAsync (), Is.Null);
+		Assert.That (await facade.LevelAsync (scale: true), Is.Null);
+		}
+
 	/// <summary>Existing source and serializers retain non-nullable doubles and zero defaults.</summary>
 	[Test]
 	public void ReleasedPowerSnapshot_RetainsDoubleContract ()
