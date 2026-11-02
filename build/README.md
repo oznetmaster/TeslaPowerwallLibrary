@@ -136,6 +136,6 @@ is recorded separately in the development history and GitHub run linked there.
 
 ## Shared component
 
-CI delegates to [BuildAutomation](https://github.com/oznetmaster/BuildAutomation/tree/6f20e1937d3bab8ba7e545a3a77b6fe689f63f2e) at the immutable revision in `component.json`. The existing Cake task graph and package equivalence checks remain authoritative. `recipe.json` restores and invokes that graph with the same target, suite, framework and output arguments.
+CI delegates to [BuildAutomation](https://github.com/oznetmaster/BuildAutomation/tree/ae6f311e530a18dc705971dcc655fc97de03e368) at the immutable revision in `component.json`. The existing Cake task graph and package equivalence checks remain authoritative. `recipe.json` restores and invokes that graph with the same target, suite, framework and output arguments.
 
 For the shared local entry point, set `CAKE_TARGET`, `CAKE_OUTPUT` and optional `CAKE_SUITE`/`CAKE_FRAMEWORK`, then run `./build/Invoke-Shared.ps1 -Task existing-cake`. The original `dotnet run --project build/Build.csproj` interface remains supported. Shared receipts/downloads are ignored under `artifacts/`. Public publishing, validation gates and locks remain in Actions.
