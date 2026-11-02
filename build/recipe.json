@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "tasks": {
+    "existing-cake": {
+      "commands": [
+        {
+          "executable": "dotnet",
+          "arguments": [
+            "restore",
+            "build/Build.csproj",
+            "--locked-mode"
+          ]
+        },
+        {
+          "executable": "pwsh",
+          "script": "build/steps/ci-cake.ps1",
+          "shell": "pwsh"
+        }
+      ]
+    }
+  }
+}
