@@ -18,7 +18,7 @@ namespace TeslaPowerwallLibrary.Login;
 /// </summary>
 internal sealed class Win32MessageLoopSynchronizationContext : SynchronizationContext
 	{
-	public const uint InvokeMessage = NativeMethods.WM_APP + 2;
+	public const uint INVOKE_MESSAGE = NativeMethods.WM_APP + 2;
 
 	private readonly IntPtr _hwnd;
 	private readonly ConcurrentQueue<(SendOrPostCallback Callback, object? State)> _queue = new ();
@@ -34,7 +34,7 @@ internal sealed class Win32MessageLoopSynchronizationContext : SynchronizationCo
 	public override void Post (SendOrPostCallback d, object? state)
 		{
 		_queue.Enqueue ((d, state));
-		NativeMethods.PostMessage (_hwnd, InvokeMessage, IntPtr.Zero, IntPtr.Zero);
+		NativeMethods.PostMessage (_hwnd, INVOKE_MESSAGE, IntPtr.Zero, IntPtr.Zero);
 		}
 
 	/// <inheritdoc/>
@@ -61,9 +61,9 @@ internal sealed class Win32MessageLoopSynchronizationContext : SynchronizationCo
 /// </summary>
 internal sealed class NativeLoginWindow
 	{
-	private const string WindowClassName = "TeslaPowerwallLibrary.Login.NativeLoginWindow";
-	private const int WindowWidth = 560;
-	private const int WindowHeight = 820;
+	private const string WINDOW_CLASS_NAME = "TeslaPowerwallLibrary.Login.NativeLoginWindow";
+	private const int WINDOW_WIDTH = 560;
+	private const int WINDOW_HEIGHT = 820;
 
 	private const uint WM_APP_ABORT = NativeMethods.WM_APP + 1;
 
@@ -142,11 +142,11 @@ internal sealed class NativeLoginWindow
 		RunMessageLoop (syncContext);
 		}
 
-	private void RunMessageLoop (Win32MessageLoopSynchronizationContext syncContext)
+	private static void RunMessageLoop (Win32MessageLoopSynchronizationContext syncContext)
 		{
 		while (NativeMethods.GetMessage (out var msg, IntPtr.Zero, 0, 0) > 0)
 			{
-			if (msg.message == Win32MessageLoopSynchronizationContext.InvokeMessage)
+			if (msg.message == Win32MessageLoopSynchronizationContext.INVOKE_MESSAGE)
 				{
 				syncContext.RunOne ();
 				continue;
@@ -168,12 +168,12 @@ internal sealed class NativeLoginWindow
 
 		var wndClass = new NativeMethods.WNDCLASSEX
 			{
-			cbSize = (uint) Marshal.SizeOf<NativeMethods.WNDCLASSEX> (),
+			cbSize = (uint)Marshal.SizeOf<NativeMethods.WNDCLASSEX> (),
 			lpfnWndProc = _wndProcDelegate,
 			hInstance = hInstance,
 			hCursor = NativeMethods.LoadCursor (IntPtr.Zero, NativeMethods.IDC_ARROW),
-			hbrBackground = (IntPtr) (NativeMethods.COLOR_WINDOW + 1),
-			lpszClassName = WindowClassName
+			hbrBackground = (IntPtr)(NativeMethods.COLOR_WINDOW + 1),
+			lpszClassName = WINDOW_CLASS_NAME
 			};
 
 		if (NativeMethods.RegisterClassEx (ref wndClass) == 0)
@@ -181,12 +181,12 @@ internal sealed class NativeLoginWindow
 
 		var screenWidth = NativeMethods.GetSystemMetrics (NativeMethods.SM_CXSCREEN);
 		var screenHeight = NativeMethods.GetSystemMetrics (NativeMethods.SM_CYSCREEN);
-		var x = Math.Max (0, (screenWidth - WindowWidth) / 2);
-		var y = Math.Max (0, (screenHeight - WindowHeight) / 2);
+		var x = Math.Max (0, (screenWidth - WINDOW_WIDTH) / 2);
+		var y = Math.Max (0, (screenHeight - WINDOW_HEIGHT) / 2);
 
 		_hwnd = NativeMethods.CreateWindowEx (
-			0, WindowClassName, "Tesla™ Powerwall™ Login", NativeMethods.WS_OVERLAPPEDWINDOW,
-			x, y, WindowWidth, WindowHeight, IntPtr.Zero, IntPtr.Zero, hInstance, IntPtr.Zero);
+			0, WINDOW_CLASS_NAME, "Tesla™ Powerwall™ Login", NativeMethods.WS_OVERLAPPEDWINDOW,
+			x, y, WINDOW_WIDTH, WINDOW_HEIGHT, IntPtr.Zero, IntPtr.Zero, hInstance, IntPtr.Zero);
 
 		if (_hwnd == IntPtr.Zero)
 			throw new InvalidOperationException ($"Unable to create the login window (error {Marshal.GetLastWin32Error ()}).");

@@ -1,3 +1,6 @@
+// Copyright © 2026 Neil Colvin.
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
@@ -15,6 +18,9 @@ namespace TeslaPowerwallLibrary.TestCredentials.Tests;
 [TestFixture]
 public sealed class ToolSerializationTests
 	{
+	private static readonly Action<ILogger, Exception?> _diagnosticWarning = LoggerMessage.Define (LogLevel.Warning, new EventId (0), "Synthetic diagnostic");
+	private static readonly Action<ILogger, Exception?> _privateDebug = LoggerMessage.Define (LogLevel.Debug, new EventId (0), "Unable to refresh Tesla FleetAPI token: synthetic-private-value");
+	private static readonly Action<ILogger, Exception?> _privateError = LoggerMessage.Define (LogLevel.Error, new EventId (0), "Unable to refresh Tesla FleetAPI token: synthetic-private-value");
 	[Test]
 	public void ExistingConsoleSettings_PreserveWireNamesAndProtectedValues ()
 		{
@@ -89,7 +95,7 @@ public sealed class ToolSerializationTests
 			{
 			Console.SetError (output);
 			VerboseLogging.Enable ();
-			VerboseLogging.Logger.LogWarning ("Synthetic diagnostic");
+			_diagnosticWarning (VerboseLogging.Logger, null);
 			Assert.That (output.ToString (), Does.Contain ("Synthetic diagnostic"));
 			}
 		finally { Console.SetError (old); }
@@ -104,9 +110,9 @@ public sealed class ToolSerializationTests
 		try
 			{
 			Console.SetError (output);
-			logger.LogDebug ("Unable to refresh Tesla FleetAPI token: synthetic-private-value");
+			_privateDebug (logger, null);
 			Assert.That (output.ToString (), Is.Empty);
-			logger.LogError ("Unable to refresh Tesla FleetAPI token: synthetic-private-value");
+			_privateError (logger, null);
 			Assert.That (output.ToString (), Does.Contain ("network, TLS or request timeout"));
 			Assert.That (output.ToString (), Does.Not.Contain ("synthetic-private-value"));
 			}

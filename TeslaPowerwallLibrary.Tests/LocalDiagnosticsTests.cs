@@ -2,6 +2,7 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System.Text.Json;
+
 using TeslaPowerwallLibrary.Tedapi;
 
 namespace TeslaPowerwallLibrary.Tests;
@@ -10,6 +11,8 @@ namespace TeslaPowerwallLibrary.Tests;
 [TestFixture]
 public sealed class LocalDiagnosticsTests
 	{
+	private static readonly string[] _expectedStrings = ["A", "B", "F"];
+	private static readonly string[] _expectedAlerts = ["controller-alert", "solar-alert", "first", "second"];
 	/// <summary>The captured June 2026 false state stays distinct from missing or empty protection-test data.</summary>
 	[TestCase ("{\"control\":{\"protectionTripTests\":{\"isRunning\":false}}}", false)]
 	[TestCase ("{\"control\":{\"protectionTripTests\":{\"isRunning\":true}}}", true)]
@@ -53,7 +56,7 @@ public sealed class LocalDiagnosticsTests
 		Assert.That (first.Fans.All (f => f.TargetSpeedRpm is null), Is.True);
 		Assert.That (first.Temperatures[0].Timestamp, Is.EqualTo ("device-time"));
 		Assert.That (first.Temperatures[1].Celsius, Is.Null);
-		Assert.That (first.SolarStrings.Select (p => p.Name), Is.EqualTo (new[] { "A", "B", "F" }));
+		Assert.That (first.SolarStrings.Select (p => p.Name), Is.EqualTo (_expectedStrings));
 		Assert.That (first.SolarStrings[0].PowerWatts, Is.Zero);
 		Assert.That (first.SolarStrings[0].Connected, Is.Null, "Standby is not proof of a disconnected string.");
 		Assert.That (first.SolarStrings[1].PowerWatts, Is.Null);
@@ -68,8 +71,11 @@ public sealed class LocalDiagnosticsTests
 	[TestCase (true, null), TestCase (false, false)]
 	public void Legacy_UnavailableMessagesAreOmitted (bool missing, bool? complete)
 		{
-		var bus = new LocalEnergyBusDevices { SolarInverters = new[] { new LocalSolarInverterBus
-			{ Measurements = new LocalSolarInverterMeasurements { IsMissing = missing, IsComplete = complete, VoltageAVolts = 250, CurrentAAmps = 2 } } } };
+		var bus = new LocalEnergyBusDevices
+			{
+			SolarInverters = new[] { new LocalSolarInverterBus
+			{ Measurements = new LocalSolarInverterMeasurements { IsMissing = missing, IsComplete = complete, VoltageAVolts = 250, CurrentAAmps = 2 } } }
+			};
 		var items = LocalDiagnosticsProjection.Create (new LocalDeviceSnapshot { Controller = new LocalTelemetry { EnergyBus = new LocalEnergyBusTelemetry { Devices = bus } } });
 		Assert.That (items, Is.Empty);
 		}
@@ -109,7 +115,7 @@ public sealed class LocalDiagnosticsTests
 		Assert.That (values["controller/bus/PINV/0"].ContainsKey ("PINV_Pout"), Is.False);
 		var alerts = values.Values.Where (v => v.TryGetValue ("alerts", out var list) && list is IEnumerable<string>)
 			.SelectMany (v => (IEnumerable<string>)v["alerts"]!).ToArray ();
-		Assert.That (alerts, Is.EquivalentTo (new[] { "controller-alert", "solar-alert", "first", "second" }));
+		Assert.That (alerts, Is.EquivalentTo (_expectedAlerts));
 		}
 
 	}

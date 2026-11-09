@@ -2,13 +2,15 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System;
-using System.Text.Json;
 using System.Linq;
-using TeslaPowerwallLibrary.Tedapi;
+using System.Text.Json;
+
 using NUnit.Framework;
+
 using TeslaPowerwallLibrary.App.Services;
 using TeslaPowerwallLibrary.App.ViewModels;
 using TeslaPowerwallLibrary.Models;
+using TeslaPowerwallLibrary.Tedapi;
 
 namespace TeslaPowerwallLibrary.App.Tests;
 
@@ -39,11 +41,11 @@ public sealed class LocalPresentationTests
 		var model = new SystemViewModel (connection);
 		var telemetry = System.Text.Json.JsonSerializer.Deserialize<LocalTelemetry> ("""{"ieee20305":{"registration":{"dateTimeRegistered":0,"pin":"secret-test-pin"},"controls":{"activeControls":[null,{"opModEnergize":false,"opModExpLimW":0}]}}}""")!;
 		model.AddBusDetails (telemetry.Ieee20305, "IEEE");
-		Assert.That (model.LocalMeasurements.Any (m => m.Name.EndsWith ("RegistrationTime") && m.Value == "0"), Is.True);
-		Assert.That (model.LocalMeasurements.Any (m => m.Name.EndsWith ("[0]") && m.Value == "Unavailable"), Is.True);
+		Assert.That (model.LocalMeasurements.Any (m => m.Name.EndsWith ("RegistrationTime", StringComparison.Ordinal) && m.Value == "0"), Is.True);
+		Assert.That (model.LocalMeasurements.Any (m => m.Name.EndsWith ("[0]", StringComparison.Ordinal) && m.Value == "Unavailable"), Is.True);
 		Assert.That (model.LocalMeasurements.Any (m => m.Value == "false"), Is.True);
 		Assert.That (model.LocalMeasurements.Any (m => m.Name.Contains ("Pin") || m.Value.Contains ("secret-test-pin")), Is.False);
-		Assert.That (model.LocalMeasurements.Any (m => m.Name.EndsWith ("Kind") || m.Name.EndsWith ("NumberText")), Is.False);
+		Assert.That (model.LocalMeasurements.Any (m => m.Name.EndsWith ("Kind", StringComparison.Ordinal) || m.Name.EndsWith ("NumberText", StringComparison.Ordinal)), Is.False);
 		}
 
 	/// <summary>Retained values in missing or incomplete bus messages must not look like live measurements.</summary>

@@ -25,7 +25,8 @@ internal static class LocalVitalsProjection
 					var component = family.Value[index];
 					var values = new Dictionary<string, object?> (StringComparer.Ordinal)
 						{
-						["partNumber"] = component.PartNumber, ["serialNumber"] = component.SerialNumber,
+						["partNumber"] = component.PartNumber,
+						["serialNumber"] = component.SerialNumber,
 						["componentParentDin"] = din,
 						["alerts"] = component.ActiveAlerts?.Select (a => a.Name).Where (n => n is not null).ToArray ()
 						};
@@ -53,23 +54,34 @@ internal static class LocalVitalsProjection
 		Bus ("THC", bus?.ThermalControllers);
 		Bus ("PINV", bus?.BatteryInverters);
 		Bus ("POD", bus?.BatteryEnergy);
-		if (bus?.Sync is { } sync) Bus ("SYNC", new[] { sync });
-		if (bus?.MeterAssembly is { } msa) Bus ("MSA", new[] { msa });
-		if (bus?.Islander is { } islander) Bus ("ISLANDER", new[] { islander });
+		if (bus?.Sync is { } sync)
+			Bus ("SYNC", new[] { sync });
+		if (bus?.MeterAssembly is { } msa)
+			Bus ("MSA", new[] { msa });
+		if (bus?.Islander is { } islander)
+			Bus ("ISLANDER", new[] { islander });
 		return result;
 		}
 
 	private static void AddMessage (Dictionary<string, object?> values, object message)
 		{
-		if (message is LocalBusMessage { IsMissing: true } or LocalBusMessage { IsComplete: false }) return;
-		if (message is LocalBusAlerts alerts) { values["alerts"] = alerts.Active; return; }
+		if (message is LocalBusMessage { IsMissing: true } or LocalBusMessage { IsComplete: false })
+			return;
+		if (message is LocalBusAlerts alerts)
+			{
+			values["alerts"] = alerts.Active;
+			return;
+			}
 		foreach (var property in message.GetType ().GetProperties (BindingFlags.Public | BindingFlags.Instance))
 			{
 			var name = property.GetCustomAttribute<JsonPropertyNameAttribute> ()?.Name;
-			if (name is null || name is "isMIA" or "isComplete" || !property.CanRead || property.GetIndexParameters ().Length != 0) continue;
+			if (name is null || name is "isMIA" or "isComplete" || !property.CanRead || property.GetIndexParameters ().Length != 0)
+				continue;
 			var value = property.GetValue (message);
-			if (value is null || value is string || value.GetType ().IsValueType || value is IEnumerable<string> || value is IEnumerable<long>) values[name] = value;
-			else AddMessage (values, value);
+			if (value is null || value is string || value.GetType ().IsValueType || value is IEnumerable<string> || value is IEnumerable<long>)
+				values[name] = value;
+			else
+				AddMessage (values, value);
 			}
 		}
 	}

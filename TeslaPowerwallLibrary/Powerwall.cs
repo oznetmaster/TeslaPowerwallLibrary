@@ -25,6 +25,11 @@ namespace TeslaPowerwallLibrary;
 /// This type is an idiomatic .NET adaptation of the Python <c>pypowerwall</c> <c>Powerwall</c> class.
 /// Construct an instance with <see cref="PowerwallOptions"/> and call <see cref="ConnectAsync"/> before
 /// invoking any data methods.
+/// Independent reads may overlap after connection. Authentication, site changes, controls and reconnects
+/// are coordinated by the selected backend; classic and TEDAPI transports retain request serialization.
+/// Use one client per credential set. Configure options before use and coordinate caller mutations of
+/// returned models. Token callbacks must not synchronously wait for another operation on this client.
+/// Disposal cancels admitted calls and defers owned-resource cleanup until those calls drain.
 /// </remarks>
 public sealed class Powerwall : IDisposable
 	{
@@ -65,6 +70,8 @@ public sealed class Powerwall : IDisposable
 
 	private readonly PowerwallOptions _options;
 	private PowerwallClientBase? _client;
+	private readonly AsyncClientGate _lifetime = new (typeof (Powerwall));
+	private int _disposed;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="Powerwall"/> class.
@@ -214,7 +221,7 @@ public sealed class Powerwall : IDisposable
 
 	/// <summary>Gets a value indicating whether a backend client has been connected.</summary>
 	/// <value>A value indicating whether a backend client has been connected.</value>
-	public bool IsClientConnected => _client is not null;
+	public bool IsClientConnected => !_lifetime.IsStopped && Volatile.Read (ref _client) is not null;
 
 	/// <summary>
 	/// Raised in cloud mode after the underlying Tesla connection refreshes its OAuth tokens. Firing depends
@@ -337,107 +344,133 @@ public sealed class Powerwall : IDisposable
 	/// <exception cref="PowerwallInvalidConfigurationException">Thrown when the mode cannot be determined.</exception>
 	public async Task<bool> ConnectAsync (CancellationToken cancellationToken = default)
 		{
-		switch (Mode)
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: true, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
+		if (Volatile.Read (ref _client) is { } connected)
 			{
-			case PowerwallMode.Local:
-				PowerwallClientBase localClient = _options.LocalProtocol != PowerwallLocalProtocol.Gateway
-					? new PowerwallTedapiClient (_options)
-					: new PowerwallLocalClient (_options);
-				try
-					{
-					await localClient.AuthenticateAsync (cancellationToken).ConfigureAwait (false);
-					}
-				catch (Exception exc) when (exc is PowerwallException)
-					{
-					LibraryLog.FailedToConnectUsingLocalMode (_log, exc.Message);
-					((IDisposable)localClient).Dispose ();
-					return false;
-					}
-
-				_client = localClient;
+			try
+				{
+				await connected.AuthenticateAsync (cancellationToken).ConfigureAwait (false);
+				_lifetime.CheckRunning ();
 				return true;
+				}
+			catch (PowerwallCloudNoTeslaAuthFileException) { throw; }
+			catch (PowerwallFleetApiNoTeslaAuthFileException) { throw; }
+			catch (PowerwallException) { return false; }
+			}
+		PowerwallClientBase? created = null;
+		try
+			{
+			switch (Mode)
+				{
+				case PowerwallMode.Local:
+					PowerwallClientBase localClient = _options.LocalProtocol != PowerwallLocalProtocol.Gateway
+						? new PowerwallTedapiClient (_options)
+						: new PowerwallLocalClient (_options);
+					created = localClient;
+					try
+						{
+						await localClient.AuthenticateAsync (cancellationToken).ConfigureAwait (false);
+						}
+					catch (Exception exc) when (exc is PowerwallException)
+						{
+						LibraryLog.FailedToConnectUsingLocalMode (_log, exc.Message);
+						((IDisposable)localClient).Dispose ();
+						return false;
+						}
 
-			case PowerwallMode.Cloud:
-				var cloudClient = new PowerwallCloudClient (
-					_options.Email,
-					_options.CacheExpireSeconds,
-					_options.Timeout,
-					_options.AccessToken,
-					_options.RefreshToken,
-					_options.SiteId,
-					_options.AuthPath,
-					_options.NoCloudTokenPersistence, _log);
+					_lifetime.Commit (() => Volatile.Write (ref _client, localClient));
+					return true;
 
-				// Subscribe before authenticating: a refresh-token rotation can occur during the initial
-				// bootstrap refresh (when only a refresh token was supplied) or while resolving the site, and
-				// must reach the caller even if the connection attempt subsequently fails for an unrelated
-				// reason (for example no sites found).
-				cloudClient.TokensRefreshed += OnCloudTokensRefreshed;
-				try
-					{
-					await cloudClient.AuthenticateAsync (cancellationToken).ConfigureAwait (false);
-					}
-				catch (PowerwallCloudNoTeslaAuthFileException)
-					{
-					// Missing or unusable tokens are a configuration problem the caller must fix (run setup),
-					// so surface it rather than reporting a transient connection failure.
-					cloudClient.TokensRefreshed -= OnCloudTokensRefreshed;
-					cloudClient.Dispose ();
-					throw;
-					}
-				catch (Exception exc) when (exc is PowerwallException)
-					{
-					LibraryLog.FailedToConnectUsingCloudMode (_log, exc.Message);
-					cloudClient.TokensRefreshed -= OnCloudTokensRefreshed;
-					cloudClient.Dispose ();
-					return false;
-					}
+				case PowerwallMode.Cloud:
+					var cloudClient = new PowerwallCloudClient (
+						_options.Email,
+						_options.CacheExpireSeconds,
+						_options.Timeout,
+						_options.AccessToken,
+						_options.RefreshToken,
+						_options.SiteId,
+						_options.AuthPath,
+						_options.NoCloudTokenPersistence, _log);
+					created = cloudClient;
 
-				_client = cloudClient;
-				return true;
+					// Subscribe before authenticating: a refresh-token rotation can occur during the initial
+					// bootstrap refresh (when only a refresh token was supplied) or while resolving the site, and
+					// must reach the caller even if the connection attempt subsequently fails for an unrelated
+					// reason (for example no sites found).
+					cloudClient.TokensRefreshed += OnCloudTokensRefreshed;
+					try
+						{
+						await cloudClient.AuthenticateAsync (cancellationToken).ConfigureAwait (false);
+						}
+					catch (PowerwallCloudNoTeslaAuthFileException)
+						{
+						// Missing or unusable tokens are a configuration problem the caller must fix (run setup),
+						// so surface it rather than reporting a transient connection failure.
+						cloudClient.TokensRefreshed -= OnCloudTokensRefreshed;
+						cloudClient.Dispose ();
+						throw;
+						}
+					catch (Exception exc) when (exc is PowerwallException)
+						{
+						LibraryLog.FailedToConnectUsingCloudMode (_log, exc.Message);
+						cloudClient.TokensRefreshed -= OnCloudTokensRefreshed;
+						cloudClient.Dispose ();
+						return false;
+						}
 
-			case PowerwallMode.FleetApi:
-				var fleetApiClient = new PowerwallFleetApiClient (
-					_options.Email,
-					_options.FleetApiClientId ?? string.Empty,
-					_options.CacheExpireSeconds,
-					_options.Timeout,
-					_options.FleetApiAccessToken,
-					_options.FleetApiRefreshToken,
-					_options.SiteId,
-					_options.FleetApiRegion,
-					_options.FleetApiAuthPath,
-					_options.NoFleetApiTokenPersistence, _log);
+					_lifetime.Commit (() => Volatile.Write (ref _client, cloudClient));
+					return true;
 
-				// Subscribed before authenticating for the same reason as the cloud case above: a
-				// refresh-token rotation can occur during the initial bootstrap refresh.
-				fleetApiClient.TokensRefreshed += OnFleetApiTokensRefreshed;
-				try
-					{
-					await fleetApiClient.AuthenticateAsync (cancellationToken).ConfigureAwait (false);
-					}
-				catch (PowerwallFleetApiNoTeslaAuthFileException)
-					{
-					// Missing or unusable tokens are a configuration problem the caller must fix, so
-					// surface it rather than reporting a transient connection failure.
-					fleetApiClient.TokensRefreshed -= OnFleetApiTokensRefreshed;
-					fleetApiClient.Dispose ();
-					throw;
-					}
-				catch (Exception exc) when (exc is PowerwallException)
-					{
-					LibraryLog.FailedToConnectUsingFleetAPIMode (_log, exc.Message);
-					fleetApiClient.TokensRefreshed -= OnFleetApiTokensRefreshed;
-					fleetApiClient.Dispose ();
-					return false;
-					}
+				case PowerwallMode.FleetApi:
+					var fleetApiClient = new PowerwallFleetApiClient (
+						_options.Email,
+						_options.FleetApiClientId ?? string.Empty,
+						_options.CacheExpireSeconds,
+						_options.Timeout,
+						_options.FleetApiAccessToken,
+						_options.FleetApiRefreshToken,
+						_options.SiteId,
+						_options.FleetApiRegion,
+						_options.FleetApiAuthPath,
+						_options.NoFleetApiTokenPersistence, _log);
+					created = fleetApiClient;
 
-				_client = fleetApiClient;
-				return true;
+					// Subscribed before authenticating for the same reason as the cloud case above: a
+					// refresh-token rotation can occur during the initial bootstrap refresh.
+					fleetApiClient.TokensRefreshed += OnFleetApiTokensRefreshed;
+					try
+						{
+						await fleetApiClient.AuthenticateAsync (cancellationToken).ConfigureAwait (false);
+						}
+					catch (PowerwallFleetApiNoTeslaAuthFileException)
+						{
+						// Missing or unusable tokens are a configuration problem the caller must fix, so
+						// surface it rather than reporting a transient connection failure.
+						fleetApiClient.TokensRefreshed -= OnFleetApiTokensRefreshed;
+						fleetApiClient.Dispose ();
+						throw;
+						}
+					catch (Exception exc) when (exc is PowerwallException)
+						{
+						LibraryLog.FailedToConnectUsingFleetAPIMode (_log, exc.Message);
+						fleetApiClient.TokensRefreshed -= OnFleetApiTokensRefreshed;
+						fleetApiClient.Dispose ();
+						return false;
+						}
 
-			default:
-				LibraryLog.UnableToDetermineModeToConnect (_log);
-				throw new PowerwallInvalidConfigurationException ("Unable to determine mode to connect.");
+					_lifetime.Commit (() => Volatile.Write (ref _client, fleetApiClient));
+					return true;
+
+				default:
+					LibraryLog.UnableToDetermineModeToConnect (_log);
+					throw new PowerwallInvalidConfigurationException ("Unable to determine mode to connect.");
+				}
+			}
+		finally
+			{
+			if (created is not null && !ReferenceEquals (created, Volatile.Read (ref _client)))
+				DisposeClient (created);
 			}
 		}
 
@@ -1376,8 +1409,11 @@ public sealed class Powerwall : IDisposable
 	public Task<IReadOnlyList<LocalComponentDiagnostics>> GetLocalComponentDiagnosticsAsync (bool force = false, CancellationToken cancellationToken = default) =>
 		RequireTedapiClient ().GetComponentDiagnosticsAsync (force, cancellationToken);
 
-	private PowerwallClientBase RequireClient () =>
-		_client ?? throw new InvalidOperationException ("Not connected. Call ConnectAsync before invoking data methods.");
+	private PowerwallClientBase RequireClient ()
+		{
+		_lifetime.CheckRunning ();
+		return Volatile.Read (ref _client) ?? throw new InvalidOperationException ("Not connected. Call ConnectAsync before invoking data methods.");
+		}
 
 	private PowerwallCloudClient RequireCloudClient () =>
 		RequireClient () as PowerwallCloudClient
@@ -1439,13 +1475,25 @@ public sealed class Powerwall : IDisposable
 	/// </summary>
 	public void Dispose ()
 		{
-		if (_client is PowerwallCloudClient cloudClient)
+		if (Interlocked.Exchange (ref _disposed, 1) != 0)
+			return;
+		_ = DisposeAfterDrainAsync (_lifetime.Stop ());
+		}
+	private async Task DisposeAfterDrainAsync (Task drained)
+		{
+		await drained.ConfigureAwait (false);
+		if (Interlocked.Exchange (ref _client, null) is { } client)
+			DisposeClient (client);
+		}
+	private void DisposeClient (PowerwallClientBase client)
+		{
+		if (client is PowerwallCloudClient cloudClient)
 			cloudClient.TokensRefreshed -= OnCloudTokensRefreshed;
 
-		if (_client is PowerwallFleetApiClient fleetApiClient)
+		if (client is PowerwallFleetApiClient fleetApiClient)
 			fleetApiClient.TokensRefreshed -= OnFleetApiTokensRefreshed;
 
-		if (_client is IDisposable disposable)
+		if (client is IDisposable disposable)
 			disposable.Dispose ();
 		}
 

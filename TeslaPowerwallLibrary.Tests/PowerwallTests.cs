@@ -328,11 +328,11 @@ public sealed class PowerwallTests
 	public void WhenNoCloudTokenPersistenceIsFalseThenInvalidEmailStillThrows ()
 		{
 		Assert.Throws<PowerwallInvalidConfigurationException> (static () => _ = new Powerwall (new PowerwallOptions
-				{
-				CloudMode = true,
-				Email = "not-an-email",
-				NoCloudTokenPersistence = false
-				}));
+			{
+			CloudMode = true,
+			Email = "not-an-email",
+			NoCloudTokenPersistence = false
+			}));
 		}
 
 	[Test]

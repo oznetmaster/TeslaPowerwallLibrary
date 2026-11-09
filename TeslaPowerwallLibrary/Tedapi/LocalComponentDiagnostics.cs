@@ -11,7 +11,10 @@ public sealed record LocalComponentDiagnostics
 	/// <summary>Parent device DIN, when known; no hardware identity is synthesized.</summary>
 	/// <value>Parent device DIN, when known; no hardware identity is synthesized.</value>
 	[JsonPropertyName ("deviceDin")]
-	public string? DeviceDin { get; init; }
+	public string? DeviceDin
+		{
+		get; init;
+		}
 
 	/// <summary>Protocol component family.</summary>
 	/// <value>Protocol component family.</value>
@@ -21,17 +24,26 @@ public sealed record LocalComponentDiagnostics
 	/// <summary>Original component index within its family.</summary>
 	/// <value>Original component index within its family.</value>
 	[JsonPropertyName ("index")]
-	public int Index { get; init; }
+	public int Index
+		{
+		get; init;
+		}
 
 	/// <summary>Reported component part number.</summary>
 	/// <value>Reported component part number.</value>
 	[JsonPropertyName ("partNumber")]
-	public string? PartNumber { get; init; }
+	public string? PartNumber
+		{
+		get; init;
+		}
 
 	/// <summary>Reported component serial number.</summary>
 	/// <value>Reported component serial number.</value>
 	[JsonPropertyName ("serialNumber")]
-	public string? SerialNumber { get; init; }
+	public string? SerialNumber
+		{
+		get; init;
+		}
 
 	/// <summary>Reported fans; an empty collection means no fan signals were supplied.</summary>
 	/// <value>Reported fans; an empty collection means no fan signals were supplied.</value>
@@ -61,17 +73,26 @@ public sealed record LocalFanReading
 	/// <summary>Reported rotational speed in revolutions per minute; zero means stopped.</summary>
 	/// <value>Reported rotational speed in revolutions per minute; zero means stopped.</value>
 	[JsonPropertyName ("speedRpm")]
-	public double? SpeedRpm { get; init; }
+	public double? SpeedRpm
+		{
+		get; init;
+		}
 
 	/// <summary>Reported target speed in revolutions per minute, when provided.</summary>
 	/// <value>Reported target speed in revolutions per minute, when provided.</value>
 	[JsonPropertyName ("targetSpeedRpm")]
-	public double? TargetSpeedRpm { get; init; }
+	public double? TargetSpeedRpm
+		{
+		get; init;
+		}
 
 	/// <summary>Reported fan drive duty percentage; not a target RPM.</summary>
 	/// <value>Reported fan drive duty percentage; not a target RPM.</value>
 	[JsonPropertyName ("dutyPercent")]
-	public double? DutyPercent { get; init; }
+	public double? DutyPercent
+		{
+		get; init;
+		}
 
 	}
 
@@ -86,12 +107,18 @@ public sealed record LocalTemperatureReading
 	/// <summary>Temperature in degrees Celsius; null means unavailable.</summary>
 	/// <value>Temperature in degrees Celsius; null means unavailable.</value>
 	[JsonPropertyName ("celsius")]
-	public double? Celsius { get; init; }
+	public double? Celsius
+		{
+		get; init;
+		}
 
 	/// <summary>Device timestamp for this signal, when supplied.</summary>
 	/// <value>Device timestamp for this signal, when supplied.</value>
 	[JsonPropertyName ("timestamp")]
-	public string? Timestamp { get; init; }
+	public string? Timestamp
+		{
+		get; init;
+		}
 
 	}
 
@@ -106,22 +133,34 @@ public sealed record LocalSolarStringReading
 	/// <summary>Native state string; not inferred from voltage or power.</summary>
 	/// <value>Native state string; not inferred from voltage or power.</value>
 	[JsonPropertyName ("state")]
-	public string? State { get; init; }
+	public string? State
+		{
+		get; init;
+		}
 
 	/// <summary>Explicit connection flag when reported; not inferred from active or standby state.</summary>
 	/// <value>Explicit connection flag when reported; not inferred from active or standby state.</value>
 	[JsonPropertyName ("connected")]
-	public bool? Connected { get; init; }
+	public bool? Connected
+		{
+		get; init;
+		}
 
 	/// <summary>Reported DC voltage in volts.</summary>
 	/// <value>Reported DC voltage in volts.</value>
 	[JsonPropertyName ("voltageVolts")]
-	public double? VoltageVolts { get; init; }
+	public double? VoltageVolts
+		{
+		get; init;
+		}
 
 	/// <summary>Reported DC current in amperes.</summary>
 	/// <value>Reported DC current in amperes.</value>
 	[JsonPropertyName ("currentAmps")]
-	public double? CurrentAmps { get; init; }
+	public double? CurrentAmps
+		{
+		get; init;
+		}
 
 	/// <summary>DC power in watts calculated only when both reported voltage and current are available.</summary>
 	/// <value>DC power in watts calculated only when both reported voltage and current are available.</value>
@@ -140,8 +179,9 @@ public static class LocalDiagnosticsProjection
 	/// <returns>Separate component records, preserving hardware identity and original family indexes.</returns>
 	public static IReadOnlyList<LocalComponentDiagnostics> Create (LocalDeviceSnapshot snapshot)
 		{
-		#if NETFRAMEWORK
-		if (snapshot is null) throw new ArgumentNullException (nameof (snapshot));
+#if NETFRAMEWORK
+		if (snapshot is null)
+			throw new ArgumentNullException (nameof (snapshot));
 #else
 		ArgumentNullException.ThrowIfNull (snapshot);
 #endif
@@ -164,12 +204,20 @@ public static class LocalDiagnosticsProjection
 				LocalSignal? Signal (string name) => signals.FirstOrDefault (s => s.Name == name);
 				var fans = new List<LocalFanReading> ();
 				if (Signal ("PVAC_Fan_Speed_Actual_RPM") is not null || Signal ("PVAC_Fan_Speed_Target_RPM") is not null)
-					fans.Add (new LocalFanReading { Name = "PVAC", SpeedRpm = Signal ("PVAC_Fan_Speed_Actual_RPM")?.Value,
-						TargetSpeedRpm = Signal ("PVAC_Fan_Speed_Target_RPM")?.Value });
+					fans.Add (new LocalFanReading
+						{
+						Name = "PVAC",
+						SpeedRpm = Signal ("PVAC_Fan_Speed_Actual_RPM")?.Value,
+						TargetSpeedRpm = Signal ("PVAC_Fan_Speed_Target_RPM")?.Value
+						});
 				foreach (var name in new[] { "A", "B" })
 					if (Signal ("PCH_FanSpeed_" + name) is not null || Signal ("PCH_FanDuty_" + name) is not null)
-						fans.Add (new LocalFanReading { Name = name, SpeedRpm = Signal ("PCH_FanSpeed_" + name)?.Value,
-							DutyPercent = Signal ("PCH_FanDuty_" + name)?.Value });
+						fans.Add (new LocalFanReading
+							{
+							Name = name,
+							SpeedRpm = Signal ("PCH_FanSpeed_" + name)?.Value,
+							DutyPercent = Signal ("PCH_FanDuty_" + name)?.Value
+							});
 				var temperatures = signals.Where (s => TemperatureSignals.Contains (s.Name)).Select (s =>
 					new LocalTemperatureReading { SignalName = s.Name!, Celsius = s.Value, Timestamp = s.Timestamp }).ToArray ();
 				var strings = new List<LocalSolarStringReading> ();
@@ -179,13 +227,26 @@ public static class LocalDiagnosticsProjection
 					var voltage = Signal ("PCH_PvVoltage" + name);
 					var current = Signal ("PCH_PvCurrent" + name);
 					if (state is not null || voltage is not null || current is not null)
-						strings.Add (new LocalSolarStringReading { Name = name, State = state?.TextValue,
-							VoltageVolts = voltage?.Value, CurrentAmps = current?.Value });
+						strings.Add (new LocalSolarStringReading
+							{
+							Name = name,
+							State = state?.TextValue,
+							VoltageVolts = voltage?.Value,
+							CurrentAmps = current?.Value
+							});
 					}
 				if (fans.Count + temperatures.Length + strings.Count > 0)
-					result.Add (new LocalComponentDiagnostics { DeviceDin = din, Family = family.Key, Index = index,
-						PartNumber = component.PartNumber, SerialNumber = component.SerialNumber,
-						Fans = fans, Temperatures = temperatures, SolarStrings = strings });
+					result.Add (new LocalComponentDiagnostics
+						{
+						DeviceDin = din,
+						Family = family.Key,
+						Index = index,
+						PartNumber = component.PartNumber,
+						SerialNumber = component.SerialNumber,
+						Fans = fans,
+						Temperatures = temperatures,
+						SolarStrings = strings
+						});
 				}
 		}
 
@@ -197,25 +258,46 @@ public static class LocalDiagnosticsProjection
 			{
 			var inverter = bus!.SolarInverters![index];
 			var measurements = inverter.Measurements;
-			if (!Available (measurements)) continue;
+			if (!Available (measurements))
+				continue;
 			var voltages = new[] { measurements!.VoltageAVolts, measurements.VoltageBVolts, measurements.VoltageCVolts, measurements.VoltageDVolts };
 			var currents = new[] { measurements.CurrentAAmps, measurements.CurrentBAmps, measurements.CurrentCAmps, measurements.CurrentDAmps };
 			var strings = Enumerable.Range (0, 4).Select (slot => new LocalSolarStringReading
-				{ Name = ((char)('A' + slot)).ToString (), VoltageVolts = voltages[slot], CurrentAmps = currents[slot] }).ToArray ();
-			result.Add (new LocalComponentDiagnostics { DeviceDin = din, Family = "PVAC", Index = index,
-				PartNumber = inverter.PartNumber, SerialNumber = inverter.SerialNumber, SolarStrings = strings,
+				{
+				Name = ((char)('A' + slot)).ToString (),
+				VoltageVolts = voltages[slot],
+				CurrentAmps = currents[slot]
+				}).ToArray ();
+			result.Add (new LocalComponentDiagnostics
+				{
+				DeviceDin = din,
+				Family = "PVAC",
+				Index = index,
+				PartNumber = inverter.PartNumber,
+				SerialNumber = inverter.SerialNumber,
+				SolarStrings = strings,
 				Fans = measurements.FanSpeedRpm.HasValue || measurements.FanTargetSpeedRpm.HasValue
 					? new[] { new LocalFanReading { Name = "PVAC", SpeedRpm = measurements.FanSpeedRpm, TargetSpeedRpm = measurements.FanTargetSpeedRpm } }
-					: Array.Empty<LocalFanReading> () });
+					: Array.Empty<LocalFanReading> ()
+				});
 			}
 		for (int index = 0; index < (bus?.SolarStrings?.Count ?? 0); index++)
 			{
 			var status = bus!.SolarStrings![index].Status;
-			if (!Available (status)) continue;
+			if (!Available (status))
+				continue;
 			var connected = new[] { status!.StringAConnected, status.StringBConnected, status.StringCConnected, status.StringDConnected };
-			result.Add (new LocalComponentDiagnostics { DeviceDin = din, Family = "PVS", Index = index,
+			result.Add (new LocalComponentDiagnostics
+				{
+				DeviceDin = din,
+				Family = "PVS",
+				Index = index,
 				SolarStrings = Enumerable.Range (0, 4).Select (slot => new LocalSolarStringReading
-					{ Name = ((char)('A' + slot)).ToString (), Connected = connected[slot] }).ToArray () });
+					{
+					Name = ((char)('A' + slot)).ToString (),
+					Connected = connected[slot]
+					}).ToArray ()
+				});
 			}
 		}
 	}

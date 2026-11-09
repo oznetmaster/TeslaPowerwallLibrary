@@ -71,7 +71,10 @@ public sealed class LocalSystemStatusTests
 	public void SystemStatus_PreservesExistingMeasurementsAndWireNames ()
 		{
 		var snapshot = Snapshot (10, new LocalBatteryPowerCapability { NominalPowerWatts = 4600 });
-		snapshot = snapshot with { Batteries = [new BatteryBlock { PackageSerialNumber = "battery", EnergyCharged = 0 }] };
+		snapshot = snapshot with
+			{
+			Batteries = [new BatteryBlock { PackageSerialNumber = "battery", EnergyCharged = 0 }]
+			};
 		var telemetry = new LocalTelemetry
 			{
 			Control = new LocalControlTelemetry

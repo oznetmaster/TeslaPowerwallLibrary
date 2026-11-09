@@ -37,4 +37,3 @@ public abstract partial class ViewModelBase : ObservableObject
 			dispatcher.Invoke (action);
 		}
 	}
-

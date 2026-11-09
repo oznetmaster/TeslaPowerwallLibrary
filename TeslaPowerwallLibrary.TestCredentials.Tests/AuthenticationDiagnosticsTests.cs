@@ -8,11 +8,11 @@ namespace TeslaPowerwallLibrary.TestCredentials.Tests;
 [TestFixture]
 public sealed class AuthenticationDiagnosticsTests
 	{
-	private const string Logger = "TeslaPowerwallLibrary.FleetApi.FleetApiConnection";
+	private const string LOGGER = "TeslaPowerwallLibrary.FleetApi.FleetApiConnection";
 
 	[Test]
 	public void DataStatus_DoesNotExposeRequestUrl () =>
-		Assert.That (AuthenticationDiagnostics.Summarize (Logger, "Tesla FleetAPI https://private-host/private-token returned HTTP 403"), Is.EqualTo ("Fleet data request returned HTTP 403. Request and response details withheld."));
+		Assert.That (AuthenticationDiagnostics.Summarize (LOGGER, "Tesla FleetAPI https://private-host/private-token returned HTTP 403"), Is.EqualTo ("Fleet data request returned HTTP 403. Request and response details withheld."));
 
 	[Test]
 	public void UnknownException_DoesNotExposeMessage () =>
@@ -24,14 +24,14 @@ public sealed class AuthenticationDiagnosticsTests
 
 	[Test]
 	public void RefreshStatus_ReportsOnlyStatusNumber () =>
-		Assert.That (AuthenticationDiagnostics.Summarize (Logger, "Tesla FleetAPI token refresh failed (HTTP 401)."), Does.Contain ("HTTP 401"));
+		Assert.That (AuthenticationDiagnostics.Summarize (LOGGER, "Tesla FleetAPI token refresh failed (HTTP 401)."), Does.Contain ("HTTP 401"));
 
 	[TestCase ("Unable to refresh Tesla FleetAPI token: private-token")]
 	[TestCase ("Unable to parse Tesla FleetAPI token refresh response: private-token")]
 	[TestCase ("Unable to connect to Tesla FleetAPI https://private-host/private-token")]
 	public void PrivateExceptionDetails_AreReplacedWithFixedCategory (string message)
 		{
-		string? summary = AuthenticationDiagnostics.Summarize (Logger, message);
+		string? summary = AuthenticationDiagnostics.Summarize (LOGGER, message);
 		Assert.That (summary, Is.Not.Null);
 		Assert.That (summary, Does.Not.Contain ("private-token"));
 		Assert.That (summary, Does.Not.Contain ("private-host"));
@@ -40,7 +40,7 @@ public sealed class AuthenticationDiagnosticsTests
 	[TestCase ("private-token")]
 	[TestCase ("Tesla FleetAPI token refresh failed (HTTP 401).\nprivate-token")]
 	public void UnexpectedMessage_IsSuppressed (string message) =>
-		Assert.That (AuthenticationDiagnostics.Summarize (Logger, message), Is.Null);
+		Assert.That (AuthenticationDiagnostics.Summarize (LOGGER, message), Is.Null);
 
 	[Test]
 	public void UnrelatedLogger_IsSuppressed () =>

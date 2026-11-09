@@ -5,7 +5,6 @@ using System;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
-using TeslaPowerwallLibrary.Tedapi;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,6 +13,7 @@ using CommunityToolkit.Mvvm.Input;
 
 using TeslaPowerwallLibrary.App.Services;
 using TeslaPowerwallLibrary.Models;
+using TeslaPowerwallLibrary.Tedapi;
 
 namespace TeslaPowerwallLibrary.App.ViewModels;
 

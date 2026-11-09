@@ -6,8 +6,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Security.Cryptography;
-using TeslaPowerwallLibrary.Tools;
-using TeslaPowerwallLibrary.Local;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,6 +14,8 @@ using CommunityToolkit.Mvvm.Input;
 
 using TeslaPowerwallLibrary.App.Services;
 using TeslaPowerwallLibrary.Cloud;
+using TeslaPowerwallLibrary.Local;
+using TeslaPowerwallLibrary.Tools;
 
 namespace TeslaPowerwallLibrary.App.ViewModels;
 
@@ -52,10 +52,16 @@ public sealed partial class ConnectViewModel : ViewModelBase
 		}
 
 	/// <summary>Gets the Tesla energy sites available to the account, populated after a successful cloud connect.</summary>
-	public ObservableCollection<CloudSite> Sites { get; }
+	public ObservableCollection<CloudSite> Sites
+		{
+		get;
+		}
 
 	/// <summary>Gets the selectable Tesla regions shown in the sign-in region picker.</summary>
-	public IReadOnlyList<RegionOption> Regions { get; } =
+	public IReadOnlyList<RegionOption> Regions
+		{
+		get;
+		} =
 		[
 			new RegionOption ("United States / International", "us"),
 			new RegionOption ("China", "cn")
@@ -168,7 +174,10 @@ public sealed partial class ConnectViewModel : ViewModelBase
 	private string _password = string.Empty;
 
 	/// <summary>Gets the supported local connection choices.</summary>
-	public IReadOnlyList<LocalProtocolOption> LocalProtocols { get; } =
+	public IReadOnlyList<LocalProtocolOption> LocalProtocols
+		{
+		get;
+		} =
 		[
 		new ("Basic local readings", PowerwallLocalProtocol.Gateway),
 		new ("Full local data — signed LAN", PowerwallLocalProtocol.TedapiSigned),
@@ -183,7 +192,10 @@ public sealed partial class ConnectViewModel : ViewModelBase
 	private PowerwallLocalProtocol _localProtocol;
 
 	/// <summary>Gets the available TEDAPI query versions.</summary>
-	public IReadOnlyList<Tedapi.TedapiQueryVersion> LocalQueryVersions { get; } =
+	public IReadOnlyList<Tedapi.TedapiQueryVersion> LocalQueryVersions
+		{
+		get;
+		} =
 		[Tedapi.TedapiQueryVersion.June2024, Tedapi.TedapiQueryVersion.June2026];
 
 	/// <summary>Gets or sets the explicit vendor query set used by TEDAPI.</summary>
@@ -193,7 +205,7 @@ public sealed partial class ConnectViewModel : ViewModelBase
 
 	/// <summary>Gets or sets the name of an existing Windows local signing key.</summary>
 	[ObservableProperty]
-	private string _localSigningKeyName = LocalSigningKeyStore.DefaultKeyName;
+	private string _localSigningKeyName = LocalSigningKeyStore.DEFAULT_KEY_NAME;
 
 	/// <summary>Gets or sets the desktop's local refresh interval in seconds; zero disables automatic refresh.</summary>
 	[ObservableProperty]
@@ -496,10 +508,10 @@ public sealed partial class ConnectViewModel : ViewModelBase
 	private static string FleetApiRegionAudience (string region) =>
 		region switch
 			{
-			"eu" => "https://fleet-api.prd.eu.vn.cloud.tesla.com",
-			"cn" => "https://fleet-api.prd.cn.vn.cloud.tesla.cn",
-			_ => "https://fleet-api.prd.na.vn.cloud.tesla.com"
-			};
+				"eu" => "https://fleet-api.prd.eu.vn.cloud.tesla.com",
+				"cn" => "https://fleet-api.prd.cn.vn.cloud.tesla.cn",
+				_ => "https://fleet-api.prd.na.vn.cloud.tesla.com"
+				};
 
 	/// <summary>
 	/// Confirms the chosen site from the picker, switches the active site if needed, and enters the app.
@@ -727,10 +739,10 @@ public sealed partial class ConnectViewModel : ViewModelBase
 	private static string NormalizeFleetApiRegion (string? region) =>
 		region?.Trim ().ToLowerInvariant () switch
 			{
-			"eu" => "eu",
-			"cn" => "cn",
-			_ => "na"
-			};
+				"eu" => "eu",
+				"cn" => "cn",
+				_ => "na"
+				};
 
 	private void LoadFromSettings ()
 		{
@@ -743,7 +755,7 @@ public sealed partial class ConnectViewModel : ViewModelBase
 		LocalProtocol = settings.LocalProtocol;
 		LocalQueryVersion = settings.LocalQueryVersion;
 		LocalPollSeconds = settings.LocalPollSeconds is >= 0 and <= 3600 ? settings.LocalPollSeconds : 5;
-		LocalSigningKeyName = settings.LocalSigningKeyName ?? LocalSigningKeyStore.DefaultKeyName;
+		LocalSigningKeyName = settings.LocalSigningKeyName ?? LocalSigningKeyStore.DEFAULT_KEY_NAME;
 		Region = string.IsNullOrWhiteSpace (settings.Region) ? "us" : settings.Region!.Trim ().ToLowerInvariant ();
 		Password = CredentialProtector.Unprotect (settings.ProtectedPassword) ?? string.Empty;
 		FleetApiClientId = settings.FleetApiClientId ?? string.Empty;

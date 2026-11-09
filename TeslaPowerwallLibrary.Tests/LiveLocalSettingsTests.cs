@@ -17,7 +17,14 @@ public sealed class LiveLocalSettingsTests
 	public void PortableInputCreatesReadOnlyLocalOptions (string protocol)
 		{
 		var original = new LiveSiteTests.LiveSettings
-			{ Enabled = false, Mode = "local", LocalProtocol = protocol, Host = "powerwall.example.invalid", Password = "synthetic", LocalRefreshIntervalSeconds = 30 };
+			{
+			Enabled = false,
+			Mode = "local",
+			LocalProtocol = protocol,
+			Host = "powerwall.example.invalid",
+			Password = "synthetic",
+			LocalRefreshIntervalSeconds = 30
+			};
 		var settings = JsonSerializer.Deserialize<LiveSiteTests.LiveSettings> (JsonSerializer.Serialize (original))!;
 		PowerwallOptions options = settings.LocalOptions (out RSA? key);
 		Assert.That (key, Is.Null);

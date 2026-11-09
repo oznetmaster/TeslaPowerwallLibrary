@@ -8,12 +8,16 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+
 using CommunityToolkit.Mvvm.ComponentModel;
+
 using LiveChartsCore;
 using LiveChartsCore.Defaults;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
+
 using Microsoft.Data.Sqlite;
+
 using TeslaPowerwallLibrary.App.Services;
 
 namespace TeslaPowerwallLibrary.App.ViewModels;
@@ -33,7 +37,15 @@ public sealed partial class EnergyViewModel
 	internal bool IsActive
 		{
 		get => _isActive;
-		set { _isActive = value; if (value) { AdvanceCurrentPeriod (_now ()); BuildSeries (); } }
+		set
+			{
+			_isActive = value;
+			if (value)
+				{
+				AdvanceCurrentPeriod (_now ());
+				BuildSeries ();
+				}
+			}
 		}
 
 	/// <summary>Gets the selected component's latest actual LAN measurement and receipt time.</summary>
@@ -62,18 +74,18 @@ public sealed partial class EnergyViewModel
 		var sample = new LocalPowerSample (receivedAt, snapshot.SolarWatts, snapshot.BatteryWatts, snapshot.HomeWatts, snapshot.GridWatts);
 		RunOnUi (() =>
 			{
-			if (!IsLocal || generation != _generation)
-				return;
-			AdvanceCurrentPeriod (_now ());
-			_latestLocal = sample;
-			var (start, end) = GetPeriodRange ("day", _anchor);
-			if (sample.ReceivedAt >= start && sample.ReceivedAt < end.AddSeconds (1))
-				_localSamples.Add (sample);
-			// Keep the active in-memory graph bounded to its selected day.
-			_localSamples.RemoveAll (point => point.ReceivedAt < start || point.ReceivedAt >= end.AddSeconds (1));
-			UpdateLiveReading ();
-			if (IsActive)
-				AppendLivePoint (sample);
+				if (!IsLocal || generation != _generation)
+					return;
+				AdvanceCurrentPeriod (_now ());
+				_latestLocal = sample;
+				var (start, end) = GetPeriodRange ("day", _anchor);
+				if (sample.ReceivedAt >= start && sample.ReceivedAt < end.AddSeconds (1))
+					_localSamples.Add (sample);
+				// Keep the active in-memory graph bounded to its selected day.
+				_localSamples.RemoveAll (point => point.ReceivedAt < start || point.ReceivedAt >= end.AddSeconds (1));
+				UpdateLiveReading ();
+				if (IsActive)
+					AppendLivePoint (sample);
 			});
 		if (string.IsNullOrWhiteSpace (host))
 			return;
@@ -89,8 +101,8 @@ public sealed partial class EnergyViewModel
 
 	private void OnLocalPollFailed (object? sender, string message) => RunOnUi (() =>
 		{
-		if (IsLocal)
-			LiveReadingText = "LAN refresh failed; displayed samples are from earlier successful reads.";
+			if (IsLocal)
+				LiveReadingText = "LAN refresh failed; displayed samples are from earlier successful reads.";
 		});
 
 	private async Task LoadLocalHistoryAsync ()
@@ -131,11 +143,11 @@ public sealed partial class EnergyViewModel
 
 	private static double? LocalWatts (LocalPowerSample point, string component) => component switch
 		{
-		"Home" => point.HomeWatts,
-		"Powerwall" => point.BatteryWatts,
-		"Grid" => point.GridWatts,
-		_ => point.SolarWatts
-		};
+			"Home" => point.HomeWatts,
+			"Powerwall" => point.BatteryWatts,
+			"Grid" => point.GridWatts,
+			_ => point.SolarWatts
+			};
 
 	private void BuildSeries ()
 		{
@@ -150,7 +162,8 @@ public sealed partial class EnergyViewModel
 		YAxes[0].Labeler = value => batteryDay
 			? value.ToString ("+0.0;-0.0;0.0", CultureInfo.CurrentCulture)
 			: Math.Abs (value).ToString ("0.0", CultureInfo.CurrentCulture);
-		if (batteryDay) YAxes[0].Name = "kW (+ discharge / - charge)";
+		if (batteryDay)
+			YAxes[0].Name = "kW (+ discharge / - charge)";
 		YAxes[0].MinLimit = SelectedPeriod == "day" ? 0 : null;
 		YAxes[0].MaxLimit = SelectedPeriod == "day" ? 1 : null;
 		if (SelectedPeriod != "day" && Series.OfType<ColumnSeries<double?>> ().Any ())
@@ -162,7 +175,10 @@ public sealed partial class EnergyViewModel
 			}
 		UpdateLiveReading ();
 		if (!IsLocal || SelectedPeriod != "day" || _localSamples.Count == 0)
-			{ UpdateDayPowerScale (); return; }
+			{
+			UpdateDayPowerScale ();
+			return;
+			}
 		var selected = Components.FirstOrDefault (c => c.IsSelected);
 		if (selected is null)
 			return;
@@ -182,9 +198,14 @@ public sealed partial class EnergyViewModel
 		RebuildLiveValues (start, end);
 		var live = new LineSeries<ObservablePoint>
 			{
-			Name = selected.Name + " (LAN)", Values = values, Fill = null,
-			Stroke = new SolidColorPaint (selected.Color, 2), GeometryFill = new SolidColorPaint (selected.Color),
-			GeometryStroke = null, GeometrySize = 0, LineSmoothness = 0,
+			Name = selected.Name + " (LAN)",
+			Values = values,
+			Fill = null,
+			Stroke = new SolidColorPaint (selected.Color, 2),
+			GeometryFill = new SolidColorPaint (selected.Color),
+			GeometryStroke = null,
+			GeometrySize = 0,
+			LineSmoothness = 0,
 			XToolTipLabelFormatter = point => XAxes[0].Labeler (point.Coordinate.SecondaryValue),
 			YToolTipLabelFormatter = point => $"{point.Coordinate.PrimaryValue:0.00} kW (LAN)"
 			};
@@ -221,7 +242,8 @@ public sealed partial class EnergyViewModel
 		AppendLanCoverage (x, y, _liveValues.LastOrDefault ());
 		_liveValues.Add (new ObservablePoint (x, y));
 		_lastPlotted = sample.ReceivedAt;
-		if (RefreshCloudMask ()) UpdateDayPowerScale ();
+		if (RefreshCloudMask ())
+			UpdateDayPowerScale ();
 		}
 
 	private static double? DisplayKilowatts (double? watts) => watts is double value && double.IsFinite (value)
@@ -229,10 +251,13 @@ public sealed partial class EnergyViewModel
 
 	private void ExpandPowerScale (double? kilowatts)
 		{
-		if (kilowatts is not double value || !double.IsFinite (value)) return;
+		if (kilowatts is not double value || !double.IsFinite (value))
+			return;
 		// Keep small overnight readings in proportion; expand only for a new extreme.
-		if (value < YAxes[0].MinLimit) YAxes[0].MinLimit = Math.Floor (value * 2) / 2;
-		if (value > YAxes[0].MaxLimit) YAxes[0].MaxLimit = Math.Ceiling (value * 2) / 2;
+		if (value < YAxes[0].MinLimit)
+			YAxes[0].MinLimit = Math.Floor (value * 2) / 2;
+		if (value > YAxes[0].MaxLimit)
+			YAxes[0].MaxLimit = Math.Ceiling (value * 2) / 2;
 		}
 
 	}

@@ -4,6 +4,17 @@ All notable changes are documented here. This project follows [Semantic Versioni
 
 This changelog records shipped features, fixes, compatibility and runtime dependency changes. See [development and validation history](DEVELOPMENT-HISTORY.md) for tests, CI, build tooling and work not yet released.
 
+## [2.5.1](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases/tag/v2.5.1) — 2026-11-09
+
+- Coordinate overlapping Owner/Fleet refreshes and delayed authentication failures so callers share one completed token rotation. Retain newly rotated credentials when an individual caller cancels and keep token notifications ordered.
+- Support overlapping reads while sequencing authentication, site changes, controls and reconnects. Prevent older responses from replacing newer cached observations and invalidate caches after writes/site changes.
+- Cancel admitted operations on disposal, reject new calls, prevent late state publication and defer owned transport/semaphore cleanup until admitted calls drain. Classic and TEDAPI transports retain their existing request serialization.
+- Serialize token-cache read/modify/write across cache instances and processes and replace files atomically, preserving other accounts and existing fields.
+- Use .NET Framework 4.7.2's `System.Net.Http` reference rather than the older 4.3.4 compatibility NuGet package, avoiding conflicting reference assemblies in independent consumers without changing the library runtime bytes.
+- Preserve both operation and restoration failures in live-setting test diagnostics. Native lifetime energy failure regressions cover all three TEDAPI authentication modes; failed fetches continue to throw rather than fabricate zero counters.
+
+No new device commands or runtime dependencies. Existing assembly identity remains `2.0.0.0`. See the [release notes](RELEASE-NOTES.md).
+
 ## [2.5.0](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases/tag/v2.5.0) — 2026-11-02
 
 ### Added

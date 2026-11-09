@@ -9,7 +9,9 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+
 using NUnit.Framework;
+
 using TeslaPowerwallLibrary.App.Converters;
 using TeslaPowerwallLibrary.App.Services;
 using TeslaPowerwallLibrary.App.ViewModels;
@@ -21,6 +23,8 @@ namespace TeslaPowerwallLibrary.App.Tests;
 [TestFixture, Apartment (ApartmentState.STA)]
 public sealed class SettingsControlTests
 	{
+	private static readonly string[] _reportedAlerts = ["SystemConnectedToGrid", "BMS_a023_SW_Assertion", "SystemConnectedToGrid"];
+	private static readonly string[] _distinctAlerts = ["SystemConnectedToGrid", "BMS_a023_SW_Assertion"];
 	/// <summary>Unlocking enables all three requested fields, preserves pending edits and sends no writes.</summary>
 	[Test]
 	public void SessionUnlock_EnablesActualControlsWithoutApplyingValues ()
@@ -36,8 +40,18 @@ public sealed class SettingsControlTests
 		resources.Add ("InverseBool", new InverseBoolConverter ());
 		resources.Add ("NullToCollapsed", new NullToCollapsedConverter ());
 		var view = new SettingsView (resources) { DataContext = model, Width = 1000, Height = 700 };
-		var window = new Window { Content = view, Width = 1000, Height = 700, ShowActivated = false, ShowInTaskbar = false,
-			WindowStartupLocation = WindowStartupLocation.Manual, Left = -20000, Top = -20000, Title = "Offline Settings regression test" };
+		var window = new Window
+			{
+			Content = view,
+			Width = 1000,
+			Height = 700,
+			ShowActivated = false,
+			ShowInTaskbar = false,
+			WindowStartupLocation = WindowStartupLocation.Manual,
+			Left = -20000,
+			Top = -20000,
+			Title = "Offline Settings regression test"
+			};
 		try
 			{
 			window.Show ();
@@ -81,7 +95,10 @@ public sealed class SettingsControlTests
 			Assert.That (reserve.Value, Is.EqualTo (42));
 			Assert.That (reserve.IsVisible, Is.True);
 			Assert.That (optionsSeen, Has.Count.EqualTo (2));
-			Assert.That (optionsSeen[1], Is.EqualTo (options with { AllowLocalControl = true }));
+			Assert.That (optionsSeen[1], Is.EqualTo (options with
+				{
+				AllowLocalControl = true
+				}));
 			model.EnableLocalControlsCommand.ExecuteAsync (null).GetAwaiter ().GetResult ();
 			Assert.That (optionsSeen, Has.Count.EqualTo (2), "Already enabled must not reauthenticate.");
 			model.ToggleLocalControlsCommand.ExecuteAsync (null).GetAwaiter ().GetResult ();
@@ -124,7 +141,10 @@ public sealed class SettingsControlTests
 		{
 		var seen = new List<PowerwallOptions> ();
 		using var connection = CreateConnection (seen, timeout ? "lock-timeout" : "lock-reject");
-		connection.ConnectAsync (Options () with { AllowLocalControl = true }).GetAwaiter ().GetResult ();
+		connection.ConnectAsync (Options () with
+			{
+			AllowLocalControl = true
+			}).GetAwaiter ().GetResult ();
 		var original = connection.Powerwall;
 		var model = new SettingsViewModel (connection);
 		model.ToggleLocalControlsCommand.ExecuteAsync (null).GetAwaiter ().GetResult ();
@@ -158,14 +178,14 @@ public sealed class SettingsControlTests
 		var saved = new List<int> ();
 		using var connection = CreateConnection (seen);
 		await connection.ConnectAsync (Options ());
-		var model = new SettingsViewModel (connection, saved.Add) { LocalPollSecondsText = seconds.ToString () };
+		var model = new SettingsViewModel (connection, saved.Add) { LocalPollSecondsText = seconds.ToString (System.Globalization.CultureInfo.InvariantCulture) };
 		await model.ApplyLocalPollIntervalCommand.ExecuteAsync (null);
 		Assert.That (connection.LocalPollInterval.TotalSeconds, Is.EqualTo (seconds));
 		Assert.That (seen[1].CacheExpireSeconds, Is.EqualTo (seconds));
 		Assert.That (seen[1].AllowLocalControl, Is.False);
 		Assert.That (saved, Is.EqualTo (new[] { seconds }));
 		Assert.That (model.CanChangeSettings, Is.False);
-		Assert.That (model.LocalPollingStatus, Does.Contain (seconds == 0 ? "manual" : seconds.ToString ()));
+		Assert.That (model.LocalPollingStatus, Does.Contain (seconds == 0 ? "manual" : seconds.ToString (System.Globalization.CultureInfo.InvariantCulture)));
 		await connection.StopPollingAsync ();
 		}
 
@@ -221,28 +241,38 @@ public sealed class SettingsControlTests
 		using var connection = new PowerwallConnectionService ();
 		var model = new SystemViewModel (connection);
 		var received = new DateTimeOffset (2026, 10, 8, 12, 34, 0, TimeSpan.Zero);
-		model.ApplyAlerts (new[] { "SystemConnectedToGrid", "BMS_a023_SW_Assertion", "SystemConnectedToGrid" }, received);
-		Assert.That (model.Alerts, Is.EqualTo (new[] { "SystemConnectedToGrid", "BMS_a023_SW_Assertion" }));
-		Assert.That (model.AlertsStatus, Does.Contain ("2 reported status and diagnostic codes").And.Contain (received.ToString ("g")));
+		model.ApplyAlerts (_reportedAlerts, received);
+		Assert.That (model.Alerts, Is.EqualTo (_distinctAlerts));
+		Assert.That (model.AlertsStatus, Does.Contain ("2 reported status and diagnostic codes").And.Contain (received.ToString ("g", System.Globalization.CultureInfo.CurrentCulture)));
 		model.ApplyAlerts (Array.Empty<string> (), received);
 		Assert.That (model.HasAlerts, Is.False);
 		Assert.That (model.AlertsStatus, Does.Contain ("does not confirm system health"));
 		}
 
 	private static PowerwallOptions Options () => new ()
-		{ Host = "192.0.2.1", Password = "synthetic", LocalProtocol = PowerwallLocalProtocol.TedapiSigned, CacheExpireSeconds = 17 };
+		{
+		Host = "192.0.2.1",
+		Password = "synthetic",
+		LocalProtocol = PowerwallLocalProtocol.TedapiSigned,
+		CacheExpireSeconds = 17
+		};
 
 	private static PowerwallConnectionService CreateConnection (List<PowerwallOptions> seen, string? failure = null) => new ((candidate, token) =>
 		{
-		var options = (PowerwallOptions)typeof (Powerwall).GetField ("_options", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue (candidate)!;
-		seen.Add (options);
-		if (failure == "interval-reject" && options.CacheExpireSeconds != 17) return Task.FromResult (false);
-		if (!options.AllowLocalControl && failure == "lock-timeout") throw new OperationCanceledException ("Synthetic timeout");
-		if (!options.AllowLocalControl && failure == "lock-reject") return Task.FromResult (false);
-		if (options.AllowLocalControl && failure == "timeout") throw new OperationCanceledException ("Synthetic timeout");
-		if (options.AllowLocalControl && failure == "reject") return Task.FromResult (false);
-		typeof (Powerwall).GetField ("_client", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue (candidate, new ReadOnlyClient ());
-		return Task.FromResult (true);
+			var options = (PowerwallOptions)typeof (Powerwall).GetField ("_options", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue (candidate)!;
+			seen.Add (options);
+			if (failure == "interval-reject" && options.CacheExpireSeconds != 17)
+				return Task.FromResult (false);
+			if (!options.AllowLocalControl && failure == "lock-timeout")
+				throw new OperationCanceledException ("Synthetic timeout");
+			if (!options.AllowLocalControl && failure == "lock-reject")
+				return Task.FromResult (false);
+			if (options.AllowLocalControl && failure == "timeout")
+				throw new OperationCanceledException ("Synthetic timeout");
+			if (options.AllowLocalControl && failure == "reject")
+				return Task.FromResult (false);
+			typeof (Powerwall).GetField ("_client", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue (candidate, new ReadOnlyClient ());
+			return Task.FromResult (true);
 		});
 
 	private static void Pump () => Dispatcher.CurrentDispatcher.Invoke (() => { }, DispatcherPriority.ApplicationIdle);

@@ -4,12 +4,12 @@
 using System.CommandLine;
 using System.Security.Cryptography;
 using System.Text.Json;
-using TeslaPowerwallLibrary.Tools;
-using TeslaPowerwallLibrary.Local;
 
 using TeslaPowerwallLibrary;
 using TeslaPowerwallLibrary.Cloud;
+using TeslaPowerwallLibrary.Local;
 using TeslaPowerwallLibrary.TestConsole;
+using TeslaPowerwallLibrary.Tools;
 
 var rootCommand = new RootCommand (
 	"Interactive and command-line test harness for TeslaPowerwallLibrary. " +
@@ -105,8 +105,8 @@ static Command CreateReadCommand (string name, string description, Func<Powerwal
 	command.SetAction ((parseResult, cancellationToken) =>
 		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
 			{
-			await action (powerwall, token).ConfigureAwait (false);
-			return 0;
+				await action (powerwall, token).ConfigureAwait (false);
+				return 0;
 			}, cancellationToken));
 
 	return command;
@@ -132,8 +132,8 @@ static Command CreateSetReserveCommand ()
 	command.SetAction ((parseResult, cancellationToken) =>
 		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
 			{
-			await PowerwallActions.SetReserveAsync (powerwall, parseResult.GetValue (levelArgument), token).ConfigureAwait (false);
-			return 0;
+				await PowerwallActions.SetReserveAsync (powerwall, parseResult.GetValue (levelArgument), token).ConfigureAwait (false);
+				return 0;
 			}, cancellationToken));
 
 	return command;
@@ -151,8 +151,8 @@ static Command CreateSetModeCommand ()
 	command.SetAction ((parseResult, cancellationToken) =>
 		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
 			{
-			await PowerwallActions.SetModeAsync (powerwall, parseResult.GetValue (modeArgument) ?? string.Empty, token).ConfigureAwait (false);
-			return 0;
+				await PowerwallActions.SetModeAsync (powerwall, parseResult.GetValue (modeArgument) ?? string.Empty, token).ConfigureAwait (false);
+				return 0;
 			}, cancellationToken));
 
 	return command;
@@ -170,8 +170,8 @@ static Command CreateChangeSiteCommand ()
 	command.SetAction ((parseResult, cancellationToken) =>
 		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
 			{
-			await PowerwallActions.ChangeSiteAsync (powerwall, parseResult.GetValue (siteArgument) ?? string.Empty, token).ConfigureAwait (false);
-			return 0;
+				await PowerwallActions.ChangeSiteAsync (powerwall, parseResult.GetValue (siteArgument) ?? string.Empty, token).ConfigureAwait (false);
+				return 0;
 			}, cancellationToken));
 
 	return command;
@@ -189,15 +189,15 @@ static Command CreateSetGridChargingCommand ()
 	command.SetAction ((parseResult, cancellationToken) =>
 		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
 			{
-			var value = parseResult.GetValue (modeArgument);
-			if (!TryParseOnOff (value, out var enabled))
-				{
-				ConsoleHelpers.WriteError ("Usage: setgridcharging <on|off>");
-				return 2;
-				}
+				var value = parseResult.GetValue (modeArgument);
+				if (!TryParseOnOff (value, out var enabled))
+					{
+					ConsoleHelpers.WriteError ("Usage: setgridcharging <on|off>");
+					return 2;
+					}
 
-			await PowerwallActions.SetGridChargingAsync (powerwall, enabled, token).ConfigureAwait (false);
-			return 0;
+				await PowerwallActions.SetGridChargingAsync (powerwall, enabled, token).ConfigureAwait (false);
+				return 0;
 			}, cancellationToken));
 
 	return command;
@@ -215,8 +215,8 @@ static Command CreateSetGridExportCommand ()
 	command.SetAction ((parseResult, cancellationToken) =>
 		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
 			{
-			await PowerwallActions.SetGridExportAsync (powerwall, parseResult.GetValue (modeArgument) ?? string.Empty, token).ConfigureAwait (false);
-			return 0;
+				await PowerwallActions.SetGridExportAsync (powerwall, parseResult.GetValue (modeArgument) ?? string.Empty, token).ConfigureAwait (false);
+				return 0;
 			}, cancellationToken));
 
 	return command;
@@ -234,15 +234,15 @@ static Command CreateSetStormWatchCommand ()
 	command.SetAction ((parseResult, cancellationToken) =>
 		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
 			{
-			var value = parseResult.GetValue (modeArgument);
-			if (!TryParseOnOff (value, out var enabled))
-				{
-				ConsoleHelpers.WriteError ("Usage: setstormwatch <on|off>");
-				return 2;
-				}
+				var value = parseResult.GetValue (modeArgument);
+				if (!TryParseOnOff (value, out var enabled))
+					{
+					ConsoleHelpers.WriteError ("Usage: setstormwatch <on|off>");
+					return 2;
+					}
 
-			await PowerwallActions.SetStormWatchAsync (powerwall, enabled, token).ConfigureAwait (false);
-			return 0;
+				await PowerwallActions.SetStormWatchAsync (powerwall, enabled, token).ConfigureAwait (false);
+				return 0;
 			}, cancellationToken));
 
 	return command;
@@ -257,7 +257,7 @@ static Command CreateHistoryCommand ()
 
 	var periodArgument = new Argument<string?> ("period")
 		{
-		Description = $"Aggregation period ({ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)}). Optional; {ConsoleHelpers.DefaultChoiceLegend}.",
+		Description = $"Aggregation period ({ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)}). Optional; {ConsoleHelpers.DEFAULT_CHOICE_LEGEND}.",
 		Arity = ArgumentArity.ZeroOrOne
 		};
 
@@ -267,8 +267,8 @@ static Command CreateHistoryCommand ()
 	command.SetAction ((parseResult, cancellationToken) =>
 		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
 			{
-			await PowerwallActions.HistoryAsync (powerwall, parseResult.GetValue (kindArgument) ?? string.Empty, parseResult.GetValue (periodArgument), token).ConfigureAwait (false);
-			return 0;
+				await PowerwallActions.HistoryAsync (powerwall, parseResult.GetValue (kindArgument) ?? string.Empty, parseResult.GetValue (periodArgument), token).ConfigureAwait (false);
+				return 0;
 			}, cancellationToken));
 
 	return command;
@@ -283,7 +283,7 @@ static Command CreateCalendarHistoryCommand ()
 
 	var periodArgument = new Argument<string?> ("period")
 		{
-		Description = $"Aggregation period ({ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)}). Optional; {ConsoleHelpers.DefaultChoiceLegend}.",
+		Description = $"Aggregation period ({ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)}). Optional; {ConsoleHelpers.DEFAULT_CHOICE_LEGEND}.",
 		Arity = ArgumentArity.ZeroOrOne
 		};
 
@@ -293,8 +293,8 @@ static Command CreateCalendarHistoryCommand ()
 	command.SetAction ((parseResult, cancellationToken) =>
 		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
 			{
-			await PowerwallActions.CalendarHistoryAsync (powerwall, parseResult.GetValue (kindArgument) ?? string.Empty, parseResult.GetValue (periodArgument), token).ConfigureAwait (false);
-			return 0;
+				await PowerwallActions.CalendarHistoryAsync (powerwall, parseResult.GetValue (kindArgument) ?? string.Empty, parseResult.GetValue (periodArgument), token).ConfigureAwait (false);
+				return 0;
 			}, cancellationToken));
 
 	return command;
@@ -309,7 +309,7 @@ static Command CreateTypedHistoryCommand ()
 
 	var periodArgument = new Argument<string?> ("period")
 		{
-		Description = $"Aggregation period ({ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)}). Optional; {ConsoleHelpers.DefaultChoiceLegend}.",
+		Description = $"Aggregation period ({ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)}). Optional; {ConsoleHelpers.DEFAULT_CHOICE_LEGEND}.",
 		Arity = ArgumentArity.ZeroOrOne
 		};
 
@@ -319,8 +319,8 @@ static Command CreateTypedHistoryCommand ()
 	command.SetAction ((parseResult, cancellationToken) =>
 		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
 			{
-			await PowerwallActions.TypedHistoryAsync (powerwall, parseResult.GetValue (kindArgument) ?? string.Empty, parseResult.GetValue (periodArgument), token).ConfigureAwait (false);
-			return 0;
+				await PowerwallActions.TypedHistoryAsync (powerwall, parseResult.GetValue (kindArgument) ?? string.Empty, parseResult.GetValue (periodArgument), token).ConfigureAwait (false);
+				return 0;
 			}, cancellationToken));
 
 	return command;
@@ -355,7 +355,7 @@ static Command CreateCaptureCalendarHistoryCommand ()
 
 	var periodArgument = new Argument<string?> ("period")
 		{
-		Description = $"Aggregation period ({ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)}). Optional; {ConsoleHelpers.DefaultChoiceLegend}.",
+		Description = $"Aggregation period ({ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)}). Optional; {ConsoleHelpers.DEFAULT_CHOICE_LEGEND}.",
 		Arity = ArgumentArity.ZeroOrOne
 		};
 
@@ -365,12 +365,12 @@ static Command CreateCaptureCalendarHistoryCommand ()
 	command.SetAction ((parseResult, cancellationToken) =>
 		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
 			{
-			await PowerwallActions.CaptureCalendarHistoryAsync (
-				powerwall,
-				parseResult.GetValue (outputArgument) ?? string.Empty,
-				parseResult.GetValue (periodArgument),
-				token).ConfigureAwait (false);
-			return 0;
+				await PowerwallActions.CaptureCalendarHistoryAsync (
+					powerwall,
+					parseResult.GetValue (outputArgument) ?? string.Empty,
+					parseResult.GetValue (periodArgument),
+					token).ConfigureAwait (false);
+				return 0;
 			}, cancellationToken));
 
 	return command;
@@ -388,8 +388,8 @@ static Command CreatePollCommand ()
 	command.SetAction ((parseResult, cancellationToken) =>
 		RunWithConnectionAsync (parseResult, async (powerwall, token) =>
 			{
-			await PowerwallActions.PollAsync (powerwall, parseResult.GetValue (apiArgument) ?? string.Empty, token).ConfigureAwait (false);
-			return 0;
+				await PowerwallActions.PollAsync (powerwall, parseResult.GetValue (apiArgument) ?? string.Empty, token).ConfigureAwait (false);
+				return 0;
 			}, cancellationToken));
 
 	return command;
@@ -400,46 +400,46 @@ static Command CreateConfigCommand ()
 	var showCommand = new Command ("show", "Show the persisted connection settings and their file location.");
 	showCommand.SetAction (_ =>
 		{
-		var settings = SettingsStore.Load ();
-		ConsoleHelpers.WriteHeading ("Saved Settings");
-		ConsoleHelpers.WriteField ("File", SettingsStore.FilePath);
-		ConsoleHelpers.WriteField ("Host", settings.Host);
-		ConsoleHelpers.WriteField ("Password", string.IsNullOrEmpty (settings.ProtectedPassword) ? null : "(stored, encrypted)");
-		ConsoleHelpers.WriteField ("Email", settings.Email);
-		ConsoleHelpers.WriteField ("Timezone", settings.Timezone);
-		ConsoleHelpers.WriteField ("Timeout (s)", settings.TimeoutSeconds?.ToString ());
-		ConsoleHelpers.WriteField ("Cache expire (s)", settings.CacheExpireSeconds?.ToString ());
+			var settings = SettingsStore.Load ();
+			ConsoleHelpers.WriteHeading ("Saved Settings");
+			ConsoleHelpers.WriteField ("File", SettingsStore.FilePath);
+			ConsoleHelpers.WriteField ("Host", settings.Host);
+			ConsoleHelpers.WriteField ("Password", string.IsNullOrEmpty (settings.ProtectedPassword) ? null : "(stored, encrypted)");
+			ConsoleHelpers.WriteField ("Email", settings.Email);
+			ConsoleHelpers.WriteField ("Timezone", settings.Timezone);
+			ConsoleHelpers.WriteField ("Timeout (s)", settings.TimeoutSeconds?.ToString (System.Globalization.CultureInfo.InvariantCulture));
+			ConsoleHelpers.WriteField ("Cache expire (s)", settings.CacheExpireSeconds?.ToString (System.Globalization.CultureInfo.InvariantCulture));
 
-		// Cloud tokens and the selected site are owned by the library (keyed by email), not the console
-		// settings file. Report what the library has cached for the remembered (or default) account.
-		var email = string.IsNullOrWhiteSpace (settings.Email) ? Constants.DEFAULT_EMAIL : settings.Email!;
-		var hasTokens = Powerwall.TryGetStoredCloudTokens (email, out string? _, out string? _);
-		ConsoleHelpers.WriteField ("Cloud tokens", hasTokens ? $"(stored by library for {email})" : null);
-		ConsoleHelpers.WriteField ("Token cache", Powerwall.GetCloudTokenCachePath (email));
-		ConsoleHelpers.WriteField ("Region", settings.Region);
+			// Cloud tokens and the selected site are owned by the library (keyed by email), not the console
+			// settings file. Report what the library has cached for the remembered (or default) account.
+			var email = string.IsNullOrWhiteSpace (settings.Email) ? Constants.DEFAULT_EMAIL : settings.Email!;
+			var hasTokens = Powerwall.TryGetStoredCloudTokens (email, out string? _, out string? _);
+			ConsoleHelpers.WriteField ("Cloud tokens", hasTokens ? $"(stored by library for {email})" : null);
+			ConsoleHelpers.WriteField ("Token cache", Powerwall.GetCloudTokenCachePath (email));
+			ConsoleHelpers.WriteField ("Region", settings.Region);
 
-		// FleetAPI tokens and the selected site are also owned by the library (keyed by email), not the
-		// console settings file; the console only persists the non-secret Client ID/region here so the
-		// initial refresh token prompt is not required on every run. Report what the library has cached.
-		var hasFleetApiTokens = Powerwall.TryGetStoredFleetApiTokens (email, out string? _, out string? _);
-		ConsoleHelpers.WriteField ("FleetAPI Client ID", settings.FleetApiClientId);
-		ConsoleHelpers.WriteField ("FleetAPI tokens", hasFleetApiTokens ? $"(stored by library for {email})" : null);
-		ConsoleHelpers.WriteField ("FleetAPI token cache", Powerwall.GetFleetApiTokenCachePath (email));
-		ConsoleHelpers.WriteField ("FleetAPI region", settings.FleetApiRegion);
-		ConsoleHelpers.WriteField ("Prefer FleetAPI", settings.PreferFleetApi is true ? "yes" : null);
-		return 0;
+			// FleetAPI tokens and the selected site are also owned by the library (keyed by email), not the
+			// console settings file; the console only persists the non-secret Client ID/region here so the
+			// initial refresh token prompt is not required on every run. Report what the library has cached.
+			var hasFleetApiTokens = Powerwall.TryGetStoredFleetApiTokens (email, out string? _, out string? _);
+			ConsoleHelpers.WriteField ("FleetAPI Client ID", settings.FleetApiClientId);
+			ConsoleHelpers.WriteField ("FleetAPI tokens", hasFleetApiTokens ? $"(stored by library for {email})" : null);
+			ConsoleHelpers.WriteField ("FleetAPI token cache", Powerwall.GetFleetApiTokenCachePath (email));
+			ConsoleHelpers.WriteField ("FleetAPI region", settings.FleetApiRegion);
+			ConsoleHelpers.WriteField ("Prefer FleetAPI", settings.PreferFleetApi is true ? "yes" : null);
+			return 0;
 		});
 
 	var clearCommand = new Command ("clear", "Delete the persisted connection settings, including the stored password, and cached cloud and FleetAPI tokens.");
 	clearCommand.SetAction (_ =>
 		{
-		var settings = SettingsStore.Load ();
-		var email = string.IsNullOrWhiteSpace (settings.Email) ? Constants.DEFAULT_EMAIL : settings.Email!;
-		Powerwall.ClearStoredCloudTokens (email);
-		Powerwall.ClearStoredFleetApiTokens (email);
-		SettingsStore.Clear ();
-		ConsoleHelpers.WriteSuccess ("Saved settings and cached cloud and FleetAPI tokens cleared.");
-		return 0;
+			var settings = SettingsStore.Load ();
+			var email = string.IsNullOrWhiteSpace (settings.Email) ? Constants.DEFAULT_EMAIL : settings.Email!;
+			Powerwall.ClearStoredCloudTokens (email);
+			Powerwall.ClearStoredFleetApiTokens (email);
+			SettingsStore.Clear ();
+			ConsoleHelpers.WriteSuccess ("Saved settings and cached cloud and FleetAPI tokens cleared.");
+			return 0;
 		});
 
 	var command = new Command ("config", "Manage the persisted connection settings stored under %LocalAppData%.");
@@ -447,8 +447,8 @@ static Command CreateConfigCommand ()
 	command.Subcommands.Add (clearCommand);
 	command.SetAction (_ =>
 		{
-		ConsoleHelpers.WriteError ("Specify a subcommand: 'config show' or 'config clear'.");
-		return 1;
+			ConsoleHelpers.WriteError ("Specify a subcommand: 'config show' or 'config clear'.");
+			return 1;
 		});
 
 	return command;
@@ -461,11 +461,17 @@ static async Task<int> RunInteractiveAsync (ParseResult parseResult, Cancellatio
 		VerboseLogging.Enable ();
 
 	using var localResources = await LocalConsoleResources.PrepareAsync (resolved, parseResult, cancellationToken).ConfigureAwait (false);
-	resolved = resolved with { Options = localResources.Options };
+	resolved = resolved with
+		{
+		Options = localResources.Options
+		};
 	Powerwall powerwall;
 	try
 		{
-		powerwall = new Powerwall (resolved.Options with { Logger = VerboseLogging.Logger });
+		powerwall = new Powerwall (resolved.Options with
+			{
+			Logger = VerboseLogging.Logger
+			});
 		}
 	catch (Exception exc) when (exc is PowerwallInvalidConfigurationException or ArgumentException)
 		{
@@ -519,11 +525,17 @@ static async Task<int> RunWithConnectionAsync (
 		VerboseLogging.Enable ();
 
 	using var localResources = await LocalConsoleResources.PrepareAsync (resolved, parseResult, cancellationToken).ConfigureAwait (false);
-	resolved = resolved with { Options = localResources.Options };
+	resolved = resolved with
+		{
+		Options = localResources.Options
+		};
 	Powerwall powerwall;
 	try
 		{
-		powerwall = new Powerwall (resolved.Options with { Logger = VerboseLogging.Logger });
+		powerwall = new Powerwall (resolved.Options with
+			{
+			Logger = VerboseLogging.Logger
+			});
 		}
 	catch (PowerwallInvalidConfigurationException exc)
 		{
@@ -583,24 +595,24 @@ static Command CreateLocalKeyCommand ()
 	string KeyName (ParseResult result) => result.GetValue (CliOptions.LocalKeyName)
 		?? Environment.GetEnvironmentVariable ("PW_LOCAL_KEY")
 		?? SettingsStore.Load ().LocalSigningKeyName
-		?? LocalSigningKeyStore.DefaultKeyName;
+		?? LocalSigningKeyStore.DEFAULT_KEY_NAME;
 	var create = new Command ("create", "Create a nonexportable RSA-4096 key locally; preserve it if it already exists. No cloud request.");
 	create.SetAction (result =>
 		{
-		using var key = LocalSigningKeyStore.CreateOrOpen (KeyName (result));
-		Console.WriteLine ("Windows signing key is ready. This action does not register or verify it.");
-		return 0;
+			using var key = LocalSigningKeyStore.CreateOrOpen (KeyName (result));
+			Console.WriteLine ("Windows signing key is ready. This action does not register or verify it.");
+			return 0;
 		});
 	command.Subcommands.Add (create);
 	var status = new Command ("status", "Read this key's verification state using the selected Owner or Fleet connection.");
 	status.SetAction ((result, ct) => RunWithConnectionAsync (result, async (pw, token) =>
 		{
-		using var key = LocalSigningKeyStore.Open (KeyName (result));
-		var state = await pw.GetLocalKeyStatusAsync (key, token).ConfigureAwait (false);
-		Console.WriteLine ($"State: {state.State}\nPublic-key fingerprint: {state.Fingerprint}");
-		if (state.State == TeslaPowerwallLibrary.Tedapi.LocalKeyState.VerificationTimedOut)
-			Console.WriteLine ("The physical verification window expired. Reuse this key and register only when ready.");
-		return 0;
+			using var key = LocalSigningKeyStore.Open (KeyName (result));
+			var state = await pw.GetLocalKeyStatusAsync (key, token).ConfigureAwait (false);
+			Console.WriteLine ($"State: {state.State}\nPublic-key fingerprint: {state.Fingerprint}");
+			if (state.State == TeslaPowerwallLibrary.Tedapi.LocalKeyState.VerificationTimedOut)
+				Console.WriteLine ("The physical verification window expired. Reuse this key and register only when ready.");
+			return 0;
 		}, ct));
 	command.Subcommands.Add (status);
 	var ready = new Option<bool> ("--ready-for-physical-verification")
@@ -611,21 +623,21 @@ static Command CreateLocalKeyCommand ()
 	register.Options.Add (ready);
 	register.SetAction ((result, ct) =>
 		{
-		if (!result.GetValue (ready))
-			{
-			ConsoleHelpers.WriteError ("Coordinate the physical verification procedure first, then pass --ready-for-physical-verification.");
-			return Task.FromResult (2);
-			}
-		return RunWithConnectionAsync (result, async (pw, token) =>
-			{
-			using var key = LocalSigningKeyStore.Open (KeyName (result));
-			Console.WriteLine ("Sending one enrollment request. If the outcome is uncertain, check status before retrying.");
-			var state = await pw.RegisterLocalKeyAsync (key, "TeslaPowerwall console local client", token).ConfigureAwait (false);
-			Console.WriteLine ($"State: {state.State}\nPublic-key fingerprint: {state.Fingerprint}");
-			if (state.State == TeslaPowerwallLibrary.Tedapi.LocalKeyState.PendingVerification)
-				Console.WriteLine ("Awaiting physical verification. Complete the coordinated procedure, then run local-key status.");
-			return 0;
-			}, ct);
+			if (!result.GetValue (ready))
+				{
+				ConsoleHelpers.WriteError ("Coordinate the physical verification procedure first, then pass --ready-for-physical-verification.");
+				return Task.FromResult (2);
+				}
+			return RunWithConnectionAsync (result, async (pw, token) =>
+				{
+					using var key = LocalSigningKeyStore.Open (KeyName (result));
+					Console.WriteLine ("Sending one enrollment request. If the outcome is uncertain, check status before retrying.");
+					var state = await pw.RegisterLocalKeyAsync (key, "TeslaPowerwall console local client", token).ConfigureAwait (false);
+					Console.WriteLine ($"State: {state.State}\nPublic-key fingerprint: {state.Fingerprint}");
+					if (state.State == TeslaPowerwallLibrary.Tedapi.LocalKeyState.PendingVerification)
+						Console.WriteLine ("Awaiting physical verification. Complete the coordinated procedure, then run local-key status.");
+					return 0;
+				}, ct);
 		});
 	command.Subcommands.Add (register);
 	return command;

@@ -160,8 +160,8 @@ public sealed class CalendarHistoryParserTests
 		Assert.That (backup.Events.Count, Is.EqualTo (0));
 		Assert.That (backup.EventsCount, Is.EqualTo (0));
 		Assert.That (backup.TotalEvents, Is.EqualTo (0));
-		Assert.That (backup.NextStartDate, Is.EqualTo (DateTimeOffset.Parse ("2026-06-24T15:23:00Z")));
-		Assert.That (backup.NextEndDate, Is.EqualTo (DateTimeOffset.Parse ("2026-07-06T18:20:18Z")));
+		Assert.That (backup.NextStartDate, Is.EqualTo (DateTimeOffset.Parse ("2026-06-24T15:23:00Z", System.Globalization.CultureInfo.InvariantCulture)));
+		Assert.That (backup.NextEndDate, Is.EqualTo (DateTimeOffset.Parse ("2026-07-06T18:20:18Z", System.Globalization.CultureInfo.InvariantCulture)));
 		}
 
 	[Test]

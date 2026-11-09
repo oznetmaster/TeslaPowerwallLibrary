@@ -10,5 +10,8 @@ internal sealed record BatteryLevelResponse
 	/// <value>A raw gateway-scale percentage; numeric strings are rejected by this validated contract.</value>
 	[JsonPropertyName ("percentage")]
 	[JsonNumberHandling (JsonNumberHandling.Strict)]
-	public double? Percentage { get; init; }
+	public double? Percentage
+		{
+		get; init;
+		}
 	}

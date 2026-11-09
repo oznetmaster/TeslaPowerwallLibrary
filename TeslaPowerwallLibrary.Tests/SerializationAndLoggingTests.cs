@@ -1,3 +1,6 @@
+// Copyright © 2026 Neil Colvin.
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+
 using System.Text.Json;
 
 using Microsoft.Extensions.Logging;
@@ -71,15 +74,15 @@ public sealed class SerializationAndLoggingTests
 	public void LibraryAssembly_DoesNotReferenceRemovedDependencies ()
 		{
 		var assembly = typeof (Powerwall).Assembly;
-        var references = assembly.GetReferencedAssemblies ().Select (a => a.Name).ToArray ();
+		var references = assembly.GetReferencedAssemblies ().Select (a => a.Name).ToArray ();
 		Assert.That (references, Does.Not.Contain ("Newtonsoft.Json"));
 		Assert.That (references, Does.Not.Contain ("log4net"));
 		// Processor packages merge the library and runtime dependencies into one assembly.
-        var available = references.Concat (new[] { assembly.GetName ().Name });
-        Assert.That (available, Does.Contain (typeof (JsonSerializer).Assembly.GetName ().Name));
-        Assert.That (available, Does.Contain (typeof (ILogger).Assembly.GetName ().Name));
-        Assert.That (assembly.GetType ("Newtonsoft.Json.Linq.JObject"), Is.Null);
-        Assert.That (assembly.GetType ("log4net.LogManager"), Is.Null);
+		var available = references.Concat (new[] { assembly.GetName ().Name });
+		Assert.That (available, Does.Contain (typeof (JsonSerializer).Assembly.GetName ().Name));
+		Assert.That (available, Does.Contain (typeof (ILogger).Assembly.GetName ().Name));
+		Assert.That (assembly.GetType ("Newtonsoft.Json.Linq.JObject"), Is.Null);
+		Assert.That (assembly.GetType ("log4net.LogManager"), Is.Null);
 		}
 
 	internal sealed class CaptureLogger (string context) : ILogger, IDisposable

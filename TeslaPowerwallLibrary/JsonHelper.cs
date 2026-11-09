@@ -1,3 +1,6 @@
+// Copyright © 2026 Neil Colvin.
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -86,7 +89,7 @@ internal sealed class ScalarStringConverter : JsonConverter<string>
 			_ => throw new JsonException ("Expected a string or scalar identifier.")
 			};
 	public override void Write (Utf8JsonWriter writer, string value, JsonSerializerOptions options) => writer.WriteStringValue (value);
-    public override string ReadAsPropertyName (ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => reader.GetString ()!;
-    public override void WriteAsPropertyName (Utf8JsonWriter writer, string value, JsonSerializerOptions options) => writer.WritePropertyName (value);
+	public override string ReadAsPropertyName (ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => reader.GetString ()!;
+	public override void WriteAsPropertyName (Utf8JsonWriter writer, string value, JsonSerializerOptions options) => writer.WritePropertyName (value);
 
 	}

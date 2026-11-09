@@ -42,7 +42,10 @@ public sealed record PowerwallOptions
 	{
 	/// <summary>Protocol for direct local access. This does not enable cloud authentication or fallback.</summary>
 	/// <value>Protocol for direct local access. This does not enable cloud authentication or fallback.</value>
-	public PowerwallLocalProtocol LocalProtocol { get; init; }
+	public PowerwallLocalProtocol LocalProtocol
+		{
+		get; init;
+		}
 
 	/// <summary>Gets the explicit TEDAPI query set; June 2024 is the default. No automatic cross-version fallback occurs.</summary>
 	/// <value>The explicit TEDAPI query set; June 2024 is the default. No automatic cross-version fallback occurs.</value>
@@ -53,14 +56,20 @@ public sealed record PowerwallOptions
 	/// Controller reads use it only when <see cref="EnableLocalReadFailover"/> is enabled. Writes always use the primary signed LAN connection.</remarks>
 	/// <value>Optional, already authenticated setup-network connection for follower component reads from a signed LAN client.</value>
 	[System.Text.Json.Serialization.JsonIgnore]
-	public Tedapi.PowerwallTedapiClient? LocalFollowerConnection { get; init; }
+	public Tedapi.PowerwallTedapiClient? LocalFollowerConnection
+		{
+		get; init;
+		}
 
 	/// <summary>Enables read-only failover from signed LAN to the explicit, already authenticated <see cref="LocalFollowerConnection"/>.</summary>
 	/// <remarks>Defaults to false. Three consecutive network failures or request timeouts switch supported reads to the setup-network connection.
 	/// Initial LAN unavailability can start directly on that connection. Device identities must match. Authentication failures,
 	/// malformed responses, rate limits and caller cancellation never trigger failover. No writes are replayed or redirected.</remarks>
 	/// <value>Enables read-only failover from signed LAN to the explicit, already authenticated <see cref="LocalFollowerConnection"/>.</value>
-	public bool EnableLocalReadFailover { get; init; }
+	public bool EnableLocalReadFailover
+		{
+		get; init;
+		}
 
 	/// <summary>Delay before a caller's next read retries LAN after failover. Defaults to 60 seconds; must be positive.</summary>
 	/// <remarks>No background timer or polling loop is created. Failed recovery attempts wait another interval.</remarks>
@@ -100,7 +109,10 @@ public sealed record PowerwallOptions
 	/// The library never registers the key or contacts a cloud API on behalf of a local connection.
 	/// </value>
 	[System.Text.Json.Serialization.JsonIgnore]
-	public System.Security.Cryptography.RSA? LocalSigningKey { get; init; }
+	public System.Security.Cryptography.RSA? LocalSigningKey
+		{
+		get; init;
+		}
 
 	/// <summary>Caller-owned logger used by this connection and its clients. Defaults to no logging.
 	/// Supply a logger with the desired category and scopes to associate messages with an application or device.</summary>

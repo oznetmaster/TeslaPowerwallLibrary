@@ -14,7 +14,10 @@ public sealed record LocalHistorySite
 	public string SiteId { get; init; } = string.Empty;
 	/// <summary>Gets the site's display name.</summary>
 	[JsonPropertyName ("siteName")]
-	public string? SiteName { get; init; }
+	public string? SiteName
+		{
+		get; init;
+		}
 	}
 
 /// <summary>Maintains hardware identity independently of cloud provider and account selection.</summary>

@@ -30,15 +30,17 @@ public partial class EnergyView : UserControl
 		}
 	private void OnChartDataChanged (object sender, System.Windows.Data.DataTransferEventArgs e)
 		{
-		if (e.Property != LiveChartsCore.SkiaSharpView.WPF.CartesianChart.SeriesProperty) return;
+		if (e.Property != LiveChartsCore.SkiaSharpView.WPF.CartesianChart.SeriesProperty)
+			return;
 		// Series replacement can complete while the empty-state binding hides the canvas.
 		// Measure and invalidate once after bindings/layout settle; ordinary LAN appends
 		// retain their observable collection and do not take this path.
 		Dispatcher.BeginInvoke (System.Windows.Threading.DispatcherPriority.ContextIdle, new System.Action (() =>
 			{
-			if (!HistoryChart.IsLoaded || !HistoryChart.IsVisible) return;
-			HistoryChart.CoreChart.Update (new LiveChartsCore.Kernel.ChartUpdateParams { IsAutomaticUpdate = false, Throttling = false });
-			HistoryChart.CoreCanvas.Invalidate ();
+				if (!HistoryChart.IsLoaded || !HistoryChart.IsVisible)
+					return;
+				HistoryChart.CoreChart.Update (new LiveChartsCore.Kernel.ChartUpdateParams { IsAutomaticUpdate = false, Throttling = false });
+				HistoryChart.CoreCanvas.Invalidate ();
 			}));
 		}
 

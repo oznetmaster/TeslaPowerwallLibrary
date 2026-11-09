@@ -4,12 +4,15 @@
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text.Json;
+
 using Google.Protobuf;
+
 using TeslaPowerwallLibrary.Local;
 using TeslaPowerwallLibrary.Tedapi;
+
+using Graphql = TeslaPowerwallLibrary.Tedapi.Protocol.Graphql;
 using Legacy = TeslaPowerwallLibrary.Tedapi.Protocol.Legacy;
 using Signed = TeslaPowerwallLibrary.Tedapi.Protocol.Signed;
-using Graphql = TeslaPowerwallLibrary.Tedapi.Protocol.Graphql;
 
 namespace TeslaPowerwallLibrary.Tests;
 
@@ -84,64 +87,106 @@ public sealed partial class TedapiTests
 	private sealed class SolarHoldHarness : IDisposable
 		{
 		internal LocalTelemetry Telemetry { get; set; } = LocalSolarMeterHoldTests.Telemetry ();
-		internal int Queries { get; private set; }
-		internal int Configurations { get; private set; }
-		internal string? Failure { get; set; }
+		internal int Queries
+			{
+			get; private set;
+			}
+		internal int Configurations
+			{
+			get; private set;
+			}
+		internal string? Failure
+			{
+			get; set;
+			}
 		internal CancellationTokenSource Cancel { get; } = new ();
-		internal PowerwallTedapiClient Client { get; }
+		internal PowerwallTedapiClient Client
+			{
+			get;
+			}
 
 		internal SolarHoldHarness (PowerwallLocalProtocol protocol = PowerwallLocalProtocol.Tedapi,
 			TedapiQueryVersion version = TedapiQueryVersion.June2024, RSA? key = null)
 			{
-			Client = new PowerwallTedapiClient (Options () with { LocalProtocol = protocol, LocalQueryVersion = version,
-				Password = "synthetic", LocalSigningKey = key }, new ScriptedHandler (async (request, _) =>
+			Client = new PowerwallTedapiClient (Options () with
 				{
-				if (request.RequestUri!.AbsolutePath == "/api/login/Basic") return Text ("{\"token\":\"synthetic\"}");
-				if (request.RequestUri.AbsolutePath == "/tedapi/din") return Text (DIN);
-				byte[] bytes = await request.Content!.ReadAsByteArrayAsync ();
-				ByteString incoming = protocol switch
-					{
-					PowerwallLocalProtocol.TedapiSigned => Signed.RoutableMessage.Parser.ParseFrom (bytes).ProtobufMessageAsBytes,
-					PowerwallLocalProtocol.TedapiBearer => Signed.AuthEnvelope.Parser.ParseFrom (bytes).Payload,
-					_ => Graphql.Frame.Parser.ParseFrom (bytes).Message
-					};
-				var legacy = Legacy.MessageEnvelope.Parser.ParseFrom (incoming);
-				ByteString reply;
-				if (legacy.Config is not null)
-					{
-					Configurations++;
-					if (Failure == "configuration") throw new HttpRequestException ("synthetic config failure");
-					string config = JsonSerializer.Serialize (LocalSolarMeterHoldTests.Configuration ());
-					reply = protocol != PowerwallLocalProtocol.Tedapi ? new Signed.MessageEnvelope { Filestore = new Signed.FileStoreMessages
-						{ ReadFileResponse = new Signed.FileStoreAPIReadFileResponse { File = new Signed.FileStoreAPIFile { Blob = ByteString.CopyFromUtf8 (config) } } } }.ToByteString ()
-						: new Legacy.Message { Message_ = new Legacy.MessageEnvelope { Config = new Legacy.ConfigType
-							{ Recv = new Legacy.PayloadConfigRecv { File = new Legacy.ConfigString { Text = config } } } } }.ToByteString ();
-					}
-				else
-					{
-					Queries++;
-					if (Queries > 1 && Failure == "network") throw new HttpRequestException ("synthetic detail failure");
-					if (Queries > 1 && Failure == "cancel") { Cancel.Cancel (); throw new OperationCanceledException (Cancel.Token); }
-					string json = Queries > 1 && Failure == "malformed" ? "bad-json" : JsonSerializer.Serialize (Telemetry);
-					if (version == TedapiQueryVersion.June2026)
+				LocalProtocol = protocol,
+				LocalQueryVersion = version,
+				Password = "synthetic",
+				LocalSigningKey = key
+				}, new ScriptedHandler (async (request, _) =>
+				{
+					if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
+						return Text ("{\"token\":\"synthetic\"}");
+					if (request.RequestUri.AbsolutePath == "/tedapi/din")
+						return Text (DIN);
+					byte[] bytes = await request.Content!.ReadAsByteArrayAsync ();
+					ByteString incoming = protocol switch
 						{
-						var envelope = new Graphql.Envelope { Graphql = new Graphql.GraphQLMessages { QueryResponse = new Graphql.QueryResponse { Status = 1, Data = json } } };
-						reply = protocol == PowerwallLocalProtocol.Tedapi ? new Graphql.Frame { Message = envelope.ToByteString () }.ToByteString () : envelope.ToByteString ();
+							PowerwallLocalProtocol.TedapiSigned => Signed.RoutableMessage.Parser.ParseFrom (bytes).ProtobufMessageAsBytes,
+							PowerwallLocalProtocol.TedapiBearer => Signed.AuthEnvelope.Parser.ParseFrom (bytes).Payload,
+							_ => Graphql.Frame.Parser.ParseFrom (bytes).Message
+							};
+					var legacy = Legacy.MessageEnvelope.Parser.ParseFrom (incoming);
+					ByteString reply;
+					if (legacy.Config is not null)
+						{
+						Configurations++;
+						if (Failure == "configuration")
+							throw new HttpRequestException ("synthetic config failure");
+						string config = JsonSerializer.Serialize (LocalSolarMeterHoldTests.Configuration ());
+						reply = protocol != PowerwallLocalProtocol.Tedapi ? new Signed.MessageEnvelope
+							{
+							Filestore = new Signed.FileStoreMessages
+								{
+								ReadFileResponse = new Signed.FileStoreAPIReadFileResponse { File = new Signed.FileStoreAPIFile { Blob = ByteString.CopyFromUtf8 (config) } }
+								}
+							}.ToByteString ()
+							: new Legacy.Message
+								{
+								Message_ = new Legacy.MessageEnvelope
+									{
+									Config = new Legacy.ConfigType
+										{
+										Recv = new Legacy.PayloadConfigRecv { File = new Legacy.ConfigString { Text = config } }
+										}
+									}
+								}.ToByteString ();
 						}
 					else
 						{
-						var envelope = new Legacy.MessageEnvelope { Payload = new Legacy.QueryType { Recv = new Legacy.PayloadString { Text = json } } };
-						reply = protocol == PowerwallLocalProtocol.Tedapi ? new Legacy.Message { Message_ = envelope }.ToByteString () : envelope.ToByteString ();
+						Queries++;
+						if (Queries > 1 && Failure == "network")
+							throw new HttpRequestException ("synthetic detail failure");
+						if (Queries > 1 && Failure == "cancel")
+							{
+							Cancel.Cancel ();
+							throw new OperationCanceledException (Cancel.Token);
+							}
+						string json = Queries > 1 && Failure == "malformed" ? "bad-json" : JsonSerializer.Serialize (Telemetry);
+						if (version == TedapiQueryVersion.June2026)
+							{
+							var envelope = new Graphql.Envelope { Graphql = new Graphql.GraphQLMessages { QueryResponse = new Graphql.QueryResponse { Status = 1, Data = json } } };
+							reply = protocol == PowerwallLocalProtocol.Tedapi ? new Graphql.Frame { Message = envelope.ToByteString () }.ToByteString () : envelope.ToByteString ();
+							}
+						else
+							{
+							var envelope = new Legacy.MessageEnvelope { Payload = new Legacy.QueryType { Recv = new Legacy.PayloadString { Text = json } } };
+							reply = protocol == PowerwallLocalProtocol.Tedapi ? new Legacy.Message { Message_ = envelope }.ToByteString () : envelope.ToByteString ();
+							}
 						}
-					}
-				return Binary (protocol switch
-					{
-					PowerwallLocalProtocol.TedapiSigned => new Signed.RoutableMessage { ProtobufMessageAsBytes = reply }.ToByteArray (),
-					PowerwallLocalProtocol.TedapiBearer => new Signed.AuthEnvelope { Payload = reply }.ToByteArray (),
-					_ => reply.ToByteArray ()
-					});
+					return Binary (protocol switch
+						{
+							PowerwallLocalProtocol.TedapiSigned => new Signed.RoutableMessage { ProtobufMessageAsBytes = reply }.ToByteArray (),
+							PowerwallLocalProtocol.TedapiBearer => new Signed.AuthEnvelope { Payload = reply }.ToByteArray (),
+							_ => reply.ToByteArray ()
+							});
 				}));
 			}
-		public void Dispose () { Client.Dispose (); Cancel.Dispose (); }
+		public void Dispose ()
+			{
+			Client.Dispose ();
+			Cancel.Dispose ();
+			}
 		}
 	}

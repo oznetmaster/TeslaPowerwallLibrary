@@ -18,6 +18,7 @@ namespace TeslaPowerwallLibrary.TestConsole;
 /// </summary>
 internal static class PowerwallActions
 	{
+	private static readonly JsonSerializerOptions _prettyOptions = new () { WriteIndented = true };
 	/// <summary>Prints the gateway status, firmware version, DIN, and uptime.</summary>
 	public static async Task StatusAsync (Powerwall powerwall, CancellationToken cancellationToken)
 		{
@@ -508,7 +509,7 @@ internal static class PowerwallActions
 		try
 			{
 			var parsed = JsonSerializer.Deserialize<object> (json!);
-			return parsed is null ? json! : JsonSerializer.Serialize (parsed, new JsonSerializerOptions { WriteIndented = true });
+			return parsed is null ? json! : JsonSerializer.Serialize (parsed, _prettyOptions);
 			}
 		catch (JsonException)
 			{

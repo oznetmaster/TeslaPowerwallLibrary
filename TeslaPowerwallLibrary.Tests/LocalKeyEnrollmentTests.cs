@@ -17,6 +17,7 @@ namespace TeslaPowerwallLibrary.Tests;
 [NonParallelizable]
 public sealed class LocalKeyEnrollmentTests
 	{
+	private static readonly string[] _expectedAuthorizationFields = ["list_authorized_clients_request"];
 	private static RSA _key = null!;
 
 	[OneTimeSetUp]
@@ -33,7 +34,13 @@ public sealed class LocalKeyEnrollmentTests
 	public async Task Enrollment_UsesSelectedCloudSiteAndOnlyPublicKey (bool fleet)
 		{
 		using var rig = new EnrollmentRig (fleet);
-		rig.Handler.Response = Reply ("AddAuthorizedClientResponse", new { client = new { state = 1 } });
+		rig.Handler.Response = Reply ("AddAuthorizedClientResponse", new
+			{
+			client = new
+				{
+				state = 1
+				}
+			});
 		LocalKeyRegistration result = await rig.Powerwall.RegisterLocalKeyAsync (_key, "Offline test client");
 		Assert.That (result.State, Is.EqualTo (LocalKeyState.PendingVerification));
 		Assert.That (result.Fingerprint, Has.Length.EqualTo (64));
@@ -76,7 +83,7 @@ public sealed class LocalKeyEnrollmentTests
 		Assert.That (result.State, Is.EqualTo (LocalKeyState.VerificationTimedOut));
 		using JsonDocument json = JsonDocument.Parse (rig.Handler.Requests.Single ().Body);
 		JsonElement authorization = json.RootElement.GetProperty ("command_properties").GetProperty ("message").GetProperty ("authorization");
-		Assert.That (authorization.EnumerateObject ().Select (p => p.Name), Is.EqualTo (new[] { "list_authorized_clients_request" }));
+		Assert.That (authorization.EnumerateObject ().Select (p => p.Name), Is.EqualTo (_expectedAuthorizationFields));
 		Assert.That (authorization.GetProperty ("list_authorized_clients_request").EnumerateObject (), Is.Empty);
 		}
 
@@ -85,7 +92,14 @@ public sealed class LocalKeyEnrollmentTests
 	public void RegistrationReply_AcceptsBothWireForms (string operation)
 		{
 		byte[] expected = TedapiSigning.PublicKeyDer (_key);
-		string json = Reply (operation, new { Client = new { PublicKey = Convert.ToBase64String (expected), State = 3 } });
+		string json = Reply (operation, new
+			{
+			Client = new
+				{
+				PublicKey = Convert.ToBase64String (expected),
+				State = 3
+				}
+			});
 		Assert.That (LocalKeyEnrollmentProtocol.Parse (json, expected, true).State, Is.EqualTo (LocalKeyState.Verified));
 		}
 
@@ -95,10 +109,20 @@ public sealed class LocalKeyEnrollmentTests
 		byte[] expected = TedapiSigning.PublicKeyDer (_key);
 		foreach (string? key in new[] { null, "AQID", "invalid base64" })
 			{
-			string json = Reply ("ListAuthorizedClientsResponse", new { clients = new[] { new { PublicKey = key, state = 3 } } });
+			string json = Reply ("ListAuthorizedClientsResponse", new
+				{
+				clients = new[] { new { PublicKey = key, state = 3 } }
+				});
 			Assert.That (LocalKeyEnrollmentProtocol.Parse (json, expected, false).State, Is.EqualTo (LocalKeyState.Unknown));
 			}
-		string wrongRegistration = Reply ("AddAuthorizedClientResponse", new { client = new { PublicKey = "AQID", state = 3 } });
+		string wrongRegistration = Reply ("AddAuthorizedClientResponse", new
+			{
+			client = new
+				{
+				PublicKey = "AQID",
+				state = 3
+				}
+			});
 		Assert.That (LocalKeyEnrollmentProtocol.Parse (wrongRegistration, expected, true).State, Is.EqualTo (LocalKeyState.Unknown));
 		}
 
@@ -110,7 +134,13 @@ public sealed class LocalKeyEnrollmentTests
 	[TestCase (99, LocalKeyState.Unknown)]
 	public void StateMapping_IsExplicit (int state, LocalKeyState expected)
 		{
-		string json = Reply ("AddAuthorizedClientResponse", new { client = new { state } });
+		string json = Reply ("AddAuthorizedClientResponse", new
+			{
+			client = new
+				{
+				state
+				}
+			});
 		Assert.That (LocalKeyEnrollmentProtocol.Parse (json, TedapiSigning.PublicKeyDer (_key), true).State, Is.EqualTo (expected));
 		}
 
@@ -178,7 +208,10 @@ public sealed class LocalKeyEnrollmentTests
 	private sealed class EnrollmentRig : IDisposable
 		{
 		internal EnrollmentHandler Handler { get; } = new ();
-		internal Powerwall Powerwall { get; }
+		internal Powerwall Powerwall
+			{
+			get;
+			}
 
 		internal EnrollmentRig (bool fleet)
 			{
@@ -209,12 +242,15 @@ public sealed class LocalKeyEnrollmentTests
 		{
 		internal List<(Uri Uri, string Body, string Token)> Requests { get; } = new ();
 		internal string Response { get; set; } = "{}";
-		internal bool FailTransport { get; set; }
+		internal bool FailTransport
+			{
+			get; set;
+			}
 
 		protected override async Task<HttpResponseMessage> SendAsync (HttpRequestMessage request, CancellationToken cancellationToken)
 			{
 			Assert.That (request.Method, Is.EqualTo (HttpMethod.Post));
-			Requests.Add ((request.RequestUri!, await request.Content!.ReadAsStringAsync (), request.Headers.Authorization!.ToString ()));
+			Requests.Add ((request.RequestUri!, await request.Content!.ReadAsStringAsync (cancellationToken), request.Headers.Authorization!.ToString ()));
 			if (FailTransport)
 				throw new HttpRequestException ("Synthetic uncertain response");
 			return new HttpResponseMessage (HttpStatusCode.OK) { Content = new StringContent (Response) };

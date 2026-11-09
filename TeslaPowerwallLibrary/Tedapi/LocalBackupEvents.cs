@@ -64,13 +64,17 @@ public sealed partial class PowerwallTedapiClient
 	/// <returns>Typed reported backup events.</returns>
 	public async Task<LocalBackupEvents> GetBackupEventsAsync (CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		RequireSignedAccess ();
 		await _gate.WaitAsync (cancellationToken).ConfigureAwait (false);
 		try
 			{
 			EnsureConnected ();
 			Signed.TEGMessages result = await SendTegAsync (new Signed.TEGMessages
-				{ GetBackupEventsRequest = new Signed.TEGAPIGetBackupEventsRequest () }, false, cancellationToken).ConfigureAwait (false);
+				{
+				GetBackupEventsRequest = new Signed.TEGAPIGetBackupEventsRequest ()
+				}, false, cancellationToken).ConfigureAwait (false);
 			Signed.TEGAPIGetBackupEventsResponse reply = result.GetBackupEventsResponse
 				?? throw new PowerwallConnectionException ("The gateway did not return backup events.");
 			return new LocalBackupEvents (Schedule (reply.ManualBackupEvent?.SchedulingInfo),
@@ -86,6 +90,8 @@ public sealed partial class PowerwallTedapiClient
 	/// <returns>The gateway's scheduling acknowledgement.</returns>
 	public async Task<LocalCommandResult> ScheduleMaxBackupAsync (TimeSpan duration, CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		double seconds = duration.TotalSeconds;
 		if (seconds < 60 || seconds > uint.MaxValue || seconds != Math.Truncate (seconds))
 			throw new ArgumentOutOfRangeException (nameof (duration), "Backup duration must be whole seconds, at least 60, within the protocol range.");
@@ -100,7 +106,11 @@ public sealed partial class PowerwallTedapiClient
 				ScheduleManualBackupEventRequest = new Signed.TEGAPIScheduleManualBackupEventRequest
 					{
 					SchedulingInfo = new Signed.ControlEventSchedulingInfo
-						{ StartTime = Timestamp.FromDateTimeOffset (DateTimeOffset.UtcNow), DurationSeconds = (uint)seconds, Priority = ulong.MaxValue }
+						{
+						StartTime = Timestamp.FromDateTimeOffset (DateTimeOffset.UtcNow),
+						DurationSeconds = (uint)seconds,
+						Priority = ulong.MaxValue
+						}
 					}
 				}, true, cancellationToken).ConfigureAwait (false);
 			if (reply.ScheduleManualBackupEventResponse is null)
@@ -120,6 +130,8 @@ public sealed partial class PowerwallTedapiClient
 	/// <returns>The gateway's cancellation acknowledgement.</returns>
 	public async Task<LocalCommandResult> CancelMaxBackupAsync (CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		RequireSignedControl ();
 		await _gate.WaitAsync (cancellationToken).ConfigureAwait (false);
 		try
@@ -151,13 +163,17 @@ public sealed partial class PowerwallTedapiClient
 
 	private async Task<LocalGridCommandResult> SetGridConnectionAsync (bool connected, CancellationToken cancellationToken)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		RequireSignedControl ();
 		await _gate.WaitAsync (cancellationToken).ConfigureAwait (false);
 		try
 			{
 			EnsureConnected ();
 			Signed.TEGMessages reply = await SendTegAsync (new Signed.TEGMessages
-				{ SetIslandModeRequest = new Signed.TEGAPISetIslandModeRequest { Mode = connected ? 1 : 6, Force = !connected } }, true, cancellationToken).ConfigureAwait (false);
+				{
+				SetIslandModeRequest = new Signed.TEGAPISetIslandModeRequest { Mode = connected ? 1 : 6, Force = !connected }
+				}, true, cancellationToken).ConfigureAwait (false);
 			return new LocalGridCommandResult (connected, reply.SetIslandModeResponse?.Result);
 			}
 		finally
@@ -170,7 +186,9 @@ public sealed partial class PowerwallTedapiClient
 	private async Task CancelMaxBackupCoreAsync (CancellationToken cancellationToken)
 		{
 		Signed.TEGMessages reply = await SendTegAsync (new Signed.TEGMessages
-			{ CancelManualBackupEventRequest = new Signed.TEGAPICancelManualBackupEventRequest () }, true, cancellationToken).ConfigureAwait (false);
+			{
+			CancelManualBackupEventRequest = new Signed.TEGAPICancelManualBackupEventRequest ()
+			}, true, cancellationToken).ConfigureAwait (false);
 		if (reply.CancelManualBackupEventResponse is null)
 			throw new PowerwallConnectionException ("The gateway did not acknowledge cancellation of the manual backup event. Read events before retrying.");
 		}

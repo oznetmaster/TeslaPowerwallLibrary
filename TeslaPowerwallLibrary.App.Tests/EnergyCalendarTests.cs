@@ -5,9 +5,12 @@ using System;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
+
 using LiveChartsCore.Defaults;
 using LiveChartsCore.SkiaSharpView;
+
 using NUnit.Framework;
+
 using TeslaPowerwallLibrary.App.Services;
 using TeslaPowerwallLibrary.App.ViewModels;
 
@@ -24,7 +27,9 @@ public sealed class EnergyCalendarTests
 		var now = At (2026, 10, 7, 23, 59, 55);
 		using var connection = new PowerwallConnectionService ();
 		using var model = new EnergyViewModel (connection, new EnergyHistoryCache ("unused.sqlite"), () => PowerwallMode.Local, () => now)
-			{ IsActive = true };
+			{
+			IsActive = true
+			};
 		model.RecordLocalSnapshotAsync (Sample (1000), now).GetAwaiter ().GetResult ();
 		now = At (2026, 10, 8, 0, 0, 5);
 		model.RecordLocalSnapshotAsync (Sample (2000), now).GetAwaiter ().GetResult ();
@@ -47,7 +52,9 @@ public sealed class EnergyCalendarTests
 		var now = At (2026, 10, 7, 23, 59, 59).AddMilliseconds (500);
 		using var connection = new PowerwallConnectionService ();
 		using var model = new EnergyViewModel (connection, new EnergyHistoryCache ("unused.sqlite"), () => PowerwallMode.Local, () => now)
-			{ IsActive = true };
+			{
+			IsActive = true
+			};
 		model.RecordLocalSnapshotAsync (Sample (1000), now).GetAwaiter ().GetResult ();
 		Assert.That (((LineSeries<ObservablePoint>)model.Series.Single ()).Values!.Single ().Y, Is.EqualTo (1));
 		now = now.AddMilliseconds (500);
@@ -98,7 +105,9 @@ public sealed class EnergyCalendarTests
 		var now = At (2026, 12, 31, 23, 59, 55);
 		using var connection = new PowerwallConnectionService ();
 		using var model = new EnergyViewModel (connection, new EnergyHistoryCache ("unused.sqlite"), () => PowerwallMode.Local, () => now)
-			{ SelectedPeriod = period };
+			{
+			SelectedPeriod = period
+			};
 		now = At (2027, 1, 1, 0, 0, 5);
 		Assert.That (model.AdvanceCurrentPeriod (now), Is.EqualTo (changed));
 		}
@@ -110,7 +119,9 @@ public sealed class EnergyCalendarTests
 		var now = At (2026, 10, 8, 1, 0, 0);
 		using var connection = new PowerwallConnectionService ();
 		using var model = new EnergyViewModel (connection, new EnergyHistoryCache ("unused.sqlite"), () => PowerwallMode.Local, () => now)
-			{ IsActive = true };
+			{
+			IsActive = true
+			};
 		model.RecordLocalSnapshotAsync (Sample (0), now).GetAwaiter ().GetResult ();
 		model.RecordLocalSnapshotAsync (Sample (1), now.AddSeconds (5)).GetAwaiter ().GetResult ();
 		var series = (LineSeries<ObservablePoint>)model.Series.Single ();
@@ -133,7 +144,9 @@ public sealed class EnergyCalendarTests
 		var now = At (2026, 10, 8, 1, 0, 0);
 		using var connection = new PowerwallConnectionService ();
 		using var model = new EnergyViewModel (connection, new EnergyHistoryCache ("unused.sqlite"), () => PowerwallMode.Local, () => now)
-			{ IsActive = true };
+			{
+			IsActive = true
+			};
 		model.Components.Single (c => c.Name == component).IsSelected = true;
 		model.ApplyHistory (new[] { new StoredEnergyPoint (now.AddMinutes (-5), 1, 1, 1, 1, 1, 1) });
 		model.RecordLocalSnapshotAsync (Sample (1000), now).GetAwaiter ().GetResult ();
@@ -153,7 +166,9 @@ public sealed class EnergyCalendarTests
 		var now = At (2026, 10, 11, 3, 0, 0); // Sunday belongs to the week starting Monday 5th.
 		using var connection = new PowerwallConnectionService ();
 		using var model = new EnergyViewModel (connection, new EnergyHistoryCache ("unused.sqlite"), () => PowerwallMode.Local, () => now)
-			{ SelectedPeriod = "week" };
+			{
+			SelectedPeriod = "week"
+			};
 		model.Components.Single (c => c.Name == "Home").IsSelected = true;
 		model.ApplyHistory (new[]
 			{

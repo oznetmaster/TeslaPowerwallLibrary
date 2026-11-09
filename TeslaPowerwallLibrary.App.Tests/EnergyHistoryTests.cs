@@ -9,10 +9,13 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+
 using LiveChartsCore.Defaults;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.SKCharts;
+
 using NUnit.Framework;
+
 using TeslaPowerwallLibrary.App.Converters;
 using TeslaPowerwallLibrary.App.Services;
 using TeslaPowerwallLibrary.App.ViewModels;
@@ -182,7 +185,11 @@ public sealed class EnergyHistoryCacheTests
 	[Test]
 	public async Task ProvisionalBatch_IsNotFrozenWhenItsDayEnds ()
 		{
-		_request = _request with { Start = _now.AddHours (-12), End = _now.AddHours (12) };
+		_request = _request with
+			{
+			Start = _now.AddHours (-12),
+			End = _now.AddHours (12)
+			};
 		var cache = new EnergyHistoryCache (_path, () => _now);
 		await cache.GetAsync (_request, Fetch, false, default);
 		_now = _now.AddMinutes (4);
@@ -206,12 +213,12 @@ public sealed class EnergyHistoryCacheTests
 		await cache.GetAsync (_request, Fetch, false, default);
 		var other = field switch
 			{
-			"account" => _request with { Account = "Fleet|test" },
-			"site" => _request with { Site = "site-b" },
-			"timezone" => _request with { Timezone = "America/Los_Angeles" },
-			"period" => _request with { Period = "week" },
-			_ => _request with { Start = _request.Start!.Value.AddDays (-1) }
-			};
+				"account" => _request with { Account = "Fleet|test" },
+				"site" => _request with { Site = "site-b" },
+				"timezone" => _request with { Timezone = "America/Los_Angeles" },
+				"period" => _request with { Period = "week" },
+				_ => _request with { Start = _request.Start!.Value.AddDays (-1) }
+				};
 		await cache.GetAsync (other, Fetch, false, default);
 		Assert.That (_fetches, Is.EqualTo (2));
 		}
@@ -277,7 +284,9 @@ public sealed class EnergyPresentationTests
 		{
 		using var connection = new PowerwallConnectionService ();
 		using var model = new EnergyViewModel (connection, new EnergyHistoryCache ("unused.sqlite"), () => PowerwallMode.Local)
-			{ SelectedPeriod = "lifetime" };
+			{
+			SelectedPeriod = "lifetime"
+			};
 		var first = new DateTimeOffset (new DateTime (2026, 6, 1));
 		var samples = Enumerable.Range (0, 600).Select (i => new StoredEnergyPoint (first.AddHours (i), 0.01, 0.02, 0.03, 0.01, 0.04, 0.02, 0.015)).ToList ();
 		samples.Add (new StoredEnergyPoint (first.AddMonths (2), 0, 0, 0, 0, 0, 0, 0));
@@ -300,7 +309,9 @@ public sealed class EnergyPresentationTests
 		{
 		using var connection = new PowerwallConnectionService ();
 		using var model = new EnergyViewModel (connection, new EnergyHistoryCache ("unused.sqlite"), () => PowerwallMode.Local)
-			{ SelectedPeriod = period };
+			{
+			SelectedPeriod = period
+			};
 		var now = DateTimeOffset.Now;
 		model.ApplyHistory (new[] { new StoredEnergyPoint (now.AddYears (-10), 12, 1, 1, 0, 0, 0), new StoredEnergyPoint (now, 24, 2, 2, 0, 0, 0) });
 		Assert.That (model.XAxes[0].LabelsRotation, Is.Zero);
@@ -341,7 +352,9 @@ public sealed class EnergyPresentationTests
 			using var connection = new PowerwallConnectionService ();
 			connection.SetSiteLabel ("offline-test.local");
 			using var model = new EnergyViewModel (connection, new EnergyHistoryCache (Path.Combine (folder, "history.sqlite")), () => PowerwallMode.Local)
-				{ IsActive = true };
+				{
+				IsActive = true
+				};
 			var now = DateTimeOffset.Now;
 			model.RecordLocalSnapshotAsync (new PowerFlowSnapshot (0, -1100, 2400, null, 50, null, null), now).GetAwaiter ().GetResult ();
 			model.StatusMessage = "Simulated cloud sign-in failure";
@@ -362,7 +375,8 @@ public sealed class EnergyPresentationTests
 			}
 		finally
 			{
-			if (Directory.Exists (folder)) Directory.Delete (folder, true);
+			if (Directory.Exists (folder))
+				Directory.Delete (folder, true);
 			}
 		}
 
@@ -372,7 +386,9 @@ public sealed class EnergyPresentationTests
 		{
 		using var connection = new PowerwallConnectionService ();
 		using var model = new EnergyViewModel (connection, new EnergyHistoryCache ("unused.sqlite"), () => PowerwallMode.Local)
-			{ IsActive = true };
+			{
+			IsActive = true
+			};
 		var now = new DateTimeOffset (DateTime.Today).AddHours (12);
 		model.RecordLocalSnapshotAsync (new PowerFlowSnapshot (1000, null, 2000, 1000, null, null, null), now).GetAwaiter ().GetResult ();
 		var seriesArray = model.Series;
@@ -458,9 +474,12 @@ public sealed class EnergyPresentationTests
 				var renderedLabels = labelGeometries.OfType<LiveChartsCore.Drawing.BaseLabelGeometry> ().ToArray ();
 				Assert.That (renderedLabels.Length, Is.GreaterThan (2), "Check rendered labels, not only the axis configuration.");
 				Assert.That (renderedLabels.Select (label => label.RotateTransform), Is.All.EqualTo (0), "Every rendered " + period + " date/time label must be horizontal after switching periods.");
-				if (period == "month") Assert.That (model.XAxes[0].Labels!.Count, Is.EqualTo (DateTime.DaysInMonth (DateTime.Today.Year, DateTime.Today.Month)));
-				if (period == "year") Assert.That (model.XAxes[0].Labels!.Count, Is.EqualTo (12));
-				if (period == "day") Assert.That (model.XAxes[0].MaxLimit, Is.GreaterThan (1300));
+				if (period == "month")
+					Assert.That (model.XAxes[0].Labels!.Count, Is.EqualTo (DateTime.DaysInMonth (DateTime.Today.Year, DateTime.Today.Month)));
+				if (period == "year")
+					Assert.That (model.XAxes[0].Labels!.Count, Is.EqualTo (12));
+				if (period == "day")
+					Assert.That (model.XAxes[0].MaxLimit, Is.GreaterThan (1300));
 				}
 			}
 		finally { window.Close (); }
@@ -477,8 +496,18 @@ public sealed class EnergyPresentationTests
 		model.RecordLocalSnapshotAsync (new PowerFlowSnapshot (1000, null, null, null, null, null, null), now.AddSeconds (5)).GetAwaiter ().GetResult ();
 		var view = CreateView (model);
 		var chart = (LiveChartsCore.SkiaSharpView.WPF.CartesianChart)view.FindName ("HistoryChart");
-		var window = new Window { Content = view, Width = 1000, Height = 700, ShowActivated = false, ShowInTaskbar = false,
-			Title = "Offline chart regression test", WindowStartupLocation = WindowStartupLocation.Manual, Left = -20000, Top = -20000 };
+		var window = new Window
+			{
+			Content = view,
+			Width = 1000,
+			Height = 700,
+			ShowActivated = false,
+			ShowInTaskbar = false,
+			Title = "Offline chart regression test",
+			WindowStartupLocation = WindowStartupLocation.Manual,
+			Left = -20000,
+			Top = -20000
+			};
 		try
 			{
 			window.Show ();

@@ -12,12 +12,17 @@ namespace TeslaPowerwallLibrary.Tests;
 [TestFixture]
 public sealed class LocalPw2SignalsTests
 	{
+	private static readonly string[] _defaultSerials = ["package-a", "package-b"];
 	/// <summary>Each package gets only its own module counters, preserving zero, signed reactive power and existing readings.</summary>
 	[Test]
 	public void CompleteLayout_ProjectsOnlyThePairedModule ()
 		{
 		var blocks = Blocks ();
-		blocks[1] = blocks[1] with { EnergyDischarged = 99, PowerOut = -500 };
+		blocks[1] = blocks[1] with
+			{
+			EnergyDischarged = 99,
+			PowerOut = -500
+			};
 		var result = LocalBatteryProjection.ApplyMsa (blocks, Controller (Components ()))!;
 		Assert.That (result[0].EnergyCharged, Is.Zero);
 		Assert.That (result[0].EnergyDischarged, Is.EqualTo (11));
@@ -39,18 +44,59 @@ public sealed class LocalPw2SignalsTests
 		var controller = Controller (components);
 		switch (fault)
 			{
-			case "orphan-inverter": components.RemoveAt (0); break;
-			case "missing-module": components.RemoveAt (4); break;
-			case "repeated-module": components[4] = components[4] with { SerialNumber = "module-a" }; break;
-			case "repeated-package": components[3] = components[3] with { SerialNumber = "package-a" }; break;
-			case "unknown-package": components[0] = components[0] with { SerialNumber = "unconfigured" }; break;
-			case "interrupted-pair": components.Insert (1, Component ("other", "SYNC_SiteSwitchEnabled")); break;
-			case "mixed-family": components[1] = components[1] with { Signals = [new LocalSignal { Name = "PINV_EnergyCharged", Value = 5 }, new LocalSignal { Name = "THC_State" }] }; break;
-			case "empty-family": components[1] = components[1] with { Signals = null }; break;
-			case "duplicate-bus-identity": controller = Controller (components, "package-a", "package-a"); break;
-			case "no-bus-identities": controller = controller with { EnergyBus = null }; break;
-			case "trailing-package": components.Add (Component ("package-a", "THC_State")); break;
-			default: throw new AssertionException ("Unknown test scenario.");
+			case "orphan-inverter":
+				components.RemoveAt (0);
+				break;
+			case "missing-module":
+				components.RemoveAt (4);
+				break;
+			case "repeated-module":
+				components[4] = components[4] with
+					{
+					SerialNumber = "module-a"
+					};
+				break;
+			case "repeated-package":
+				components[3] = components[3] with
+					{
+					SerialNumber = "package-a"
+					};
+				break;
+			case "unknown-package":
+				components[0] = components[0] with
+					{
+					SerialNumber = "unconfigured"
+					};
+				break;
+			case "interrupted-pair":
+				components.Insert (1, Component ("other", "SYNC_SiteSwitchEnabled"));
+				break;
+			case "mixed-family":
+				components[1] = components[1] with
+					{
+					Signals = [new LocalSignal { Name = "PINV_EnergyCharged", Value = 5 }, new LocalSignal { Name = "THC_State" }]
+					};
+				break;
+			case "empty-family":
+				components[1] = components[1] with
+					{
+					Signals = null
+					};
+				break;
+			case "duplicate-bus-identity":
+				controller = Controller (components, "package-a", "package-a");
+				break;
+			case "no-bus-identities":
+				controller = controller with
+					{
+					EnergyBus = null
+					};
+				break;
+			case "trailing-package":
+				components.Add (Component ("package-a", "THC_State"));
+				break;
+			default:
+				throw new AssertionException ("Unknown test scenario.");
 			}
 		var result = LocalBatteryProjection.ApplyMsa (Blocks (), controller)!;
 		Assert.That (result.SelectMany (block => new[] { block.EnergyCharged, block.EnergyDischarged, block.ReactivePowerOut }), Is.All.Null);
@@ -86,7 +132,10 @@ public sealed class LocalPw2SignalsTests
 	public void MissingAndDuplicateSignals_DoNotFabricateCounters ()
 		{
 		var components = Components ().ToList ();
-		components[1] = components[1] with { Signals = [new LocalSignal { Name = "PINV_EnergyCharged", Value = 1 }, new LocalSignal { Name = "PINV_EnergyCharged", Value = 2 }] };
+		components[1] = components[1] with
+			{
+			Signals = [new LocalSignal { Name = "PINV_EnergyCharged", Value = 1 }, new LocalSignal { Name = "PINV_EnergyCharged", Value = 2 }]
+			};
 		var result = LocalBatteryProjection.ApplyMsa (Blocks (), Controller (components))!;
 		Assert.That (result[0].EnergyCharged, Is.Null);
 		Assert.That (result[0].EnergyDischarged, Is.Null);
@@ -102,7 +151,10 @@ public sealed class LocalPw2SignalsTests
 	public void OtherBatteryTypes_DoNotAcquirePw2Counters (string type)
 		{
 		var blocks = Blocks ();
-		blocks[0] = blocks[0] with { Type = type };
+		blocks[0] = blocks[0] with
+			{
+			Type = type
+			};
 		Assert.That (LocalBatteryProjection.ApplyMsa (blocks, Controller (Components ()))![0].EnergyCharged, Is.Null);
 		}
 
@@ -119,6 +171,6 @@ public sealed class LocalPw2SignalsTests
 	private static LocalTelemetry Controller (IReadOnlyList<LocalComponent> components, params string[] serials) => new ()
 		{
 		Components = new Dictionary<string, IReadOnlyList<LocalComponent>> { ["msa"] = components },
-		EnergyBus = new LocalEnergyBusTelemetry { Devices = new LocalEnergyBusDevices { ThermalControllers = (serials.Length == 0 ? new[] { "package-a", "package-b" } : serials).Select (serial => new LocalThermalControllerBus { SerialNumber = serial }).ToArray () } }
+		EnergyBus = new LocalEnergyBusTelemetry { Devices = new LocalEnergyBusDevices { ThermalControllers = (serials.Length == 0 ? _defaultSerials : serials).Select (serial => new LocalThermalControllerBus { SerialNumber = serial }).ToArray () } }
 		};
 	}

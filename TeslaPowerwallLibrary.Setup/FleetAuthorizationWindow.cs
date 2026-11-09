@@ -12,6 +12,7 @@ using Microsoft.Web.WebView2.Wpf;
 namespace TeslaPowerwallLibrary.Setup;
 
 /// <summary>Captures the registered Fleet callback before navigating to the external callback website.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage ("Design", "CA1001", Justification = "The WPF window lifecycle owns this control: OnClosed disposes the browser after navigation-event dispatch completes.")]
 internal sealed class FleetAuthorizationWindow : Window
 	{
 	private readonly WebView2 _browser = new ();

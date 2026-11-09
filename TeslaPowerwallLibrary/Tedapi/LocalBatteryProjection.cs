@@ -76,7 +76,8 @@ internal static partial class LocalBatteryProjection
 	/// <returns>Updated summaries; missing, stale or ambiguous measurements remain absent.</returns>
 	internal static IReadOnlyList<BatteryBlock>? ApplyLegacy (IReadOnlyList<BatteryBlock>? blocks, LocalEnergyBusDevices? bus)
 		{
-		if (blocks is null || bus?.ThermalControllers is null) return blocks;
+		if (blocks is null || bus?.ThermalControllers is null)
+			return blocks;
 		var result = new List<BatteryBlock> (blocks.Count);
 		foreach (var block in blocks)
 			{
@@ -84,13 +85,18 @@ internal static partial class LocalBatteryProjection
 				.Where (p => !string.IsNullOrWhiteSpace (p.controller.SerialNumber)
 					&& p.controller.SerialNumber == block.PackageSerialNumber).ToArray ();
 			if (matches.Length != 1 || block.Type == "BatteryExpansion")
-				{ result.Add (block); continue; }
+				{
+				result.Add (block);
+				continue;
+				}
 			int slot = matches[0].index;
 			// These legacy responses contain no identity on POD/PINV. Only equal-length arrays establish their slots.
 			var energy = bus.BatteryEnergy?.Count == bus.ThermalControllers.Count ? bus.BatteryEnergy[slot].Energy : null;
 			var inverter = bus.BatteryInverters?.Count == bus.ThermalControllers.Count ? bus.BatteryInverters[slot].Status : null;
-			if (energy?.IsMissing == true || energy?.IsComplete == false) energy = null;
-			if (inverter?.IsMissing == true || inverter?.IsComplete == false) inverter = null;
+			if (energy?.IsMissing == true || energy?.IsComplete == false)
+				energy = null;
+			if (inverter?.IsMissing == true || inverter?.IsComplete == false)
+				inverter = null;
 			result.Add (block with
 				{
 				NominalEnergyRemaining = block.NominalEnergyRemaining ?? energy?.RemainingWattHours,

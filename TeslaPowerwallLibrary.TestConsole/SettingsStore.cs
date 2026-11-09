@@ -18,47 +18,80 @@ internal sealed class ConsoleSettings
 	{
 	/// <summary>Gateway host name or IP address to default on the next run.</summary>
 	[JsonPropertyName ("host")]
-	public string? Host { get; set; }
+	public string? Host
+		{
+		get; set;
+		}
 
 	/// <summary>Encrypted (DPAPI, base64) Powerwall password; never stored in plaintext.</summary>
 	[JsonPropertyName ("protectedPassword")]
-	public string? ProtectedPassword { get; set; }
+	public string? ProtectedPassword
+		{
+		get; set;
+		}
 
 	/// <summary>Local protocol to use with the remembered host.</summary>
 	[JsonPropertyName ("localProtocol")]
-	public PowerwallLocalProtocol LocalProtocol { get; set; }
+	public PowerwallLocalProtocol LocalProtocol
+		{
+		get; set;
+		}
 
 	/// <summary>Gets or sets the explicit local vendor-signed query version.</summary>
 	[JsonPropertyName ("localQueryVersion")]
-	public Tedapi.TedapiQueryVersion LocalQueryVersion { get; set; }
+	public Tedapi.TedapiQueryVersion LocalQueryVersion
+		{
+		get; set;
+		}
 
 	/// <summary>Existing Windows signing-key name; private key material is never serialized.</summary>
 	[JsonPropertyName ("localSigningKeyName")]
-	public string? LocalSigningKeyName { get; set; }
+	public string? LocalSigningKeyName
+		{
+		get; set;
+		}
 
 	/// <summary>Customer email to default on the next run.</summary>
 	[JsonPropertyName ("email")]
-	public string? Email { get; set; }
+	public string? Email
+		{
+		get; set;
+		}
 
 	/// <summary>IANA time zone to default on the next run.</summary>
 	[JsonPropertyName ("timezone")]
-	public string? Timezone { get; set; }
+	public string? Timezone
+		{
+		get; set;
+		}
 
 	/// <summary>Per-request HTTP timeout, in seconds, to default on the next run.</summary>
 	[JsonPropertyName ("timeoutSeconds")]
-	public int? TimeoutSeconds { get; set; }
+	public int? TimeoutSeconds
+		{
+		get; set;
+		}
 
 	/// <summary>Cached response expiry, in seconds, to default on the next run.</summary>
 	[JsonPropertyName ("cacheExpireSeconds")]
-	public int? CacheExpireSeconds { get; set; }
+	public int? CacheExpireSeconds
+		{
+		get; set;
+		}
 
 	/// <summary>Tesla region (<c>us</c> or <c>cn</c>) to default for the cloud browser login.</summary>
 	[JsonPropertyName ("region")]
-	public string? Region { get; set; }
+	public string? Region
+		{
+		get; set;
+		}
 
 	/// <summary>Tesla FleetAPI application Client ID to default on the next run.</summary>
 	[JsonPropertyName ("fleetApiClientId")]
-	public string? FleetApiClientId { get; set; }
+	public string? FleetApiClientId
+		{
+		get; set;
+		}
 
 	/// <summary>
 	/// Encrypted (DPAPI, base64) Tesla FleetAPI refresh token; never stored in plaintext. FleetAPI mode has no
@@ -66,18 +99,27 @@ internal sealed class ConsoleSettings
 	/// so the caller does not have to supply it on every run.
 	/// </summary>
 	[JsonPropertyName ("protectedFleetApiRefreshToken")]
-	public string? ProtectedFleetApiRefreshToken { get; set; }
+	public string? ProtectedFleetApiRefreshToken
+		{
+		get; set;
+		}
 
 	/// <summary>Tesla FleetAPI region (<c>na</c>, <c>eu</c>, or <c>cn</c>) to default on the next run.</summary>
 	[JsonPropertyName ("fleetApiRegion")]
-	public string? FleetApiRegion { get; set; }
+	public string? FleetApiRegion
+		{
+		get; set;
+		}
 
 	/// <summary>
 	/// Whether the last session used Tesla FleetAPI mode, so it is remembered as the default connection mode
 	/// on the next run even without a host configured (which would otherwise default to Tesla Owners cloud mode).
 	/// </summary>
 	[JsonPropertyName ("preferFleetApi")]
-	public bool? PreferFleetApi { get; set; }
+	public bool? PreferFleetApi
+		{
+		get; set;
+		}
 	}
 
 /// <summary>
@@ -86,6 +128,7 @@ internal sealed class ConsoleSettings
 /// </summary>
 internal static class SettingsStore
 	{
+	private static readonly JsonSerializerOptions _writeOptions = new () { WriteIndented = true };
 	/// <summary>Gets the full path to the settings file under the user's local application data folder.</summary>
 	public static string FilePath { get; } = BuildFilePath ();
 
@@ -116,7 +159,7 @@ internal static class SettingsStore
 			if (!string.IsNullOrEmpty (directory))
 				Directory.CreateDirectory (directory!);
 
-			var json = JsonSerializer.Serialize (settings, new JsonSerializerOptions { WriteIndented = true });
+			var json = JsonSerializer.Serialize (settings, _writeOptions);
 			File.WriteAllText (FilePath, json);
 			}
 		catch (Exception exc) when (exc is IOException or UnauthorizedAccessException)

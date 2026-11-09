@@ -13,11 +13,13 @@ internal static partial class LocalBatteryProjection
 	/// <returns>Summaries with reported charged/discharged energy and reactive power; ambiguous module readings stay absent.</returns>
 	internal static IReadOnlyList<BatteryBlock>? ApplyMsa (IReadOnlyList<BatteryBlock>? blocks, LocalTelemetry controller)
 		{
-		if (blocks is null || controller.Components is null || !controller.Components.TryGetValue ("msa", out var components) || components is null) return blocks;
+		if (blocks is null || controller.Components is null || !controller.Components.TryGetValue ("msa", out var components) || components is null)
+			return blocks;
 		var serials = (controller.EnergyBus?.Devices?.ThermalControllers ?? Array.Empty<LocalThermalControllerBus> ())
 			.Where (device => !string.IsNullOrWhiteSpace (device?.SerialNumber)).Select (device => device.SerialNumber!).ToArray ();
 		var known = new HashSet<string> (serials, StringComparer.Ordinal);
-		if (known.Count == 0 || known.Count != serials.Length) return blocks;
+		if (known.Count == 0 || known.Count != serials.Length)
+			return blocks;
 		var pairs = new Dictionary<string, LocalComponent> (StringComparer.Ordinal);
 		var seen = new HashSet<string> (StringComparer.Ordinal);
 		string? pending = null;
@@ -26,25 +28,30 @@ internal static partial class LocalBatteryProjection
 		foreach (var component in components)
 			{
 			string? serial = component?.SerialNumber;
-			if (string.IsNullOrWhiteSpace (serial)) continue;
+			if (string.IsNullOrWhiteSpace (serial))
+				continue;
 			string[] families = (component!.Signals ?? Array.Empty<LocalSignal> ())
 				.Where (signal => !string.IsNullOrEmpty (signal?.Name)).Select (signal => signal.Name!.Split ('_')[0])
 				.Distinct (StringComparer.Ordinal).ToArray ();
 			string family = families.Length == 1 ? families[0] : string.Empty;
 			if (family == "THC")
 				{
-				if (pending is not null || !known.Contains (serial!) || !seen.Add (serial!)) return blocks;
+				if (pending is not null || !known.Contains (serial!) || !seen.Add (serial!))
+					return blocks;
 				pending = serial;
 				}
 			else if (family == "PINV")
 				{
-				if (pending is null || !seen.Add (serial!)) return blocks;
+				if (pending is null || !seen.Add (serial!))
+					return blocks;
 				pairs.Add (pending, component);
 				pending = null;
 				}
-			else if (pending is not null) return blocks;
+			else if (pending is not null)
+				return blocks;
 			}
-		if (pending is not null || pairs.Count != known.Count) return blocks;
+		if (pending is not null || pairs.Count != known.Count)
+			return blocks;
 		return blocks.Select (block => block.PackageSerialNumber is not null
 			&& block.Type != "BatteryExpansion" && block.Type?.IndexOf ("Powerwall3", StringComparison.OrdinalIgnoreCase) is not >= 0
 			&& pairs.TryGetValue (block.PackageSerialNumber, out var module)

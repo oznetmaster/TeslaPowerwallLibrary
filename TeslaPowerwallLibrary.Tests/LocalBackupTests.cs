@@ -129,6 +129,9 @@ public sealed partial class LocalSettingsTests
 		Assert.That (schedule.IsActiveAt (start), Is.True);
 		Assert.That (schedule.IsActiveAt (start.AddSeconds (59)), Is.True);
 		Assert.That (schedule.IsActiveAt (start.AddSeconds (60)), Is.False);
-		Assert.That ((schedule with { StartTime = null }).IsActiveAt (start), Is.False);
+		Assert.That ((schedule with
+			{
+			StartTime = null
+			}).IsActiveAt (start), Is.False);
 		}
 	}

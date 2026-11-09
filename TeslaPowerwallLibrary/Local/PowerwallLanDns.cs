@@ -16,7 +16,8 @@ internal static class PowerwallLanDns
 	internal static string? ShortName (string host)
 		{
 		string name = host.TrimEnd ('.');
-		if (name.EndsWith (".local", StringComparison.OrdinalIgnoreCase)) name = name.Substring (0, name.Length - 6);
+		if (name.EndsWith (".local", StringComparison.OrdinalIgnoreCase))
+			name = name.Substring (0, name.Length - 6);
 		return name.Length is > 0 and <= 63 && !name.Any (character => character == '.') && Uri.CheckHostName (name) == UriHostNameType.Dns ? name : null;
 		}
 
@@ -33,10 +34,10 @@ internal static class PowerwallLanDns
 				&& adapter.NetworkInterfaceType is NetworkInterfaceType.Ethernet or NetworkInterfaceType.Wireless80211)
 			.SelectMany (adapter =>
 				{
-				IPInterfaceProperties properties = adapter.GetIPProperties ();
-				return properties.UnicastAddresses.Where (a => a.Address.AddressFamily == AddressFamily.InterNetwork)
-					.SelectMany (a => properties.GatewayAddresses.Where (g => g.Address.AddressFamily == AddressFamily.InterNetwork && !g.Address.Equals (IPAddress.Any))
-						.Select (g => (Local: a.Address, Router: g.Address)));
+					IPInterfaceProperties properties = adapter.GetIPProperties ();
+					return properties.UnicastAddresses.Where (a => a.Address.AddressFamily == AddressFamily.InterNetwork)
+						.SelectMany (a => properties.GatewayAddresses.Where (g => g.Address.AddressFamily == AddressFamily.InterNetwork && !g.Address.Equals (IPAddress.Any))
+							.Select (g => (Local: a.Address, Router: g.Address)));
 				}).Distinct ().ToArray ();
 		var answers = await Task.WhenAll (routes.Select (route => QueryAsync (name, route.Local, route.Router, deadline.Token))).ConfigureAwait (false);
 		cancellationToken.ThrowIfCancellationRequested ();
@@ -52,18 +53,21 @@ internal static class PowerwallLanDns
 			using var registration = token.Register (socket.Close);
 			byte[] query = MdnsPacket.Query (name, 1);
 			byte[] id = Guid.NewGuid ().ToByteArray ();
-			query[0] = id[0]; query[1] = id[1]; query[2] = 1;
+			query[0] = id[0];
+			query[1] = id[1];
+			query[2] = 1;
 			query[query.Length - 2] = 0; // Ordinary IN question, not an mDNS unicast-response flag.
 			await socket.SendAsync (query, query.Length).ConfigureAwait (false);
 			while (!token.IsCancellationRequested)
 				{
-				#if NETFRAMEWORK
+#if NETFRAMEWORK
 				UdpReceiveResult response = await socket.ReceiveAsync ().ConfigureAwait (false);
 #else
 				UdpReceiveResult response = await socket.ReceiveAsync (CancellationToken.None).ConfigureAwait (false);
 #endif
 				var addresses = ReadAnswer (response.Buffer, id[0], id[1], name);
-				if (addresses is not null) return addresses;
+				if (addresses is not null)
+					return addresses;
 				}
 			}
 		catch (Exception exc) when (exc is SocketException or ObjectDisposedException or OperationCanceledException)
@@ -81,8 +85,10 @@ internal static class PowerwallLanDns
 	/// <returns>Matching records, an empty answer, or null for an unrelated or malformed packet.</returns>
 	internal static IReadOnlyList<IPAddress>? ReadAnswer (byte[] packet, byte idHigh, byte idLow, string name)
 		{
-		if (packet.Length < 12 || packet[0] != idHigh || packet[1] != idLow || (packet[2] & 0x80) == 0) return null;
-		if ((packet[2] & 0x7a) != 0 || (packet[3] & 0x0f) != 0) return Array.Empty<IPAddress> ();
+		if (packet.Length < 12 || packet[0] != idHigh || packet[1] != idLow || (packet[2] & 0x80) == 0)
+			return null;
+		if ((packet[2] & 0x7a) != 0 || (packet[3] & 0x0f) != 0)
+			return Array.Empty<IPAddress> ();
 		try
 			{
 			return MdnsPacket.Read (packet, includeZeroTtl: true).Where (r => r.Type == 1 && r.Address is not null

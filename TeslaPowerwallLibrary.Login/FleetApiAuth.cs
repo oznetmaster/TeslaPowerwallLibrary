@@ -5,11 +5,10 @@ using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
+using System.Threading.Tasks;
 
 
 namespace TeslaPowerwallLibrary.Login;
@@ -31,7 +30,7 @@ internal static class FleetApiAuth
 	private const string AUTHORIZE_URL_PATH = "/oauth2/v3/authorize";
 
 	/// <summary>The OAuth scopes requested for FleetAPI, matching upstream <c>SCOPE</c>.</summary>
-	public const string Scope = "openid offline_access energy_device_data energy_cmds";
+	public const string SCOPE = "openid offline_access energy_device_data energy_cmds";
 
 	private static readonly HttpClient _httpClient = new () { Timeout = TimeSpan.FromSeconds (30) };
 
@@ -75,7 +74,7 @@ internal static class FleetApiAuth
 			new KeyValuePair<string, string> ("grant_type", "client_credentials"),
 			new KeyValuePair<string, string> ("client_id", clientId),
 			new KeyValuePair<string, string> ("client_secret", clientSecret),
-			new KeyValuePair<string, string> ("scope", Scope),
+			new KeyValuePair<string, string> ("scope", SCOPE),
 			new KeyValuePair<string, string> ("audience", audience)
 			});
 
@@ -115,7 +114,11 @@ internal static class FleetApiAuth
 		try
 			{
 			response = await _httpClient.SendAsync (request, cancellationToken).ConfigureAwait (false);
+#if NETFRAMEWORK
 			responseBody = await response.Content.ReadAsStringAsync ().ConfigureAwait (false);
+#else
+			responseBody = await response.Content.ReadAsStringAsync (cancellationToken).ConfigureAwait (false);
+#endif
 			}
 		catch (Exception exc) when (exc is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
 			{
@@ -148,7 +151,7 @@ internal static class FleetApiAuth
 	public static (string AuthorizeUrl, string State) BuildAuthorizeUrl (string clientId, string redirectUri, string? state = null)
 		{
 		var effectiveState = string.IsNullOrWhiteSpace (state) ? Guid.NewGuid ().ToString ("N") : state!;
-		var scope = Uri.EscapeDataString (Scope);
+		var scope = Uri.EscapeDataString (SCOPE);
 		var url =
 			$"{SSO_BASE_URL}{AUTHORIZE_URL_PATH}?&client_id={Uri.EscapeDataString (clientId)}&locale=en-US&prompt=login" +
 			$"&redirect_uri={Uri.EscapeDataString (redirectUri)}&response_type=code&scope={scope}&state={Uri.EscapeDataString (effectiveState)}";
@@ -180,7 +183,7 @@ internal static class FleetApiAuth
 			new KeyValuePair<string, string> ("code", code),
 			new KeyValuePair<string, string> ("audience", audience),
 			new KeyValuePair<string, string> ("redirect_uri", redirectUri),
-			new KeyValuePair<string, string> ("scope", Scope)
+			new KeyValuePair<string, string> ("scope", SCOPE)
 			});
 
 		var body = await PostFormAsync (TOKEN_BASE_URL + TOKEN_URL_PATH, form, cancellationToken).ConfigureAwait (false);
@@ -209,7 +212,11 @@ internal static class FleetApiAuth
 		try
 			{
 			response = await _httpClient.PostAsync (url, form, cancellationToken).ConfigureAwait (false);
+#if NETFRAMEWORK
 			body = await response.Content.ReadAsStringAsync ().ConfigureAwait (false);
+#else
+			body = await response.Content.ReadAsStringAsync (cancellationToken).ConfigureAwait (false);
+#endif
 			}
 		catch (Exception exc) when (exc is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
 			{

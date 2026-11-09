@@ -4,9 +4,12 @@
 using System;
 using System.Linq;
 using System.Threading;
+
 using LiveChartsCore.Defaults;
 using LiveChartsCore.SkiaSharpView;
+
 using NUnit.Framework;
+
 using TeslaPowerwallLibrary.App.Services;
 using TeslaPowerwallLibrary.App.ViewModels;
 
@@ -189,7 +192,8 @@ public sealed class EnergySourceSelectionTests
 			Assert.That (cloud.Any (p => p.Y.HasValue && p.X == point.X), Is.False, "Two sources occupy the same timestamp.");
 		for (int c = 1; c < cloud.Length; c++)
 			{
-			if (cloud[c - 1].Y is null || cloud[c].Y is null) continue;
+			if (cloud[c - 1].Y is null || cloud[c].Y is null)
+				continue;
 			foreach (var point in lan.Where (p => p.Y.HasValue))
 				Assert.That (point.X > cloud[c - 1].X && point.X < cloud[c].X, Is.False, "Cloud interpolation crosses a reported LAN point.");
 			for (int l = 1; l < lan.Length; l++)

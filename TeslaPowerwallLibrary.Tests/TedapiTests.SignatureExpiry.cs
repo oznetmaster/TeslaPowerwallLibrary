@@ -51,4 +51,4 @@ public sealed partial class TedapiTests
 		Assert.That ((await client.GetTelemetryAsync ()).Control, Is.Not.Null);
 		Assert.That (posts, Is.EqualTo (1));
 		}
-	}
+	}

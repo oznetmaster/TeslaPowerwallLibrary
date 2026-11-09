@@ -8,8 +8,8 @@ namespace TeslaPowerwallLibrary.Tedapi;
 public sealed partial class PowerwallTedapiClient
 	{
 	private Task<MeterAggregates> GetSynthesizedMeterAggregatesAsync (bool force, CancellationToken cancellationToken) =>
-		ReadWithFailoverAsync (recovering => GetPrimaryMeterAggregatesAsync (force || recovering, cancellationToken),
-			fallback => fallback.GetSynthesizedMeterAggregatesAsync (force, cancellationToken), cancellationToken);
+		ReadWithFailoverAsync ((recovering, token) => GetPrimaryMeterAggregatesAsync (force || recovering, token),
+			(fallback, token) => fallback.GetSynthesizedMeterAggregatesAsync (force, token), cancellationToken);
 
 	private async Task<MeterAggregates> GetPrimaryMeterAggregatesAsync (bool force, CancellationToken cancellationToken)
 		{
@@ -17,10 +17,13 @@ public sealed partial class PowerwallTedapiClient
 		var status = await ReadPrimaryQueryAsync<LocalTelemetry> ("device_controller_basic", force, null, cancellationToken).ConfigureAwait (false);
 		var basis = new MeterAggregates
 			{
-			Site = Reading (status, "SITE"), Solar = Reading (status, "SOLAR"),
-			Battery = Reading (status, "BATTERY"), Load = Reading (status, "LOAD")
+			Site = Reading (status, "SITE"),
+			Solar = Reading (status, "SOLAR"),
+			Battery = Reading (status, "BATTERY"),
+			Load = Reading (status, "LOAD")
 			};
-		if (!LocalSolarMeterHold.IsCandidate (status)) return basis;
+		if (!LocalSolarMeterHold.IsCandidate (status))
+			return basis;
 		try
 			{
 			var configuration = await GetPrimaryConfigurationAsync (force, cancellationToken).ConfigureAwait (false);
@@ -31,7 +34,8 @@ public sealed partial class PowerwallTedapiClient
 			&& error is PowerwallException or HttpRequestException or OperationCanceledException)
 			{
 			// Optional enrichment cannot discard a successful controller read or silently switch its source.
-			if (_options.Logger is { } logger) LibraryLog.SolarMeterHoldUnavailable (logger, error);
+			if (_options.Logger is { } logger)
+				LibraryLog.SolarMeterHoldUnavailable (logger, error);
 			return basis;
 			}
 		}

@@ -11,6 +11,7 @@ namespace TeslaPowerwallLibrary.TestConsole;
 /// </summary>
 internal static class InteractiveSession
 	{
+	private static readonly char[] _commandSeparator = [' '];
 	/// <summary>Runs the interactive loop until the user types <c>exit</c> or cancellation is requested.</summary>
 	/// <param name="session">The session that owns the current connection and supports account switching.</param>
 	/// <param name="cancellationToken">Token used to cancel the session.</param>
@@ -30,7 +31,7 @@ internal static class InteractiveSession
 			if (line.Length == 0)
 				continue;
 
-			var parts = line.Split (new[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
+			var parts = line.Split (_commandSeparator, 2, StringSplitOptions.RemoveEmptyEntries);
 			var command = parts[0].ToLowerInvariant ();
 			var argument = parts.Length > 1 ? parts[1].Trim () : null;
 
@@ -393,7 +394,7 @@ internal static class InteractiveSession
 			{
 			ConsoleHelpers.WriteError ($"Usage: {command} <kind> [period]");
 			ConsoleHelpers.WriteError ($"  kind:   {ConsoleHelpers.FormatChoices (kinds)}");
-			ConsoleHelpers.WriteError ($"  period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)} (optional; {ConsoleHelpers.DefaultChoiceLegend})");
+			ConsoleHelpers.WriteError ($"  period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)} (optional; {ConsoleHelpers.DEFAULT_CHOICE_LEGEND})");
 			ConsoleHelpers.WriteError ($"  example: {command} {kinds[0]} {Powerwall.HistoryPeriods[0]}");
 			return;
 			}
@@ -414,7 +415,7 @@ internal static class InteractiveSession
 			{
 			ConsoleHelpers.WriteError ("Usage: typedhistory <kind> [period]");
 			ConsoleHelpers.WriteError ($"  kind:   {ConsoleHelpers.FormatChoices (PowerwallActions.TypedHistoryKinds)}");
-			ConsoleHelpers.WriteError ($"  period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)} (optional; {ConsoleHelpers.DefaultChoiceLegend})");
+			ConsoleHelpers.WriteError ($"  period: {ConsoleHelpers.FormatChoices (Powerwall.HistoryPeriods, Powerwall.DEFAULT_HISTORY_PERIOD)} (optional; {ConsoleHelpers.DEFAULT_CHOICE_LEGEND})");
 			ConsoleHelpers.WriteError ($"  example: typedhistory {PowerwallActions.TypedHistoryKinds[0]} {Powerwall.HistoryPeriods[0]}");
 			return;
 			}
@@ -500,6 +501,6 @@ internal static class InteractiveSession
 		Console.WriteLine ("  help              Show this list");
 		Console.WriteLine ("  exit              Quit the interactive session");
 		Console.WriteLine ();
-		Console.WriteLine ($"  {ConsoleHelpers.DefaultChoiceLegend}");
+		Console.WriteLine ($"  {ConsoleHelpers.DEFAULT_CHOICE_LEGEND}");
 		}
 	}

@@ -241,7 +241,10 @@ public sealed class LocalReadOnlyLiveTests
 		TestContext.Out.WriteLine ("TEDAPI power ratings: " + JsonSerializer.Serialize (new
 			{
 			ConfiguredKilowatts = configuration.Site?.NominalPowerKilowatts,
-			systemStatus.MaxChargePower, systemStatus.MaxDischargePower, systemStatus.MaxApparentPower, systemStatus.InverterNominalUsablePower
+			systemStatus.MaxChargePower,
+			systemStatus.MaxDischargePower,
+			systemStatus.MaxApparentPower,
+			systemStatus.InverterNominalUsablePower
 			}));
 		string[] additionalNames = ["PINV_EnergyCharged", "PINV_EnergyDischarged", "PINV_LifetimeEnergyCharged", "PINV_LifetimeEnergyDischarged",
 			"PINV_HeatsinkTemp", "PINV_PllFrequency", "PINV_PllLocked", "PINV_Qout", "PINV_ReadyForGridForming", "PINV_HardwareEnableLine", "PINV_PowerLimiter",
@@ -459,7 +462,7 @@ public sealed class LocalReadOnlyLiveTests
 			var response = await base.SendAsync (request, cancellationToken).ConfigureAwait (false);
 			if (request.RequestUri!.AbsolutePath != "/tedapi/v1r" || !response.IsSuccessStatusCode)
 				return response;
-			byte[] bytes = await response.Content.ReadAsByteArrayAsync ().ConfigureAwait (false);
+			byte[] bytes = await response.Content.ReadAsByteArrayAsync (cancellationToken).ConfigureAwait (false);
 			var routed = Signed.RoutableMessage.Parser.ParseFrom (bytes);
 			var envelope = Signed.MessageEnvelope.Parser.ParseFrom (routed.ProtobufMessageAsBytes);
 			if (_inspectQuery)

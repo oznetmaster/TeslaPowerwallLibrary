@@ -2,6 +2,7 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System.Text.Json.Serialization;
+
 using TeslaPowerwallLibrary.Models;
 
 namespace TeslaPowerwallLibrary.Tedapi;
@@ -16,11 +17,17 @@ public sealed record LocalDeviceComponents
 	/// <summary>Measurements from this device only; null if this transport cannot obtain them.</summary>
 	/// <value>Measurements from this device only; null if this transport cannot obtain them.</value>
 	[JsonPropertyName ("telemetry")]
-	public LocalComponentTelemetry? Telemetry { get; init; }
+	public LocalComponentTelemetry? Telemetry
+		{
+		get; init;
+		}
 	/// <summary>Reason measurements are unavailable; null on success.</summary>
 	/// <value>Reason measurements are unavailable; null on success.</value>
 	[JsonPropertyName ("unavailableReason")]
-	public string? UnavailableReason { get; init; }
+	public string? UnavailableReason
+		{
+		get; init;
+		}
 	}
 
 /// <summary>A requested system read containing identified device measurements and normalized battery summaries.</summary>
@@ -42,7 +49,10 @@ public sealed record LocalDeviceSnapshot
 	/// <summary>Configured batteries with measurements attached only to matching device identities.</summary>
 	/// <value>Configured batteries with measurements attached only to matching device identities.</value>
 	[JsonPropertyName ("batteries")]
-	public IReadOnlyList<BatteryBlock>? Batteries { get; init; }
+	public IReadOnlyList<BatteryBlock>? Batteries
+		{
+		get; init;
+		}
 	}
 
 public sealed partial class PowerwallTedapiClient

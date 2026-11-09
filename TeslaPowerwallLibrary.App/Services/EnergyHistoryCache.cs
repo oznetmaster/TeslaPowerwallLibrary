@@ -11,7 +11,9 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+
 using Microsoft.Data.Sqlite;
+
 using TeslaPowerwallLibrary.Models;
 
 namespace TeslaPowerwallLibrary.App.Services;
@@ -63,6 +65,7 @@ internal sealed record EnergyHistoryResult (IReadOnlyList<StoredEnergyPoint> Poi
 /// Desktop-only SQLite cache. Completed periods fetched at least a day after their end are reused;
 /// provisional periods expire after five minutes. Database access runs off the UI thread.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage ("Design", "CA1001", Justification = "Application-lifetime async synchronization; AvailableWaitHandle is never accessed, and disposing the semaphore could race outstanding cache operations. SQLite connections are disposed per operation.")]
 internal sealed class EnergyHistoryCache
 	{
 	private readonly string _path;
@@ -118,13 +121,19 @@ internal sealed class EnergyHistoryCache
 			catch (Exception exc) when (cached is not null && !cancellationToken.IsCancellationRequested
 				&& exc is PowerwallException or System.Net.Http.HttpRequestException or InvalidOperationException or OperationCanceledException)
 				{
-				return cached with { Warning = "Cloud history is unavailable. Showing the previously saved result." };
+				return cached with
+					{
+					Warning = "Cloud history is unavailable. Showing the previously saved result."
+					};
 				}
 			cancellationToken.ThrowIfCancellationRequested ();
 			var result = new EnergyHistoryResult (points.Select (StoredEnergyPoint.From).OrderBy (p => p.Timestamp).ToArray (), _clock (), false, storageWarning);
 			// An empty response must not erase a previously successful batch or freeze a gap permanently.
 			if (result.Points.Count == 0 && cached is not null && cached.Points.Count > 0)
-				return cached with { Warning = "The cloud returned no samples. Showing the previously saved result." };
+				return cached with
+					{
+					Warning = "The cloud returned no samples. Showing the previously saved result."
+					};
 			if (storageWarning is null)
 				{
 				try
@@ -133,7 +142,10 @@ internal sealed class EnergyHistoryCache
 					}
 				catch (Exception exc) when (exc is SqliteException or IOException or UnauthorizedAccessException)
 					{
-					result = result with { Warning = "History loaded, but could not be saved locally." };
+					result = result with
+						{
+						Warning = "History loaded, but could not be saved locally."
+						};
 					}
 				}
 			return result;
@@ -148,7 +160,11 @@ internal sealed class EnergyHistoryCache
 		{
 		Directory.CreateDirectory (Path.GetDirectoryName (Path.GetFullPath (_path))!);
 		var connection = new SqliteConnection (new SqliteConnectionStringBuilder
-			{ DataSource = _path, Pooling = false, ForeignKeys = true }.ToString ());
+			{
+			DataSource = _path,
+			Pooling = false,
+			ForeignKeys = true
+			}.ToString ());
 		try
 			{
 			connection.Open ();

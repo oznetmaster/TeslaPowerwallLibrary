@@ -36,7 +36,10 @@ public sealed class LocalInstantaneousPowerTests
 	public void Totals_RejectMissingSignalIndependently (string reported)
 		{
 		var status = Project (Pod ("module1", 7000, 8570), new LocalComponent
-			{ SerialNumber = "module2", Signals = [new LocalSignal { Name = reported, Value = 1000 }] });
+			{
+			SerialNumber = "module2",
+			Signals = [new LocalSignal { Name = reported, Value = 1000 }]
+			});
 		Assert.That (status.InstantaneousMaxChargePower, Is.EqualTo (reported == "POD_available_charge_power" ? 8000d : (double?)null));
 		Assert.That (status.InstantaneousMaxDischargePower, Is.EqualTo (reported == "POD_available_dischg_power" ? 9570d : (double?)null));
 		}
@@ -89,7 +92,10 @@ public sealed class LocalInstantaneousPowerTests
 			{ Components = new Dictionary<string, IReadOnlyList<LocalComponent>> { ["msa"] = [] } } })
 			{
 			var status = LocalSystemStatusProjection.Create (new LocalTelemetry (), new LocalDeviceSnapshot
-				{ Controller = telemetry, Configuration = new LocalConfiguration { Site = new LocalSiteConfiguration { NominalPowerKilowatts = 10 } } });
+				{
+				Controller = telemetry,
+				Configuration = new LocalConfiguration { Site = new LocalSiteConfiguration { NominalPowerKilowatts = 10 } }
+				});
 			Assert.That (status.MaxChargePower, Is.EqualTo (10000));
 			Assert.That (status.InstantaneousMaxChargePower, Is.Null);
 			Assert.That (status.InstantaneousMaxDischargePower, Is.Null);

@@ -19,6 +19,7 @@ namespace TeslaPowerwallLibrary.Setup;
 /// window by the library) and presents the resulting refresh and access tokens — the Windows equivalent
 /// of <c>python -m pypowerwall authtoken</c>.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage ("Design", "CA1001", Justification = "Each asynchronous login owns and disposes its cancellation source in finally; OnClosed requests cancellation without disposing a source still in use.")]
 public partial class MainWindow : Window
 	{
 	private CancellationTokenSource? _loginCts;
@@ -64,13 +65,13 @@ public partial class MainWindow : Window
 		RegionSelector.IsEnabled = false;
 		SetStatus ("Opening the Tesla login window. Complete the sign-in in the window that appears...");
 
-		_loginCts?.Dispose ();
-		_loginCts = new CancellationTokenSource ();
+		var loginCancellation = new CancellationTokenSource ();
+		_loginCts = loginCancellation;
 
 		try
 			{
 			var result = await TeslaCloudLogin.SignInAsync (
-				SelectedRegion, TimeSpan.FromMinutes (5), cancellationToken: _loginCts.Token).ConfigureAwait (true);
+				SelectedRegion, TimeSpan.FromMinutes (5), cancellationToken: loginCancellation.Token).ConfigureAwait (true);
 
 			switch (result.Status)
 				{
@@ -90,6 +91,12 @@ public partial class MainWindow : Window
 		catch (Exception exc)
 			{
 			ShowError ($"Login failed: {exc.Message}");
+			}
+		finally
+			{
+			if (ReferenceEquals (_loginCts, loginCancellation))
+				_loginCts = null;
+			loginCancellation.Dispose ();
 			}
 		}
 

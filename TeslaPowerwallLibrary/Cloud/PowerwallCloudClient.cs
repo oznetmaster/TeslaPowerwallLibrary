@@ -1,16 +1,14 @@
-using TeslaPowerwallLibrary.Models;
 // Copyright © 2026 Neil Colvin.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-using System.Text.Json;
-using System.Text.Json.Serialization;
-
-
+using TeslaPowerwallLibrary.Models;
 using TeslaPowerwallLibrary.Tedapi;
 
 namespace TeslaPowerwallLibrary.Cloud;
@@ -26,6 +24,10 @@ namespace TeslaPowerwallLibrary.Cloud;
 /// prior connect); <see cref="PowerwallOptions.AccessToken"/> is optional and, when absent or rejected, is
 /// silently (re)derived from the refresh token. This client refreshes an expired access token but does not
 /// perform interactive browser login; obtain the initial refresh token with an external setup tool.
+/// Independent reads may overlap; authentication, controls and site changes are sequenced. Use one
+/// client per credential set: refresh coordination does not extend across independently constructed clients.
+/// Token callbacks must be thread-safe and non-blocking. Disposal cancels admitted operations and defers
+/// owned-resource cleanup until they drain. Returned mutable models require caller coordination.
 /// </remarks>
 public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClient, ILocalKeyEnrollmentClient, IDisposable
 	{
@@ -38,11 +40,19 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	private readonly Stopwatch _clock = Stopwatch.StartNew ();
 	private readonly Dictionary<string, object> _cloudCache = [];
 	private readonly Dictionary<string, double> _cloudCacheTimes = [];
+	private readonly Dictionary<string, long> _cloudCacheVersions = [];
+#pragma warning disable IDE0330 // Monitor semantics must match processor Mono.
+	private readonly object _cacheSync = new ();
+#pragma warning restore IDE0330
+	private readonly AsyncClientGate _lifetime = new (typeof (PowerwallCloudClient));
+	private long _cacheGeneration, _fetchSequence;
+	private int _disposed;
 	private readonly string? _accessToken;
 	private readonly string? _refreshToken;
 	private readonly TeslaCloudTokenCache? _tokenCache;
 
 	private TeslaCloudConnection? _connection;
+	private OAuthSession.Snapshot? _rememberedTokens;
 	private string? _resolvedSiteId;
 	private int _counter;
 
@@ -62,7 +72,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	/// <param name="authPath">Path to cloud authentication and site cache files.</param>
 	/// <param name="noCloudTokenPersistence">
 	/// When <see langword="true"/>, disables the token cache entirely: <paramref name="authPath"/> is ignored,
-	/// <paramref name="accessToken"/>/<paramref name="refreshToken"/> must be supplied on every call, and
+	/// <paramref name="accessToken"/>/<paramref name="refreshToken"/> must be supplied for each new client, and
 	/// rotated tokens are only ever surfaced through <see cref="TokensRefreshed"/>.
 	/// </param>
 	public PowerwallCloudClient (
@@ -158,17 +168,22 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 
 	/// <summary>Gets the current Tesla Owners API access token, updated after any refresh.</summary>
 	/// <value>The current Tesla Owners API access token, updated after any refresh.</value>
-	public string? CurrentAccessToken => _connection?.AccessToken ?? _accessToken;
+	public string? CurrentAccessToken => _lifetime.IsStopped ? null : _connection?.AccessToken ?? Volatile.Read (ref _rememberedTokens)?.AccessToken ?? _accessToken;
 
 	/// <summary>Gets the current Tesla Owners API refresh token, updated after any rotation.</summary>
 	/// <value>The current Tesla Owners API refresh token, updated after any rotation.</value>
-	public string? CurrentRefreshToken => _connection?.RefreshToken ?? _refreshToken;
+	public string? CurrentRefreshToken => _lifetime.IsStopped ? null : _connection?.RefreshToken ?? Volatile.Read (ref _rememberedTokens)?.RefreshToken ?? _refreshToken;
 
 	private double NowSeconds => _clock.Elapsed.TotalSeconds;
 
 	/// <inheritdoc/>
 	public override async Task AuthenticateAsync (CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: true, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
+		string? rememberedAccess = CurrentAccessToken;
+		string? rememberedRefresh = CurrentRefreshToken;
+		Disconnect ();
 		LibraryLog.TeslaCloudModeEnabled (_log);
 
 		// Load any library-persisted tokens/site for this email. Explicitly supplied values (a first-time
@@ -178,8 +193,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		// silently re-derived below when absent) and is solely responsible for persisting a rotated refresh
 		// token via TokensRefreshed.
 		CloudTokenCacheEntry cached = _tokenCache?.Load () ?? CloudTokenCacheEntry.Empty;
-		var accessToken = string.IsNullOrWhiteSpace (_accessToken) ? cached.AccessToken : _accessToken;
-		var refreshToken = string.IsNullOrWhiteSpace (_refreshToken) ? cached.RefreshToken : _refreshToken;
+		var accessToken = string.IsNullOrWhiteSpace (rememberedAccess) ? cached.AccessToken : rememberedAccess;
+		var refreshToken = string.IsNullOrWhiteSpace (rememberedRefresh) ? cached.RefreshToken : rememberedRefresh;
 		SiteId ??= cached.SiteId;
 
 		_connection = new TeslaCloudConnection (accessToken, refreshToken, Timeout, _log);
@@ -230,12 +245,10 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		}
 
 	/// <inheritdoc/>
-	public override Task CloseSessionAsync (CancellationToken cancellationToken = default)
+	public override async Task CloseSessionAsync (CancellationToken cancellationToken = default)
 		{
-		_connection?.Dispose ();
-		_connection = null;
-		_resolvedSiteId = null;
-		return Task.CompletedTask;
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: true, cancellationToken).ConfigureAwait (false);
+		Disconnect ();
 		}
 
 	/// <summary>
@@ -246,6 +259,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	/// <returns>The available sites, or an empty list when none are found.</returns>
 	public async Task<IReadOnlyList<CloudSite>> GetSitesAsync (CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		EnsureConnected ();
 		List<EnergyProduct>? sites = await FetchEnergySitesAsync (cancellationToken).ConfigureAwait (false);
 		if (sites is null)
@@ -271,6 +286,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	/// <returns><see langword="true"/> when the site was found and selected; otherwise <see langword="false"/>.</returns>
 	public async Task<bool> ChangeSiteAsync (string siteId, CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: true, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		EnsureConnected ();
 		if (string.IsNullOrWhiteSpace (siteId))
 			{
@@ -312,6 +329,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	/// <returns>The raw response body, or <see langword="null"/> when the call fails.</returns>
 	public async Task<string?> SetGridChargingAsync (bool enabled, CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: true, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		EnsureConnected ();
 
 		// Upstream inverts the flag: enabling grid charging clears "disallow_charge_from_grid_with_solar_installed".
@@ -329,6 +348,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	/// <returns>The raw response body, or <see langword="null"/> when the call fails.</returns>
 	public async Task<string?> SetGridExportAsync (string mode, CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: true, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		EnsureConnected ();
 
 		var settings = new GridImportExportRequest { CustomerPreferredExportRule = mode };
@@ -346,6 +367,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	/// <returns><see langword="true"/> when grid charging is allowed, <see langword="false"/> when disallowed, or <see langword="null"/> when unavailable.</returns>
 	public async Task<bool?> GetGridChargingAsync (bool force = false, CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		EnsureConnected ();
 
 		SiteConfigResponse? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
@@ -366,6 +389,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	/// <returns>The export rule (<c>battery_ok</c>, <c>pv_only</c>, or <c>never</c>), or <see langword="null"/> when unavailable.</returns>
 	public async Task<string?> GetGridExportAsync (bool force = false, CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		EnsureConnected ();
 
 		SiteConfigResponse? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
@@ -391,6 +416,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	/// <returns>The raw response body, or <see langword="null"/> when the call fails.</returns>
 	public async Task<string?> SetStormWatchAsync (bool enabled, CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: true, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		EnsureConnected ();
 
 		ApiResponse<object>? response = await _connection!.SetStormModeAsync (_resolvedSiteId!, enabled, cancellationToken).ConfigureAwait (false);
@@ -407,6 +434,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	/// <returns><see langword="true"/> when Storm Watch is enabled, <see langword="false"/> when disabled, or <see langword="null"/> when unavailable.</returns>
 	public async Task<bool?> GetStormWatchAsync (bool force = false, CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		EnsureConnected ();
 
 		SiteConfigResponse? config = await GetSiteConfigAsync (force, cancellationToken).ConfigureAwait (false);
@@ -436,6 +465,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		string? endDate = null,
 		CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		EnsureConnected ();
 		try
 			{
@@ -471,42 +502,55 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		string? endDate = null,
 		CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		EnsureConnected ();
 		string? response = await _connection!.GetCalendarHistoryAsync (_resolvedSiteId!, kind, period, timeZone, startDate, endDate, cancellationToken).ConfigureAwait (false);
 		return JsonHelper.UnwrapPayload (response);
 		}
 
 	/// <inheritdoc/>
-	public override Task<string?> PollAsync (string api, bool force = false, bool recursive = false, CancellationToken cancellationToken = default)
+	public override async Task<string?> PollAsync (string api, bool force = false, bool recursive = false, CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		if (string.IsNullOrWhiteSpace (api))
 			throw new ArgumentException ("API endpoint is required.", nameof (api));
 
 		EnsureConnected ();
-		return MapPollAsync (api, force, cancellationToken);
+		string? result = await MapPollAsync (api, force, cancellationToken).ConfigureAwait (false);
+		_lifetime.CheckRunning ();
+		return result;
 		}
 
 	/// <inheritdoc/>
-	public override Task<byte[]?> PollRawAsync (string api, bool force = false, bool recursive = false, CancellationToken cancellationToken = default)
+	public override async Task<byte[]?> PollRawAsync (string api, bool force = false, bool recursive = false, CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
 		// Cloud mode has no protobuf vitals path; mirror upstream by returning no binary payload.
 		LibraryLog.RawPollIsNotSupportedInCloudModeFor (_log, api);
-		return Task.FromResult<byte[]?> (null);
+		return null;
 		}
 
 	/// <inheritdoc/>
-	public override Task<string?> PostAsync (string api, object? payload, string? din = null, bool recursive = false, CancellationToken cancellationToken = default)
+	public override async Task<string?> PostAsync (string api, object? payload, string? din = null, bool recursive = false, CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: true, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		if (string.IsNullOrWhiteSpace (api))
 			throw new ArgumentException ("API endpoint is required.", nameof (api));
 
 		EnsureConnected ();
-		return MapPostAsync (api, payload, din, cancellationToken);
+		string? result = await MapPostAsync (api, payload, din, cancellationToken).ConfigureAwait (false);
+		_lifetime.CheckRunning ();
+		return result;
 		}
 
 	/// <inheritdoc/>
 	public override async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>>?> VitalsAsync (CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		EnsureConnected ();
 		return await GetVitalsAsync (force: false, cancellationToken).ConfigureAwait (false);
 		}
@@ -514,6 +558,8 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	/// <inheritdoc/>
 	public override async Task<double?> GetTimeRemainingAsync (CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		EnsureConnected ();
 		BackupTimeRemainingResponse? response = await GetCachedSiteDataAsync (
 			"ENERGY_SITE_BACKUP_TIME_REMAINING",
@@ -828,19 +874,23 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 
 	private async Task<SitePowerResponse?> GetSitePowerAsync (bool force, CancellationToken cancellationToken)
 		{
-		var cachedBefore = IsCloudCacheValid ("SITE_DATA", CacheExpireSeconds);
-		var counter = _counter + 1;
 		SitePowerResponse? response = await GetCachedSiteDataAsync (
 			"SITE_DATA",
 			CacheExpireSeconds,
-			(c, ct) => c.GetSitePowerAsync (_resolvedSiteId!, counter, ct),
+			(c, ct) => c.GetSitePowerAsync (_resolvedSiteId!, NextCounter (), ct),
 			force,
 			cancellationToken).ConfigureAwait (false);
 
-		if (!cachedBefore && response is not null)
-			_counter = (_counter + 1) % COUNTER_MAX;
-
 		return response;
+		}
+	private int NextCounter ()
+		{
+		while (true)
+			{
+			int current = Volatile.Read (ref _counter);
+			if (Interlocked.CompareExchange (ref _counter, (current + 1) % COUNTER_MAX, current) == current)
+				return current + 1;
+			}
 		}
 
 	private Task<SiteSummaryResponse?> GetBatteryAsync (bool force, CancellationToken cancellationToken) =>
@@ -859,27 +909,35 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		CancellationToken cancellationToken)
 		where T : class
 		{
-		if (!force && IsCloudCacheValid (name, ttlSeconds) && _cloudCache.TryGetValue (name, out var cached))
+		long generation, sequence;
+		lock (_cacheSync)
 			{
-			LibraryLog.CloudReturningCachedData (_log, name);
-			return cached as T;
+			if (!force && _cloudCacheTimes.TryGetValue (name, out double at) && at > NowSeconds - ttlSeconds
+				&& _cloudCache.TryGetValue (name, out object? cached))
+				return cached as T;
+			generation = _cacheGeneration;
+			sequence = ++_fetchSequence;
 			}
 
 		T? response = await fetch (_connection!, cancellationToken).ConfigureAwait (false);
 		if (response is not null)
 			{
-			_cloudCache[name] = response;
-			_cloudCacheTimes[name] = NowSeconds;
+			_lifetime.Commit (() =>
+				{
+					lock (_cacheSync)
+						{
+						if (generation != _cacheGeneration || (_cloudCacheVersions.TryGetValue (name, out long previous) && previous > sequence))
+							return;
+						_cloudCache[name] = response;
+						_cloudCacheTimes[name] = NowSeconds;
+						_cloudCacheVersions[name] = sequence;
+						}
+				});
 			LibraryLog.CloudRetrievedData (_log, name);
 			}
 
 		return response;
 		}
-
-	private bool IsCloudCacheValid (string name, int ttlSeconds) =>
-		_cloudCache.ContainsKey (name)
-		&& _cloudCacheTimes.TryGetValue (name, out var cachedAt)
-		&& cachedAt > NowSeconds - ttlSeconds;
 
 	private async Task<List<EnergyProduct>?> FetchEnergySitesAsync (CancellationToken cancellationToken)
 		{
@@ -891,14 +949,24 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 
 	private void InvalidateCloudCache (string name)
 		{
-		_cloudCache.Remove (name);
-		_cloudCacheTimes.Remove (name);
+		lock (_cacheSync)
+			{
+			_cacheGeneration++;
+			_cloudCache.Remove (name);
+			_cloudCacheTimes.Remove (name);
+			_cloudCacheVersions.Remove (name);
+			}
 		}
 
 	private void ClearCloudCache ()
 		{
-		_cloudCache.Clear ();
-		_cloudCacheTimes.Clear ();
+		lock (_cacheSync)
+			{
+			_cacheGeneration++;
+			_cloudCache.Clear ();
+			_cloudCacheTimes.Clear ();
+			_cloudCacheVersions.Clear ();
+			}
 		}
 
 	private string SelectSite (List<EnergyProduct> sites)
@@ -920,13 +988,16 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 		site.EnergySiteId ?? site.Id ?? string.Empty;
 
 	/// <inheritdoc/>
-	Task<LocalKeyRegistration> ILocalKeyEnrollmentClient.LocalKeyAsync (byte[] publicKey, string? description, CancellationToken cancellationToken)
+	async Task<LocalKeyRegistration> ILocalKeyEnrollmentClient.LocalKeyAsync (byte[] publicKey, string? description, CancellationToken cancellationToken)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: true, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		EnsureConnected ();
-		return _connection!.LocalKeyAsync (_resolvedSiteId!, publicKey, description, cancellationToken);
+		return await _connection!.LocalKeyAsync (_resolvedSiteId!, publicKey, description, cancellationToken).ConfigureAwait (false);
 		}
 	private void EnsureConnected ()
 		{
+		_lifetime.CheckRunning ();
 		if (_connection is null || _resolvedSiteId is null)
 			throw new PowerwallCloudTeslaNotConnectedException ("Not connected to the Tesla cloud. Call AuthenticateAsync before invoking data methods.");
 		}
@@ -935,6 +1006,7 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 
 	private void OnConnectionTokensRefreshed (object? sender, ConnectionTokensRefreshedEventArgs e)
 		{
+		Volatile.Write (ref _rememberedTokens, new OAuthSession.Snapshot (e.AccessToken, e.RefreshToken));
 		// Tesla refreshed the tokens; always persist internally so the next run reconnects without a fresh
 		// login (unless the caller has opted out of library-owned persistence). This happens regardless of
 		// whether the public event below fires.
@@ -958,10 +1030,26 @@ public sealed class PowerwallCloudClient : PowerwallClientBase, IEnergySiteClien
 	/// <summary>Releases the underlying Tesla cloud connection.</summary>
 	public void Dispose ()
 		{
+		if (Interlocked.Exchange (ref _disposed, 1) != 0)
+			return;
+		_ = DisposeAfterDrainAsync (_lifetime.Stop ());
+		}
+	private async Task DisposeAfterDrainAsync (Task drained)
+		{
+		await drained.ConfigureAwait (false);
+		Disconnect ();
+		}
+	private void Disconnect ()
+		{
 		if (_connection is not null)
+			{
+			Volatile.Write (ref _rememberedTokens, new OAuthSession.Snapshot (_connection.AccessToken, _connection.RefreshToken));
 			_connection.TokensRefreshed -= OnConnectionTokensRefreshed;
+			}
 
 		_connection?.Dispose ();
 		_connection = null;
+		_resolvedSiteId = null;
+		ClearCloudCache ();
 		}
 	}

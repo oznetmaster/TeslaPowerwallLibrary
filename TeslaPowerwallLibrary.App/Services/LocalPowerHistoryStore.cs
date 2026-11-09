@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+
 using Microsoft.Data.Sqlite;
 
 namespace TeslaPowerwallLibrary.App.Services;
@@ -20,6 +21,7 @@ internal sealed record LocalPowerSample (DateTimeOffset ReceivedAt, double? Sola
 	double? HomeWatts, double? GridWatts);
 
 /// <summary>Desktop-only storage for actual LAN samples, separate from cloud energy batches.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage ("Design", "CA1001", Justification = "Application-lifetime async synchronization; AvailableWaitHandle is never accessed, and disposing the semaphore could race outstanding sample operations. SQLite connections are disposed per operation.")]
 internal sealed class LocalPowerHistoryStore
 	{
 	private readonly string _path;
@@ -40,16 +42,16 @@ internal sealed class LocalPowerHistoryStore
 			{
 			await Task.Run (() =>
 				{
-				using var connection = Open ();
-				using var command = connection.CreateCommand ();
-				command.CommandText = "INSERT OR REPLACE INTO local_power VALUES ($host, $time, $solar, $battery, $home, $grid)";
-				command.Parameters.AddWithValue ("$host", host.ToLowerInvariant ());
-				command.Parameters.AddWithValue ("$time", sample.ReceivedAt.ToUnixTimeMilliseconds ());
-				command.Parameters.AddWithValue ("$solar", (object?)sample.SolarWatts ?? DBNull.Value);
-				command.Parameters.AddWithValue ("$battery", (object?)sample.BatteryWatts ?? DBNull.Value);
-				command.Parameters.AddWithValue ("$home", (object?)sample.HomeWatts ?? DBNull.Value);
-				command.Parameters.AddWithValue ("$grid", (object?)sample.GridWatts ?? DBNull.Value);
-				command.ExecuteNonQuery ();
+					using var connection = Open ();
+					using var command = connection.CreateCommand ();
+					command.CommandText = "INSERT OR REPLACE INTO local_power VALUES ($host, $time, $solar, $battery, $home, $grid)";
+					command.Parameters.AddWithValue ("$host", host.ToLowerInvariant ());
+					command.Parameters.AddWithValue ("$time", sample.ReceivedAt.ToUnixTimeMilliseconds ());
+					command.Parameters.AddWithValue ("$solar", (object?)sample.SolarWatts ?? DBNull.Value);
+					command.Parameters.AddWithValue ("$battery", (object?)sample.BatteryWatts ?? DBNull.Value);
+					command.Parameters.AddWithValue ("$home", (object?)sample.HomeWatts ?? DBNull.Value);
+					command.Parameters.AddWithValue ("$grid", (object?)sample.GridWatts ?? DBNull.Value);
+					command.ExecuteNonQuery ();
 				}).ConfigureAwait (false);
 			}
 		finally { _gate.Release (); }
@@ -67,20 +69,20 @@ internal sealed class LocalPowerHistoryStore
 			{
 			return await Task.Run<IReadOnlyList<LocalPowerSample>> (() =>
 				{
-				using var connection = Open ();
-				using var command = connection.CreateCommand ();
-				command.CommandText = "SELECT received, solar, battery, home, grid FROM local_power WHERE host = $host AND received >= $start AND received < $end ORDER BY received";
-				command.Parameters.AddWithValue ("$host", host.ToLowerInvariant ());
-				command.Parameters.AddWithValue ("$start", start.ToUnixTimeMilliseconds ());
-				command.Parameters.AddWithValue ("$end", end.ToUnixTimeMilliseconds ());
-				using var reader = command.ExecuteReader ();
-				var result = new List<LocalPowerSample> ();
-				while (reader.Read ())
-					{
-					double? Value (int ordinal) => reader.IsDBNull (ordinal) ? null : reader.GetDouble (ordinal);
-					result.Add (new LocalPowerSample (DateTimeOffset.FromUnixTimeMilliseconds (reader.GetInt64 (0)), Value (1), Value (2), Value (3), Value (4)));
-					}
-				return result;
+					using var connection = Open ();
+					using var command = connection.CreateCommand ();
+					command.CommandText = "SELECT received, solar, battery, home, grid FROM local_power WHERE host = $host AND received >= $start AND received < $end ORDER BY received";
+					command.Parameters.AddWithValue ("$host", host.ToLowerInvariant ());
+					command.Parameters.AddWithValue ("$start", start.ToUnixTimeMilliseconds ());
+					command.Parameters.AddWithValue ("$end", end.ToUnixTimeMilliseconds ());
+					using var reader = command.ExecuteReader ();
+					var result = new List<LocalPowerSample> ();
+					while (reader.Read ())
+						{
+						double? Value (int ordinal) => reader.IsDBNull (ordinal) ? null : reader.GetDouble (ordinal);
+						result.Add (new LocalPowerSample (DateTimeOffset.FromUnixTimeMilliseconds (reader.GetInt64 (0)), Value (1), Value (2), Value (3), Value (4)));
+						}
+					return result;
 				}).ConfigureAwait (false);
 			}
 		finally { _gate.Release (); }

@@ -33,18 +33,27 @@ public static class PowerwallDiscovery
 		string name = endpoint.DnsSafeHost.Trim ('[', ']');
 		string? shortName = PowerwallLanDns.ShortName (name);
 		PowerwallHost result;
-		try { result = await ResolveAsync (host, cancellationToken).ConfigureAwait (false); }
+		try
+			{
+			result = await ResolveAsync (host, cancellationToken).ConfigureAwait (false);
+			}
 		catch (SocketException) when (shortName is not null) { result = new PowerwallHost (name, endpoint.Port, Array.Empty<IPAddress> ()); }
 		if (shortName is not null && !result.Addresses.Any (a => a.AddressFamily == AddressFamily.InterNetwork))
 			{
 			try
 				{
 				var ipv4 = await PowerwallLanDns.ResolveAsync (shortName, cancellationToken).ConfigureAwait (false);
-				result = result with { Addresses = ipv4.Concat (result.Addresses).Distinct ().ToArray () };
+				result = result with
+					{
+					Addresses = ipv4.Concat (result.Addresses).Distinct ().ToArray ()
+					};
 				}
 			catch (System.Net.NetworkInformation.NetworkInformationException) { }
 			}
-		return result with { Addresses = result.Addresses.OrderBy (a => a.AddressFamily == AddressFamily.InterNetwork ? 0 : 1).ToArray () };
+		return result with
+			{
+			Addresses = result.Addresses.OrderBy (a => a.AddressFamily == AddressFamily.InterNetwork ? 0 : 1).ToArray ()
+			};
 		}
 
 	/// <summary>Resolves a hostname, IPv4 address or bracketed IPv6 address, optionally followed by an HTTPS port.</summary>
@@ -63,7 +72,7 @@ public static class PowerwallDiscovery
 			return new PowerwallHost (name, endpoint.Port, new[] { literal });
 			}
 
-		#if NETFRAMEWORK
+#if NETFRAMEWORK
 		Task<IPAddress[]> lookup = Dns.GetHostAddressesAsync (name);
 #else
 		Task<IPAddress[]> lookup = Dns.GetHostAddressesAsync (name, cancellationToken);

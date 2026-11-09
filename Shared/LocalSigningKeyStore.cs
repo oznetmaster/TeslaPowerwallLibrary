@@ -10,7 +10,7 @@ namespace TeslaPowerwallLibrary.Tools;
 internal static class LocalSigningKeyStore
 	{
 	/// <summary>Default shared key name for the console and desktop application.</summary>
-	internal const string DefaultKeyName = "TeslaPowerwallLibrary.LocalClient";
+	internal const string DEFAULT_KEY_NAME = "TeslaPowerwallLibrary.LocalClient";
 
 	/// <summary>Opens an existing RSA-4096 signing key. Connecting never creates or registers a key.</summary>
 	/// <param name="name">Persisted CNG key name.</param>

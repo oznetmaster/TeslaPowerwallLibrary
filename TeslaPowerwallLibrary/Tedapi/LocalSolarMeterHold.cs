@@ -23,47 +23,71 @@ internal static class LocalSolarMeterHold
 	internal static MeterAggregates Apply (MeterAggregates basis, LocalConfiguration configuration,
 		LocalTelemetry status, LocalTelemetry detailed, IReadOnlyList<LocalConfiguredMeter>? projected = null)
 		{
-		if (!IsCandidate (status)) return basis;
+		if (!IsCandidate (status))
+			return basis;
 		var assignments = configuration.Meters?.Where (m => string.Equals (m.Location, "solar", StringComparison.OrdinalIgnoreCase)
 			&& m.EnabledChannels?.Any (enabled => enabled) == true).ToArray ();
-		if (assignments is null || !assignments.Any (m => m.Type is "trm_mb" or "trm_wifi")) return basis;
+		if (assignments is null || !assignments.Any (m => m.Type is "trm_mb" or "trm_wifi"))
+			return basis;
 		double? gatewaySolar = SolarPower (status);
 		// During this alert, an unvalidated null-power CT fallback must not bypass the age guard.
-		basis = basis with { Solar = basis.Solar is null ? null : basis.Solar with { InstantPower = gatewaySolar } };
+		basis = basis with
+			{
+			Solar = basis.Solar is null ? null : basis.Solar with
+				{
+				InstantPower = gatewaySolar
+				}
+			};
 		// A remote-meter subtotal cannot replace a total that also includes another meter family.
-		if (assignments.Any (m => m.Type is not ("trm_mb" or "trm_wifi"))) return basis;
-		if (!TryTime (status.System?.Time, out var now)) return basis;
+		if (assignments.Any (m => m.Type is not ("trm_mb" or "trm_wifi")))
+			return basis;
+		if (!TryTime (status.System?.Time, out var now))
+			return basis;
 		var meters = (projected ?? LocalMeterProjection.Create (configuration, detailed))
 			.Where (m => m.Family == "TeslaRemoteMeter").ToArray ();
 		var samples = new Dictionary<(string Device, int Slot), (double Watts, DateTimeOffset Time, string Timestamp)> ();
 		foreach (var assignment in assignments)
 			{
-			if (string.IsNullOrWhiteSpace (assignment.Connection?.DeviceSerial)) return basis;
+			if (string.IsNullOrWhiteSpace (assignment.Connection?.DeviceSerial))
+				return basis;
 			string id = assignment.Connection!.DeviceSerial!;
 			var matching = meters.Where (m => m.DeviceId == id).ToArray ();
 			if (matching.Length != 1 || !TryTime (matching[0].Timestamp, out var time)
-				|| Math.Abs ((now - time).TotalSeconds) > MAX_AGE_SECONDS) return basis;
+				|| Math.Abs ((now - time).TotalSeconds) > MAX_AGE_SECONDS)
+				return basis;
 			for (int slot = 0; slot < assignment.EnabledChannels!.Count; slot++)
 				{
-				if (!assignment.EnabledChannels[slot]) continue;
+				if (!assignment.EnabledChannels[slot])
+					continue;
 				var channels = matching[0].Channels.Where (c => c.Index == slot && c.IsConfigured
 					&& string.Equals (c.Location, "solar", StringComparison.OrdinalIgnoreCase)).ToArray ();
-				if (channels.Length != 1 || channels[0].RealPowerWatts is not double watts || !Finite (watts)) return basis;
+				if (channels.Length != 1 || channels[0].RealPowerWatts is not double watts || !Finite (watts))
+					return basis;
 				samples[(id, slot)] = (watts, time, matching[0].Timestamp!);
 				}
 			}
 		double retained = samples.Values.Sum (s => s.Watts);
-		if (!Finite (retained) || retained <= 0) return basis;
+		if (!Finite (retained) || retained <= 0)
+			return basis;
 		double? load = basis.Load?.InstantPower;
 		double? correctedLoad = load + retained - (gatewaySolar ?? 0);
-		if (load.HasValue && (!Finite (load.Value) || !Finite (correctedLoad!.Value))) return basis;
+		if (load.HasValue && (!Finite (load.Value) || !Finite (correctedLoad!.Value)))
+			return basis;
 		var oldest = samples.Values.OrderBy (s => s.Time).First ();
 		double age = Math.Max (0, (now - oldest.Time).TotalSeconds);
 		return basis with
 			{
 			Solar = (basis.Solar ?? new MeterReading ()) with
-				{ InstantPower = retained, LastCommunicationTime = oldest.Timestamp, PowerHoldAgeSeconds = age },
-			Load = load.HasValue ? basis.Load! with { InstantPower = correctedLoad, PowerHoldAgeSeconds = age } : basis.Load
+				{
+				InstantPower = retained,
+				LastCommunicationTime = oldest.Timestamp,
+				PowerHoldAgeSeconds = age
+				},
+			Load = load.HasValue ? basis.Load! with
+				{
+				InstantPower = correctedLoad,
+				PowerHoldAgeSeconds = age
+				} : basis.Load
 			};
 		}
 
@@ -75,7 +99,8 @@ internal static class LocalSolarMeterHold
 	private static bool TryTime (string? text, out DateTimeOffset time)
 		{
 		time = default;
-		if (string.IsNullOrWhiteSpace (text)) return false;
+		if (string.IsNullOrWhiteSpace (text))
+			return false;
 		text = text!.Trim ();
 		// Require an explicit ISO timezone; never interpret a gateway timestamp in the computer's local zone.
 		int length = text.Length;

@@ -28,11 +28,17 @@ public abstract class PowerwallClientBase
 
 	/// <summary>Cached bearer token, when token-based authentication is in use.</summary>
 	/// <value>Cached bearer token, when token-based authentication is in use.</value>
-	protected string? Token { get; set; }
+	protected string? Token
+		{
+		get; set;
+		}
 
 	/// <summary>Customer email associated with this client.</summary>
 	/// <value>Customer email associated with this client.</value>
-	public string Email { get; protected set; }
+	public string Email
+		{
+		get; protected set;
+		}
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PowerwallClientBase"/> class.
@@ -165,12 +171,12 @@ public abstract class PowerwallClientBase
 		PowerSnapshot power = await PowerAsync (cancellationToken).ConfigureAwait (false);
 		return sensor switch
 			{
-			"site" => power.Site,
-			"solar" => power.Solar,
-			"battery" => power.Battery,
-			"load" => power.Load,
-			_ => null
-			};
+				"site" => power.Site,
+				"solar" => power.Solar,
+				"battery" => power.Battery,
+				"load" => power.Load,
+				_ => null
+				};
 		}
 
 	/// <summary>
@@ -195,10 +201,10 @@ public abstract class PowerwallClientBase
 	private static MeterReading? SelectSensorReading (MeterAggregates? aggregates, string sensor) =>
 		sensor switch
 			{
-			"site" => aggregates?.Site,
-			"solar" => aggregates?.Solar,
-			"battery" => aggregates?.Battery,
-			"load" => aggregates?.Load,
-			_ => null
-			};
+				"site" => aggregates?.Site,
+				"solar" => aggregates?.Solar,
+				"battery" => aggregates?.Battery,
+				"load" => aggregates?.Load,
+				_ => null
+				};
 	}

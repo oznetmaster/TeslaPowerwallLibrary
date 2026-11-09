@@ -14,7 +14,6 @@ internal static class StringComparisonExtensions
 	/// <param name="comparisonType">Comparison rules.</param>
 	/// <returns>True if <paramref name="value"/> occurs within <paramref name="source"/> using the specified comparison; otherwise false.</returns>
 	public static bool Contains (this string? source, string value, StringComparison comparisonType) =>
-		source?.IndexOf (value, comparisonType) >=0;
+		source?.IndexOf (value, comparisonType) >= 0;
 #endif
 	}
-

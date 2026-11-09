@@ -28,10 +28,17 @@ public sealed record LocalDiagnosticScalar
 	/// <summary>Creates an internally validated scalar from its reported representation.</summary>
 	/// <param name="kind">Reported scalar kind.</param>
 	/// <param name="value">Decoded text, numeric token, or normalized boolean.</param>
-	internal LocalDiagnosticScalar (LocalDiagnosticScalarKind kind, string value) { Kind = kind; _value = value; }
+	internal LocalDiagnosticScalar (LocalDiagnosticScalarKind kind, string value)
+		{
+		Kind = kind;
+		_value = value;
+		}
 	/// <summary>Gets the actual reported scalar kind.</summary>
 	/// <value>The actual reported scalar kind.</value>
-	public LocalDiagnosticScalarKind Kind { get; }
+	public LocalDiagnosticScalarKind Kind
+		{
+		get;
+		}
 	/// <summary>Gets decoded text only when the device supplied text; otherwise null.</summary>
 	/// <value>Decoded text only when the device supplied text; otherwise null.</value>
 	public string? Text => Kind == LocalDiagnosticScalarKind.Text ? _value : null;
@@ -45,7 +52,10 @@ public sealed record LocalDiagnosticScalar
 	/// <param name="value">Converted decimal, or zero on failure; the return value indicates availability.</param>
 	/// <returns>True only for a numeric scalar representable as a decimal.</returns>
 	public bool TryGetDecimal (out decimal value)
-		{ value = default; return Kind == LocalDiagnosticScalarKind.Number && decimal.TryParse (_value, NumberStyles.Float, CultureInfo.InvariantCulture, out value); }
+		{
+		value = default;
+		return Kind == LocalDiagnosticScalarKind.Number && decimal.TryParse (_value, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+		}
 	/// <summary>Attempts finite floating-point conversion without assuming units or converting text.</summary>
 	/// <param name="value">Converted number on success, or zero on failure.</param>
 	/// <returns>True only when the numeric scalar is representable as a finite double.</returns>
@@ -53,7 +63,8 @@ public sealed record LocalDiagnosticScalar
 		{
 		value = default;
 		if (Kind != LocalDiagnosticScalarKind.Number || !double.TryParse (_value, NumberStyles.Float, CultureInfo.InvariantCulture, out double number)
-			|| double.IsInfinity (number) || double.IsNaN (number)) return false;
+			|| double.IsInfinity (number) || double.IsNaN (number))
+			return false;
 		value = number;
 		return true;
 		}
@@ -70,20 +81,27 @@ internal sealed class LocalDiagnosticScalarConverter : JsonConverter<LocalDiagno
 		{
 		switch (reader.TokenType)
 			{
-			case JsonTokenType.String: return new (LocalDiagnosticScalarKind.Text, reader.GetString ()!);
-			case JsonTokenType.True: return new (LocalDiagnosticScalarKind.Boolean, "true");
-			case JsonTokenType.False: return new (LocalDiagnosticScalarKind.Boolean, "false");
+			case JsonTokenType.String:
+				return new (LocalDiagnosticScalarKind.Text, reader.GetString ()!);
+			case JsonTokenType.True:
+				return new (LocalDiagnosticScalarKind.Boolean, "true");
+			case JsonTokenType.False:
+				return new (LocalDiagnosticScalarKind.Boolean, "false");
 			case JsonTokenType.Number:
 				using (JsonDocument token = JsonDocument.ParseValue (ref reader))
 					return new (LocalDiagnosticScalarKind.Number, token.RootElement.GetRawText ());
-			default: throw new JsonException ("Expected a diagnostic scalar, not a structured payload.");
+			default:
+				throw new JsonException ("Expected a diagnostic scalar, not a structured payload.");
 			}
 		}
 	/// <inheritdoc/>
 	public override void Write (Utf8JsonWriter writer, LocalDiagnosticScalar value, JsonSerializerOptions options)
 		{
-		if (value.Kind == LocalDiagnosticScalarKind.Text) writer.WriteStringValue (value.Text);
-		else if (value.Kind == LocalDiagnosticScalarKind.Boolean) writer.WriteBooleanValue (value.Boolean!.Value);
-		else writer.WriteRawValue (value.NumberText!);
+		if (value.Kind == LocalDiagnosticScalarKind.Text)
+			writer.WriteStringValue (value.Text);
+		else if (value.Kind == LocalDiagnosticScalarKind.Boolean)
+			writer.WriteBooleanValue (value.Boolean!.Value);
+		else
+			writer.WriteRawValue (value.NumberText!);
 		}
 	}

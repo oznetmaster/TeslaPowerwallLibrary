@@ -4,12 +4,15 @@
 using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
+
 using Google.Protobuf;
+
 using TeslaPowerwallLibrary.Local;
 using TeslaPowerwallLibrary.Tedapi;
+
+using Graphql = TeslaPowerwallLibrary.Tedapi.Protocol.Graphql;
 using Legacy = TeslaPowerwallLibrary.Tedapi.Protocol.Legacy;
 using Signed = TeslaPowerwallLibrary.Tedapi.Protocol.Signed;
-using Graphql = TeslaPowerwallLibrary.Tedapi.Protocol.Graphql;
 
 namespace TeslaPowerwallLibrary.Tests;
 
@@ -59,8 +62,10 @@ public sealed class LocalReadFailoverTests
 		await h.ConnectAsync ();
 		h.PrimaryFailure = failure;
 		using var cancel = new CancellationTokenSource ();
-		if (failure == "cancel") cancel.Cancel ();
-		for (int i = 0; i < 3; i++) await Assert.CatchAsync (async () => await h.Primary.GetTelemetryAsync (true, cancel.Token));
+		if (failure == "cancel")
+			cancel.Cancel ();
+		for (int i = 0; i < 3; i++)
+			await Assert.CatchAsync (async () => await h.Primary.GetTelemetryAsync (true, cancel.Token));
 		Assert.That (h.Primary.IsUsingLocalReadFallback, Is.False);
 		Assert.That (h.FallbackReads, Is.Zero);
 		}
@@ -71,7 +76,7 @@ public sealed class LocalReadFailoverTests
 		{
 		using var h = new Harness (_key) { LoginFailure = true };
 		await h.ConnectAsync ();
-		Assert.That (h.Primary.DeviceIdentificationNumber, Is.EqualTo (Harness.Din));
+		Assert.That (h.Primary.DeviceIdentificationNumber, Is.EqualTo (Harness.DIN));
 		Assert.That (h.Primary.IsUsingLocalReadFallback, Is.True);
 		await h.Primary.GetTelemetryAsync ();
 		int reads = h.FallbackReads;
@@ -116,7 +121,8 @@ public sealed class LocalReadFailoverTests
 		using var h = new Harness (_key, false);
 		await h.ConnectAsync ();
 		h.PrimaryFailure = "network";
-		for (int i = 0; i < 4; i++) await Assert.ThrowsAsync<HttpRequestException> (async () => await h.Primary.GetTelemetryAsync (true));
+		for (int i = 0; i < 4; i++)
+			await Assert.ThrowsAsync<HttpRequestException> (async () => await h.Primary.GetTelemetryAsync (true));
 		Assert.That (h.FallbackReads, Is.Zero);
 		}
 
@@ -127,7 +133,8 @@ public sealed class LocalReadFailoverTests
 		using var h = new Harness (_key);
 		await h.ConnectAsync ();
 		h.PrimaryFailure = "network";
-		for (int i = 0; i < 2; i++) await Assert.CatchAsync (async () => await h.Primary.GetTelemetryAsync (true));
+		for (int i = 0; i < 2; i++)
+			await Assert.CatchAsync (async () => await h.Primary.GetTelemetryAsync (true));
 		await h.Primary.GetTelemetryAsync (true);
 		h.Now = 61;
 		await Task.WhenAll (Enumerable.Range (0, 5).Select (_ => h.Primary.GetTelemetryAsync (true)));
@@ -147,16 +154,27 @@ public sealed class LocalReadFailoverTests
 			{
 			switch (route)
 				{
-				case "telemetry": Assert.That ((await h.Primary.GetTelemetryAsync (true)).Control, Is.Not.Null); break;
-				case "components": Assert.That ((await h.Primary.GetComponentsAsync (force: true)).Components, Is.Not.Null); break;
-				case "configuration": Assert.That ((await h.Primary.GetConfigurationAsync (true)).Din, Is.EqualTo (Harness.Din)); break;
-				case "firmware": Assert.That ((await h.Primary.GetSystemInformationAsync (true)).Version!.Version, Is.EqualTo ("test-version")); break;
-				case "nativeMeters": Assert.That ((await h.Primary.GetNativeMeterAggregatesAsync (true)).Site, Is.Not.Null); break;
+				case "telemetry":
+					Assert.That ((await h.Primary.GetTelemetryAsync (true)).Control, Is.Not.Null);
+					break;
+				case "components":
+					Assert.That ((await h.Primary.GetComponentsAsync (force: true)).Components, Is.Not.Null);
+					break;
+				case "configuration":
+					Assert.That ((await h.Primary.GetConfigurationAsync (true)).Din, Is.EqualTo (Harness.DIN));
+					break;
+				case "firmware":
+					Assert.That ((await h.Primary.GetSystemInformationAsync (true)).Version!.Version, Is.EqualTo ("test-version"));
+					break;
+				case "nativeMeters":
+					Assert.That ((await h.Primary.GetNativeMeterAggregatesAsync (true)).Site, Is.Not.Null);
+					break;
 				}
 			}
 		await Read ();
 		h.PrimaryFailure = "network";
-		for (int i = 0; i < 2; i++) await Assert.ThrowsAsync<HttpRequestException> (Read);
+		for (int i = 0; i < 2; i++)
+			await Assert.ThrowsAsync<HttpRequestException> (Read);
 		await Read ();
 		Assert.That (h.Primary.IsUsingLocalReadFallback, Is.True);
 		int primaryReads = h.PrimaryReads;
@@ -179,7 +197,8 @@ public sealed class LocalReadFailoverTests
 		h.PrimaryFailure = "network";
 		if (!coldStart)
 			{
-			for (int i = 0; i < 2; i++) await Assert.ThrowsAsync<HttpRequestException> (async () => await h.Primary.GetTelemetryAsync (true));
+			for (int i = 0; i < 2; i++)
+				await Assert.ThrowsAsync<HttpRequestException> (async () => await h.Primary.GetTelemetryAsync (true));
 			}
 		await h.Primary.GetTelemetryAsync (true);
 		Assert.That (h.Primary.IsUsingLocalReadFallback, Is.True);
@@ -215,69 +234,144 @@ public sealed class LocalReadFailoverTests
 
 	private sealed class Harness : IDisposable
 		{
-		internal const string Din = "part--controller";
-		internal string PrimaryDin { get; set; } = Din;
-		internal string? PrimaryFailure { get; set; }
-		internal bool LoginFailure { get; set; }
-		internal bool SolarHold { get; set; }
-		internal double Now { get; set; }
-		internal int PrimaryReads { get; private set; }
-		internal int FallbackReads { get; private set; }
-		internal PowerwallTedapiClient Primary { get; }
-		internal PowerwallTedapiClient Fallback { get; }
+		internal const string DIN = "part--controller";
+		internal string PrimaryDin { get; set; } = DIN;
+		internal string? PrimaryFailure
+			{
+			get; set;
+			}
+		internal bool LoginFailure
+			{
+			get; set;
+			}
+		internal bool SolarHold
+			{
+			get; set;
+			}
+		internal double Now
+			{
+			get; set;
+			}
+		internal int PrimaryReads
+			{
+			get; private set;
+			}
+		internal int FallbackReads
+			{
+			get; private set;
+			}
+		internal PowerwallTedapiClient Primary
+			{
+			get;
+			}
+		internal PowerwallTedapiClient Fallback
+			{
+			get;
+			}
 		internal Harness (RSA key, bool enabled = true, TedapiQueryVersion version = TedapiQueryVersion.June2024, bool allowControl = false)
 			{
 			Fallback = new PowerwallTedapiClient (new PowerwallOptions { Host = "setup.test", LocalProtocol = PowerwallLocalProtocol.Tedapi, GatewayPassword = "test-password", CacheExpireSeconds = 0, LocalQueryVersion = version },
 				new Handler (async (request, _) =>
 					{
-					if (request.RequestUri!.AbsolutePath == "/tedapi/din") return Text (Din);
-					if (request.RequestUri.AbsolutePath == "/api/login/Basic") return Text ("{\"token\":\"alternate\"}");
-					FallbackReads++;
-					return await Reply (request, 20, false, version, holding: SolarHold);
+						if (request.RequestUri!.AbsolutePath == "/tedapi/din")
+							return Text (DIN);
+						if (request.RequestUri.AbsolutePath == "/api/login/Basic")
+							return Text ("{\"token\":\"alternate\"}");
+						FallbackReads++;
+						return await Reply (request, 20, false, version, holding: SolarHold);
 					}));
-			Primary = new PowerwallTedapiClient (new PowerwallOptions { Host = "lan.test", LocalProtocol = PowerwallLocalProtocol.TedapiSigned,
-				Password = "customer", LocalSigningKey = key, CacheExpireSeconds = 0, LocalFollowerConnection = Fallback, EnableLocalReadFailover = enabled, LocalQueryVersion = version, AllowLocalControl = allowControl },
+			Primary = new PowerwallTedapiClient (new PowerwallOptions
+				{
+				Host = "lan.test",
+				LocalProtocol = PowerwallLocalProtocol.TedapiSigned,
+				Password = "customer",
+				LocalSigningKey = key,
+				CacheExpireSeconds = 0,
+				LocalFollowerConnection = Fallback,
+				EnableLocalReadFailover = enabled,
+				LocalQueryVersion = version,
+				AllowLocalControl = allowControl
+				},
 				new Handler (async (request, _) =>
 					{
-					string path = request.RequestUri!.AbsolutePath;
-					if (path == "/api/login/Basic")
-						{
-						if (LoginFailure) throw new HttpRequestException ("LAN unavailable");
-						return Text ("{\"token\":\"test\"}");
-						}
-					if (path == "/tedapi/din") return Text (PrimaryDin);
-					PrimaryReads++;
-					if (PrimaryFailure == "network") throw new HttpRequestException ("LAN unavailable");
-					if (PrimaryFailure == "timeout") throw new TaskCanceledException ("Request timed out");
-					if (int.TryParse (PrimaryFailure, out int status)) return new HttpResponseMessage ((HttpStatusCode)status);
-					return await Reply (request, 10, true, version, PrimaryFailure == "malformed", SolarHold);
+						string path = request.RequestUri!.AbsolutePath;
+						if (path == "/api/login/Basic")
+							{
+							if (LoginFailure)
+								throw new HttpRequestException ("LAN unavailable");
+							return Text ("{\"token\":\"test\"}");
+							}
+						if (path == "/tedapi/din")
+							return Text (PrimaryDin);
+						PrimaryReads++;
+						if (PrimaryFailure == "network")
+							throw new HttpRequestException ("LAN unavailable");
+						if (PrimaryFailure == "timeout")
+							throw new TaskCanceledException ("Request timed out");
+						if (int.TryParse (PrimaryFailure, out int status))
+							return new HttpResponseMessage ((HttpStatusCode)status);
+						return await Reply (request, 10, true, version, PrimaryFailure == "malformed", SolarHold);
 					}), () => Now);
 			}
-		internal async Task ConnectAsync () { await Fallback.AuthenticateAsync (); await Primary.AuthenticateAsync (); }
-		public void Dispose () { Primary.Dispose (); Fallback.Dispose (); }
+		internal async Task ConnectAsync ()
+			{
+			await Fallback.AuthenticateAsync ();
+			await Primary.AuthenticateAsync ();
+			}
+		public void Dispose ()
+			{
+			Primary.Dispose ();
+			Fallback.Dispose ();
+			}
 		private static HttpResponseMessage Text (string text) => new (HttpStatusCode.OK) { Content = new StringContent (text) };
 		private static async Task<HttpResponseMessage> Reply (HttpRequestMessage request, int watts, bool signed, TedapiQueryVersion version, bool malformed = false, bool holding = false)
 			{
-			if (request.RequestUri!.AbsolutePath == "/api/meters/aggregates") return Text ("{\"site\":{\"instant_power\":0}}");
+			if (request.RequestUri!.AbsolutePath == "/api/meters/aggregates")
+				return Text ("{\"site\":{\"instant_power\":0}}");
 			byte[] body = await request.Content!.ReadAsByteArrayAsync ();
 			ByteString incoming = signed ? Signed.RoutableMessage.Parser.ParseFrom (body).ProtobufMessageAsBytes
 				: Graphql.Frame.Parser.ParseFrom (body).Message;
 			var query = Legacy.MessageEnvelope.Parser.ParseFrom (incoming);
-			Assert.That (query.Recipient.Din, Is.EqualTo (Din));
+			Assert.That (query.Recipient.Din, Is.EqualTo (DIN));
 			ByteString reply;
 			if (query.Config is not null)
 				{
-				string json = holding ? System.Text.Json.JsonSerializer.Serialize (LocalSolarMeterHoldTests.Configuration ()) : "{\"vin\":\"" + Din + "\"}";
-				reply = signed ? new Signed.MessageEnvelope { Filestore = new Signed.FileStoreMessages { ReadFileResponse = new Signed.FileStoreAPIReadFileResponse
-					{ File = new Signed.FileStoreAPIFile { Blob = ByteString.CopyFromUtf8 (json) } } } }.ToByteString ()
-					: new Legacy.Message { Message_ = new Legacy.MessageEnvelope { Config = new Legacy.ConfigType
-					{ Recv = new Legacy.PayloadConfigRecv { File = new Legacy.ConfigString { Text = json } } } } }.ToByteString ();
+				string json = holding ? System.Text.Json.JsonSerializer.Serialize (LocalSolarMeterHoldTests.Configuration ()) : "{\"vin\":\"" + DIN + "\"}";
+				reply = signed ? new Signed.MessageEnvelope
+					{
+					Filestore = new Signed.FileStoreMessages
+						{
+						ReadFileResponse = new Signed.FileStoreAPIReadFileResponse
+							{
+							File = new Signed.FileStoreAPIFile { Blob = ByteString.CopyFromUtf8 (json) }
+							}
+						}
+					}.ToByteString ()
+					: new Legacy.Message
+						{
+						Message_ = new Legacy.MessageEnvelope
+							{
+							Config = new Legacy.ConfigType
+								{
+								Recv = new Legacy.PayloadConfigRecv { File = new Legacy.ConfigString { Text = json } }
+								}
+							}
+						}.ToByteString ();
 				}
 			else if (query.Firmware is not null)
 				{
 				Assert.That (query.Firmware.IdCase, Is.EqualTo (Legacy.FirmwareType.IdOneofCase.Request));
-				var envelope = new Legacy.MessageEnvelope { Firmware = new Legacy.FirmwareType { System = new Legacy.FirmwarePayload
-					{ Din = Din, Version = new Legacy.FirmwareVersion { Text = "test-version" } } } };
+				var envelope = new Legacy.MessageEnvelope
+					{
+					Firmware = new Legacy.FirmwareType
+						{
+						System = new Legacy.FirmwarePayload
+							{
+							Din = DIN,
+							Version = new Legacy.FirmwareVersion { Text = "test-version" }
+							}
+						}
+					};
 				reply = signed ? envelope.ToByteString () : new Legacy.Message { Message_ = envelope }.ToByteString ();
 				}
 			else
@@ -296,8 +390,11 @@ public sealed class LocalReadFailoverTests
 					reply = signed ? envelope.ToByteString () : new Legacy.Message { Message_ = envelope }.ToByteString ();
 					}
 				}
-			return new HttpResponseMessage (HttpStatusCode.OK) { Content = new ByteArrayContent (signed
-				? new Signed.RoutableMessage { ProtobufMessageAsBytes = reply }.ToByteArray () : reply.ToByteArray ()) };
+			return new HttpResponseMessage (HttpStatusCode.OK)
+				{
+				Content = new ByteArrayContent (signed
+				? new Signed.RoutableMessage { ProtobufMessageAsBytes = reply }.ToByteArray () : reply.ToByteArray ())
+				};
 			}
 		}
 

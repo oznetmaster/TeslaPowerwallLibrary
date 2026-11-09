@@ -40,11 +40,11 @@ internal static class HistoryPeriodExtensions
 	public static string ToApiString (this HistoryPeriod period) =>
 		period switch
 			{
-			HistoryPeriod.Day => "day",
-			HistoryPeriod.Week => "week",
-			HistoryPeriod.Month => "month",
-			HistoryPeriod.Year => "year",
-			HistoryPeriod.Lifetime => "lifetime",
-			_ => throw new ArgumentOutOfRangeException (nameof (period), period, "Unknown history period.")
-			};
+				HistoryPeriod.Day => "day",
+				HistoryPeriod.Week => "week",
+				HistoryPeriod.Month => "month",
+				HistoryPeriod.Year => "year",
+				HistoryPeriod.Lifetime => "lifetime",
+				_ => throw new ArgumentOutOfRangeException (nameof (period), period, "Unknown history period.")
+				};
 	}

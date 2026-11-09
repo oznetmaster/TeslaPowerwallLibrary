@@ -5,8 +5,8 @@ using System.CommandLine;
 
 using NUnit.Framework;
 
-using TeslaPowerwallLibrary.TestConsole;
 using TeslaPowerwallLibrary.Tedapi;
+using TeslaPowerwallLibrary.TestConsole;
 
 namespace TeslaPowerwallLibrary.TestConsole.Tests;
 

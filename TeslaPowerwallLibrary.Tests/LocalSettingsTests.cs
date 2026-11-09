@@ -69,7 +69,12 @@ public sealed partial class LocalSettingsTests
 		using var rig = new Rig ();
 		await rig.Client.AuthenticateAsync ();
 		await rig.Powerwall.UpdateLocalSettingsAsync (new LocalSettingsUpdate
-			{ BackupReservePercent = 0, GridChargingEnabled = false, GridExport = "never", OperationMode = "backup" });
+			{
+			BackupReservePercent = 0,
+			GridChargingEnabled = false,
+			GridExport = "never",
+			OperationMode = "backup"
+			});
 		using JsonDocument result = JsonDocument.Parse (rig.Handler.Writes.Single ().File.Blob.ToStringUtf8 ());
 		JsonElement site = result.RootElement.GetProperty ("site_info");
 		Assert.That (site.GetProperty ("backup_reserve_percent").GetDouble (), Is.EqualTo (5));
@@ -179,14 +184,24 @@ public sealed partial class LocalSettingsTests
 	private sealed class Rig : IDisposable
 		{
 		internal Handler Handler { get; } = new ();
-		internal PowerwallTedapiClient Client { get; }
-		internal Powerwall Powerwall { get; }
+		internal PowerwallTedapiClient Client
+			{
+			get;
+			}
+		internal Powerwall Powerwall
+			{
+			get;
+			}
 		internal Rig (bool allowControl = true)
 			{
 			var options = new PowerwallOptions
 				{
-				Host = "powerwall.test", Password = "synthetic", LocalProtocol = PowerwallLocalProtocol.TedapiSigned,
-				LocalSigningKey = _key, AllowLocalControl = allowControl, NoLocalSessionPersistence = true
+				Host = "powerwall.test",
+				Password = "synthetic",
+				LocalProtocol = PowerwallLocalProtocol.TedapiSigned,
+				LocalSigningKey = _key,
+				AllowLocalControl = allowControl,
+				NoLocalSessionPersistence = true
 				};
 			Client = new PowerwallTedapiClient (options, Handler);
 			Powerwall = new Powerwall (options);
@@ -200,13 +215,31 @@ public sealed partial class LocalSettingsTests
 		private const string CONFIG = """{"vin":"test--powerwall","default_real_mode":"autonomous","site_info":{"backup_reserve_percent":24,"disallow_charge_from_grid_with_solar_installed":false,"customer_preferred_export_rule":null,"unknown_nested":{"array":[1,null,true]}},"private_network":{"password":"offline-fixture-only"}}""";
 		internal List<Signed.FileStoreAPIUpdateFileRequest> Writes { get; } = new ();
 		internal List<Signed.TEGMessages> TegRequests { get; } = new ();
-		internal string? TegFailure { get; set; }
+		internal string? TegFailure
+			{
+			get; set;
+			}
 		internal int IslandResult { get; set; } = 1;
-		internal int Reads { get; private set; }
-		internal int Logins { get; private set; }
-		internal string? ReadFailure { get; set; }
-		internal string? WriteFailure { get; set; }
-		internal bool ChangeHashAfterWrite { get; set; }
+		internal int Reads
+			{
+			get; private set;
+			}
+		internal int Logins
+			{
+			get; private set;
+			}
+		internal string? ReadFailure
+			{
+			get; set;
+			}
+		internal string? WriteFailure
+			{
+			get; set;
+			}
+		internal bool ChangeHashAfterWrite
+			{
+			get; set;
+			}
 
 		protected override async Task<HttpResponseMessage> SendAsync (HttpRequestMessage request, CancellationToken cancellationToken)
 			{
@@ -219,7 +252,7 @@ public sealed partial class LocalSettingsTests
 			if (request.RequestUri.AbsolutePath == "/tedapi/din")
 				return new HttpResponseMessage (HttpStatusCode.OK) { Content = new StringContent ("test--powerwall") };
 			Assert.That (request.RequestUri.AbsolutePath, Is.EqualTo ("/tedapi/v1r"));
-			Signed.RoutableMessage routable = Signed.RoutableMessage.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync ());
+			Signed.RoutableMessage routable = Signed.RoutableMessage.Parser.ParseFrom (await request.Content!.ReadAsByteArrayAsync (cancellationToken));
 			Signed.MessageEnvelope envelope = Signed.MessageEnvelope.Parser.ParseFrom (routable.ProtobufMessageAsBytes);
 			Assert.That (envelope.DeliveryChannel, Is.EqualTo (Signed.DeliveryChannel.HermesCommand));
 			Assert.That (envelope.Sender.AuthorizedClient, Is.EqualTo (1));
@@ -241,7 +274,11 @@ public sealed partial class LocalSettingsTests
 							ManualBackupEvent = new Signed.ManualBackupEvent
 								{
 								SchedulingInfo = new Signed.ControlEventSchedulingInfo
-									{ StartTime = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset (DateTimeOffset.UtcNow.AddMinutes (10)), DurationSeconds = 120, Priority = 1 }
+									{
+									StartTime = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset (DateTimeOffset.UtcNow.AddMinutes (10)),
+									DurationSeconds = 120,
+									Priority = 1
+									}
 								}
 							};
 					else if (teg.CancelManualBackupEventRequest is not null)
@@ -254,8 +291,12 @@ public sealed partial class LocalSettingsTests
 						Assert.Fail ("Unexpected local command.");
 					}
 				return new HttpResponseMessage (HttpStatusCode.OK)
-					{ Content = new ByteArrayContent (new Signed.RoutableMessage
-						{ ProtobufMessageAsBytes = new Signed.MessageEnvelope { Teg = answer }.ToByteString () }.ToByteArray ()) };
+					{
+					Content = new ByteArrayContent (new Signed.RoutableMessage
+						{
+						ProtobufMessageAsBytes = new Signed.MessageEnvelope { Teg = answer }.ToByteString ()
+						}.ToByteArray ())
+					};
 				}
 			var reply = new Signed.MessageEnvelope { Filestore = new Signed.FileStoreMessages () };
 			if (envelope.Filestore?.ReadFileRequest is Signed.FileStoreAPIReadFileRequest read)
@@ -282,15 +323,22 @@ public sealed partial class LocalSettingsTests
 				if (WriteFailure == "timeout")
 					throw new TaskCanceledException ("Synthetic lost response");
 				if (WriteFailure == "rpc-error")
-					reply.Common = new Signed.CommonMessages { ErrorResponse = new Signed.ErrorResponse
-						{ Status = new Signed.RpcStatus { Code = 7, Message = "private device diagnostic" } } };
+					reply.Common = new Signed.CommonMessages
+						{
+						ErrorResponse = new Signed.ErrorResponse
+							{
+							Status = new Signed.RpcStatus { Code = 7, Message = "private device diagnostic" }
+							}
+						};
 				else if (WriteFailure == "wrong")
 					reply.Filestore.ReadFileResponse = new Signed.FileStoreAPIReadFileResponse ();
 				else if (WriteFailure != "empty")
 					reply.Filestore.UpdateFileResponse = new Signed.FileStoreAPIUpdateFileResponse ();
 				}
 			return new HttpResponseMessage (HttpStatusCode.OK)
-				{ Content = new ByteArrayContent (new Signed.RoutableMessage { ProtobufMessageAsBytes = reply.ToByteString () }.ToByteArray ()) };
+				{
+				Content = new ByteArrayContent (new Signed.RoutableMessage { ProtobufMessageAsBytes = reply.ToByteString () }.ToByteArray ())
+				};
 			}
 		}
 	}

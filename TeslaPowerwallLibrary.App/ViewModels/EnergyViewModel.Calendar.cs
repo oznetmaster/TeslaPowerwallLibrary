@@ -15,7 +15,7 @@ public sealed partial class EnergyViewModel
 		if (_disposed)
 			return false;
 		NextPeriodCommand.NotifyCanExecuteChanged ();
-		if (!_followCurrentPeriod || SelectedPeriod == LifetimePeriod
+		if (!_followCurrentPeriod || SelectedPeriod == LIFETIME_PERIOD
 			|| GetPeriodRange (SelectedPeriod, _anchor).Start == GetPeriodRange (SelectedPeriod, now).Start)
 			return false;
 		_generation++; // An outstanding history response belongs to the previous period.

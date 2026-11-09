@@ -16,7 +16,8 @@ public partial class SettingsView : UserControl
 	/// <param name="resources">Host theme and converters, or null to use application resources.</param>
 	internal SettingsView (ResourceDictionary? resources)
 		{
-		if (resources is not null) Resources = resources;
+		if (resources is not null)
+			Resources = resources;
 		InitializeComponent ();
 		}
 	}

@@ -1,6 +1,6 @@
 # TeslaPowerwallLibrary
 
-**Version 2.5.0** adds `GetBatteryLevelAsync(scale: true, force: true)` for a validated fresh battery observation with the Tesla app scale and 0% reserve floor. Missing, malformed and nonnumeric readings remain unavailable, and unavailable responses remain null and cancellation or transport exceptions propagate. The legacy `LevelAsync` API retains its signature, cache behavior and parsing defaults; both APIs share one scaling implementation. Existing assembly identity and runtime dependencies remain compatible. See [release notes and validation limits](RELEASE-NOTES.md).
+**Version 2.5.1** hardens concurrent calls, OAuth token rotation, cache publication and disposal without adding device commands or runtime dependencies. The validated fresh battery observation API from 2.5.0 remains available. See [release notes and validation limits](RELEASE-NOTES.md).
 
 For shipped changes, see the [changelog](CHANGELOG.md). Test, CI and build history is recorded separately in [development and validation history](DEVELOPMENT-HISTORY.md).
 
@@ -57,6 +57,12 @@ The library is available as the `TeslaPowerwallLibrary` NuGet package.
 ```powershell
 dotnet add package TeslaPowerwallLibrary
 ```
+
+## Concurrent calls and lifetime
+
+Use one long-lived client per credential set. Independent Owner/Fleet reads can overlap; authentication, controls, site changes and reconnects are sequenced. Classic local and TEDAPI transports retain request serialization. Overlapping refreshes on the same connection share the completed rotation, and an individual caller's cancellation cannot discard credentials already rotated by the server. Separate clients/processes must not independently rotate the same token.
+
+Configure options/read routes before use and coordinate any caller mutations of returned models. Token callbacks must be thread-safe and non-blocking; queue further asynchronous work rather than synchronously waiting on the same client. Disposal cancels admitted operations and rejects new ones; owned resources are released after admitted calls drain. Token files use a cross-instance/process lock and atomic replacement, which protects file integrity rather than coordinating separate cloud sessions.
 
 ## Quick Start
 
@@ -325,7 +331,7 @@ Offline tests use NUnit 5.0.0, NUnit3TestAdapter 6.3.0, Microsoft.NET.Test.Sdk 1
 dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj -c Release --filter "TestCategory!=Live" -p:GenerateDocfxDocumentation=false
 ```
 
-Offline tests need neither credentials nor a Powerwall. Live tests are explicit and separate; control tests require per-operation authorization. To check backward compatibility, package validation compares the 2.5.0 assemblies for both target frameworks with the released 2.4.0 baseline. No API differences are suppressed.
+Offline tests need neither credentials nor a Powerwall. Live tests are explicit and separate; control tests require per-operation authorization. To check backward compatibility, package validation compares the 2.5.1 assemblies for both target frameworks with the released 2.5.0 baseline. No API differences are suppressed.
 
 ## Continuous integration tests
 

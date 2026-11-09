@@ -19,19 +19,31 @@ public sealed record LocalSettingsUpdate
 	/// <summary>Backup reserve on the Tesla app scale, from zero through 100 percent.</summary>
 	/// <value>Backup reserve on the Tesla app scale, from zero through 100 percent.</value>
 	[JsonPropertyName ("backup_reserve_percent"), JsonIgnore (Condition = JsonIgnoreCondition.WhenWritingNull)]
-	public double? BackupReservePercent { get; init; }
+	public double? BackupReservePercent
+		{
+		get; init;
+		}
 	/// <summary>Operating mode: self_consumption, autonomous, or backup.</summary>
 	/// <value>Operating mode: self_consumption, autonomous, or backup.</value>
 	[JsonPropertyName ("operation_mode"), JsonIgnore (Condition = JsonIgnoreCondition.WhenWritingNull)]
-	public string? OperationMode { get; init; }
+	public string? OperationMode
+		{
+		get; init;
+		}
 	/// <summary>Whether charging from the grid is allowed.</summary>
 	/// <value>Whether charging from the grid is allowed.</value>
 	[JsonPropertyName ("grid_charging_enabled"), JsonIgnore (Condition = JsonIgnoreCondition.WhenWritingNull)]
-	public bool? GridChargingEnabled { get; init; }
+	public bool? GridChargingEnabled
+		{
+		get; init;
+		}
 	/// <summary>Export rule: battery_ok, pv_only, or never.</summary>
 	/// <value>Export rule: battery_ok, pv_only, or never.</value>
 	[JsonPropertyName ("grid_export"), JsonIgnore (Condition = JsonIgnoreCondition.WhenWritingNull)]
-	public string? GridExport { get; init; }
+	public string? GridExport
+		{
+		get; init;
+		}
 	}
 
 /// <summary>The gateway's acknowledgement of an explicit local command.</summary>
@@ -51,6 +63,8 @@ public sealed partial class PowerwallTedapiClient
 	/// <returns>The command acknowledgement; an empty update sends no request and returns false.</returns>
 	public async Task<LocalCommandResult> UpdateSettingsAsync (LocalSettingsUpdate update, CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 #if NETFRAMEWORK
 		if (update is null)
 			throw new ArgumentNullException (nameof (update));
@@ -70,14 +84,20 @@ public sealed partial class PowerwallTedapiClient
 			read.Filestore = new Signed.FileStoreMessages
 				{
 				ReadFileRequest = new Signed.FileStoreAPIReadFileRequest
-					{ Domain = Signed.FileStoreAPIDomain.ConfigJson, Name = "config.json" }
+					{
+					Domain = Signed.FileStoreAPIDomain.ConfigJson,
+					Name = "config.json"
+					}
 				};
 			byte[] bytes = await ExchangeEnvelopeAsync (read.ToByteArray (), cancellationToken).ConfigureAwait (false);
 			Signed.FileStoreAPIReadFileResponse? current = Signed.MessageEnvelope.Parser.ParseFrom (bytes).Filestore?.ReadFileResponse;
 			if (current?.File?.Name != "config.json" || current.File.Blob.IsEmpty || current.Hash.IsEmpty)
 				throw new PowerwallConnectionException ("The gateway did not return config.json with an optimistic-lock hash. No settings were written.");
 			byte[] updated;
-			try { updated = LocalConfigurationPatch.Apply (current.File.Blob.ToByteArray (), update); }
+			try
+				{
+				updated = LocalConfigurationPatch.Apply (current.File.Blob.ToByteArray (), update);
+				}
 			catch (JsonException exc) { throw new PowerwallConnectionException ("The configuration could not be safely updated. No settings were written.", exc); }
 			Signed.MessageEnvelope write = CommandEnvelope ();
 			write.Filestore = new Signed.FileStoreMessages

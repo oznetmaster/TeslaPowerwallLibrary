@@ -20,22 +20,34 @@ public sealed record PowerSnapshot
 	/// <summary>Grid (site) power in watts. Positive values indicate import from the grid.</summary>
 	/// <value>Grid (site) power in watts. Positive values indicate import from the grid.</value>
 	[JsonPropertyName ("site")]
-	public double Site { get; init; }
+	public double Site
+		{
+		get; init;
+		}
 
 	/// <summary>Solar generation power in watts.</summary>
 	/// <value>Solar generation power in watts.</value>
 	[JsonPropertyName ("solar")]
-	public double Solar { get; init; }
+	public double Solar
+		{
+		get; init;
+		}
 
 	/// <summary>Battery power in watts. Positive values indicate discharge.</summary>
 	/// <value>Battery power in watts. Positive values indicate discharge.</value>
 	[JsonPropertyName ("battery")]
-	public double Battery { get; init; }
+	public double Battery
+		{
+		get; init;
+		}
 
 	/// <summary>Home (load) consumption power in watts.</summary>
 	/// <value>Home (load) consumption power in watts.</value>
 	[JsonPropertyName ("load")]
-	public double Load { get; init; }
+	public double Load
+		{
+		get; init;
+		}
 	}
 
 /// <summary>
@@ -47,22 +59,34 @@ public sealed record PowerReadings
 	/// <summary>Grid (site) power in watts. Positive values indicate import from the grid.</summary>
 	/// <value>Grid (site) power in watts. Positive values indicate import from the grid.</value>
 	[JsonPropertyName ("site")]
-	public double? Site { get; init; }
+	public double? Site
+		{
+		get; init;
+		}
 
 	/// <summary>Solar generation power in watts.</summary>
 	/// <value>Solar generation power in watts.</value>
 	[JsonPropertyName ("solar")]
-	public double? Solar { get; init; }
+	public double? Solar
+		{
+		get; init;
+		}
 
 	/// <summary>Battery power in watts. Positive values indicate discharge.</summary>
 	/// <value>Battery power in watts. Positive values indicate discharge.</value>
 	[JsonPropertyName ("battery")]
-	public double? Battery { get; init; }
+	public double? Battery
+		{
+		get; init;
+		}
 
 	/// <summary>Home (load) consumption power in watts.</summary>
 	/// <value>Home (load) consumption power in watts.</value>
 	[JsonPropertyName ("load")]
-	public double? Load { get; init; }
+	public double? Load
+		{
+		get; init;
+		}
 	}
 
 /// <summary>
@@ -78,77 +102,122 @@ public sealed record MeterReading
 	/// </value>
 	[JsonPropertyName ("power_hold_age_seconds")]
 	[JsonIgnore (Condition = JsonIgnoreCondition.WhenWritingNull)]
-	public double? PowerHoldAgeSeconds { get; init; }
+	public double? PowerHoldAgeSeconds
+		{
+		get; init;
+		}
 
 	/// <summary>Timestamp of the most recent communication with the meter.</summary>
 	/// <value>Timestamp of the most recent communication with the meter.</value>
 	[JsonPropertyName ("last_communication_time")]
-	public string? LastCommunicationTime { get; init; }
+	public string? LastCommunicationTime
+		{
+		get; init;
+		}
 
 	/// <summary>Instantaneous real power in watts.</summary>
 	/// <value>Instantaneous real power in watts.</value>
 	[JsonPropertyName ("instant_power")]
-	public double? InstantPower { get; init; }
+	public double? InstantPower
+		{
+		get; init;
+		}
 
 	/// <summary>Instantaneous reactive power in volt-amperes reactive.</summary>
 	/// <value>Instantaneous reactive power in volt-amperes reactive.</value>
 	[JsonPropertyName ("instant_reactive_power")]
-	public double? InstantReactivePower { get; init; }
+	public double? InstantReactivePower
+		{
+		get; init;
+		}
 
 	/// <summary>Instantaneous apparent power in volt-amperes.</summary>
 	/// <value>Instantaneous apparent power in volt-amperes.</value>
 	[JsonPropertyName ("instant_apparent_power")]
-	public double? InstantApparentPower { get; init; }
+	public double? InstantApparentPower
+		{
+		get; init;
+		}
 
 	/// <summary>Line frequency in hertz.</summary>
 	/// <value>Line frequency in hertz.</value>
 	[JsonPropertyName ("frequency")]
-	public double? Frequency { get; init; }
+	public double? Frequency
+		{
+		get; init;
+		}
 
 	/// <summary>Cumulative energy exported in watt-hours.</summary>
 	/// <value>Cumulative energy exported in watt-hours.</value>
 	[JsonPropertyName ("energy_exported")]
-	public double? EnergyExported { get; init; }
+	public double? EnergyExported
+		{
+		get; init;
+		}
 
 	/// <summary>Cumulative energy imported in watt-hours.</summary>
 	/// <value>Cumulative energy imported in watt-hours.</value>
 	[JsonPropertyName ("energy_imported")]
-	public double? EnergyImported { get; init; }
+	public double? EnergyImported
+		{
+		get; init;
+		}
 
 	/// <summary>Average voltage across measured phases in volts.</summary>
 	/// <value>Average voltage across measured phases in volts.</value>
 	[JsonPropertyName ("instant_average_voltage")]
-	public double? InstantAverageVoltage { get; init; }
+	public double? InstantAverageVoltage
+		{
+		get; init;
+		}
 
 	/// <summary>Average current across measured phases in amperes.</summary>
 	/// <value>Average current across measured phases in amperes.</value>
 	[JsonPropertyName ("instant_average_current")]
-	public double? InstantAverageCurrent { get; init; }
+	public double? InstantAverageCurrent
+		{
+		get; init;
+		}
 
 	/// <summary>Total instantaneous current in amperes.</summary>
 	/// <value>Total instantaneous current in amperes.</value>
 	[JsonPropertyName ("instant_total_current")]
-	public double? InstantTotalCurrent { get; init; }
+	public double? InstantTotalCurrent
+		{
+		get; init;
+		}
 
 	/// <summary>Reported current for original CT phase A, in amperes; null when unavailable.</summary>
 	/// <value>Reported current for original CT phase A, in amperes; null when unavailable.</value>
 	[JsonPropertyName ("i_a_current")]
-	public double? PhaseACurrent { get; init; }
+	public double? PhaseACurrent
+		{
+		get; init;
+		}
 
 	/// <summary>Reported current for original CT phase B, in amperes; null when unavailable.</summary>
 	/// <value>Reported current for original CT phase B, in amperes; null when unavailable.</value>
 	[JsonPropertyName ("i_b_current")]
-	public double? PhaseBCurrent { get; init; }
+	public double? PhaseBCurrent
+		{
+		get; init;
+		}
 
 	/// <summary>Reported current for original CT phase C, in amperes; null when unavailable.</summary>
 	/// <value>Reported current for original CT phase C, in amperes; null when unavailable.</value>
 	[JsonPropertyName ("i_c_current")]
-	public double? PhaseCCurrent { get; init; }
+	public double? PhaseCCurrent
+		{
+		get; init;
+		}
 
 	/// <summary>Number of physical meters aggregated into this reading.</summary>
 	/// <value>Number of physical meters aggregated into this reading.</value>
 	[JsonPropertyName ("num_meters_aggregated")]
-	public int? NumMetersAggregated { get; init; }
+	public int? NumMetersAggregated
+		{
+		get; init;
+		}
 	}
 
 /// <summary>
@@ -159,22 +228,34 @@ public sealed record MeterAggregates
 	/// <summary>Grid (site) meter readings.</summary>
 	/// <value>Grid (site) meter readings.</value>
 	[JsonPropertyName ("site")]
-	public MeterReading? Site { get; init; }
+	public MeterReading? Site
+		{
+		get; init;
+		}
 
 	/// <summary>Battery meter readings.</summary>
 	/// <value>Battery meter readings.</value>
 	[JsonPropertyName ("battery")]
-	public MeterReading? Battery { get; init; }
+	public MeterReading? Battery
+		{
+		get; init;
+		}
 
 	/// <summary>Home (load) meter readings.</summary>
 	/// <value>Home (load) meter readings.</value>
 	[JsonPropertyName ("load")]
-	public MeterReading? Load { get; init; }
+	public MeterReading? Load
+		{
+		get; init;
+		}
 
 	/// <summary>Solar meter readings.</summary>
 	/// <value>Solar meter readings.</value>
 	[JsonPropertyName ("solar")]
-	public MeterReading? Solar { get; init; }
+	public MeterReading? Solar
+		{
+		get; init;
+		}
 	}
 
 #pragma warning restore CA1507

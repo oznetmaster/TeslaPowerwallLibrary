@@ -2,19 +2,20 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics;
-using Google.Protobuf;
-using Classic = TeslaPowerwallLibrary.Tedapi.Protocol.Classic;
 using System.IO;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+using Google.Protobuf;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-using System.Text.Json;
-using System.Text.Json.Serialization;
-
 using TeslaPowerwallLibrary.Models;
+
+using Classic = TeslaPowerwallLibrary.Tedapi.Protocol.Classic;
 
 namespace TeslaPowerwallLibrary.Local;
 
@@ -27,6 +28,8 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 	{
 	private readonly ILogger _log;
 	private readonly SemaphoreSlim _requestGate = new (1, 1);
+	private readonly AsyncClientGate _lifetime = new (typeof (PowerwallLocalClient));
+	private int _disposed;
 	private readonly HttpMessageHandler? _providedHandler;
 	private readonly bool _persistSession = true;
 	private readonly bool _allowControl = true;
@@ -108,7 +111,7 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 		_cacheFile = string.IsNullOrWhiteSpace (cacheFile) ? Constants.DEFAULT_CACHE_FILE : cacheFile;
 		}
 
-		/// <summary>Creates a local gateway client with explicit session-persistence and control settings.</summary>
+	/// <summary>Creates a local gateway client with explicit session-persistence and control settings.</summary>
 	/// <param name="options">Local connection settings; no cloud credentials are used.</param>
 	public PowerwallLocalClient (PowerwallOptions options) : this (options, null)
 		{
@@ -137,6 +140,8 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 	/// <inheritdoc/>
 	public override async Task AuthenticateAsync (CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		await _requestGate.WaitAsync (cancellationToken).ConfigureAwait (false);
 		try
 			{
@@ -170,6 +175,8 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 	/// <inheritdoc/>
 	public override async Task CloseSessionAsync (CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		await _requestGate.WaitAsync (cancellationToken).ConfigureAwait (false);
 		try
 			{
@@ -199,10 +206,14 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 	/// <inheritdoc/>
 	public override async Task<string?> PollAsync (string api, bool force = false, bool recursive = false, CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		await _requestGate.WaitAsync (cancellationToken).ConfigureAwait (false);
 		try
 			{
-			return await PollCoreAsync (api, force, recursive, cancellationToken).ConfigureAwait (false);
+			string? result = await PollCoreAsync (api, force, recursive, cancellationToken).ConfigureAwait (false);
+			_lifetime.CheckRunning ();
+			return result;
 			}
 		finally
 			{
@@ -213,10 +224,14 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 	/// <inheritdoc/>
 	public override async Task<byte[]?> PollRawAsync (string api, bool force = false, bool recursive = false, CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		await _requestGate.WaitAsync (cancellationToken).ConfigureAwait (false);
 		try
 			{
-			return await PollRawCoreAsync (api, force, recursive, cancellationToken).ConfigureAwait (false);
+			byte[]? result = await PollRawCoreAsync (api, force, recursive, cancellationToken).ConfigureAwait (false);
+			_lifetime.CheckRunning ();
+			return result;
 			}
 		finally
 			{
@@ -352,10 +367,14 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 	/// <inheritdoc/>
 	public override async Task<string?> PostAsync (string api, object? payload, string? din = null, bool recursive = false, CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		await _requestGate.WaitAsync (cancellationToken).ConfigureAwait (false);
 		try
 			{
-			return await PostCoreAsync (api, payload, din, recursive, cancellationToken).ConfigureAwait (false);
+			string? result = await PostCoreAsync (api, payload, din, recursive, cancellationToken).ConfigureAwait (false);
+			_lifetime.CheckRunning ();
+			return result;
 			}
 		finally
 			{
@@ -427,7 +446,10 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 		if (bytes is null)
 			return null;
 		Classic.DevicesWithVitals devices;
-		try { devices = Classic.DevicesWithVitals.Parser.ParseFrom (bytes); }
+		try
+			{
+			devices = Classic.DevicesWithVitals.Parser.ParseFrom (bytes);
+			}
 		catch (InvalidProtocolBufferException exc)
 			{
 			throw new PowerwallConnectionException ("The local gateway returned malformed device vitals.", exc);
@@ -454,12 +476,12 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 					continue;
 				values[vital.Name] = vital.ValueCase switch
 					{
-					Classic.DeviceVital.ValueOneofCase.IntValue => vital.IntValue,
-					Classic.DeviceVital.ValueOneofCase.FloatValue => vital.FloatValue,
-					Classic.DeviceVital.ValueOneofCase.StringValue => vital.StringValue,
-					Classic.DeviceVital.ValueOneofCase.BoolValue => vital.BoolValue,
-					_ => null
-					};
+						Classic.DeviceVital.ValueOneofCase.IntValue => vital.IntValue,
+						Classic.DeviceVital.ValueOneofCase.FloatValue => vital.FloatValue,
+						Classic.DeviceVital.ValueOneofCase.StringValue => vital.StringValue,
+						Classic.DeviceVital.ValueOneofCase.BoolValue => vital.BoolValue,
+						_ => null
+						};
 				}
 			result[device.Din.Value] = values;
 			}
@@ -560,14 +582,17 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 			try
 				{
 				LocalLoginResponse? json = JsonHelper.Deserialize<LocalLoginResponse> (body);
-				if (_authMode == "token")
+				_lifetime.Commit (() =>
 					{
-					Token = !string.IsNullOrWhiteSpace (json?.Token) ? json!.Token
-						: throw new LoginException ("The local gateway did not return a bearer token.");
-					_authorizationHeader = $"Bearer {Token}";
-					}
+						if (_authMode == "token")
+							{
+							Token = !string.IsNullOrWhiteSpace (json?.Token) ? json!.Token
+								: throw new LoginException ("The local gateway did not return a bearer token.");
+							_authorizationHeader = $"Bearer {Token}";
+							}
 
-				_hasAuth = true;
+						_hasAuth = true;
+					});
 				if (_persistSession)
 					PersistAuth ();
 				}
@@ -750,7 +775,20 @@ public sealed class PowerwallLocalClient : PowerwallClientBase, IDisposable
 	/// </summary>
 	public void Dispose ()
 		{
+		if (Interlocked.Exchange (ref _disposed, 1) != 0)
+			return;
+		_ = DisposeAfterDrainAsync (_lifetime.Stop ());
+		}
+	private async Task DisposeAfterDrainAsync (Task drained)
+		{
+		await drained.ConfigureAwait (false);
 		_httpClient?.Dispose ();
 		_requestGate.Dispose ();
+		_httpClient = null;
+		Token = null;
+		_hasAuth = false;
+		_authorizationHeader = null;
+		Cache.Clear ();
+		_cacheTimes.Clear ();
 		}
 	}

@@ -2,6 +2,7 @@
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
+
 using TeslaPowerwallLibrary.Local;
 
 namespace TeslaPowerwallLibrary.Tests;
@@ -19,7 +20,10 @@ public sealed class BatteryLevelReadTests
 	[TestCase (100d, 100d)]
 	public async Task ValidatedReadPreservesRawAndSharesLegacyScale (double raw, double scaled)
 		{
-		using var fixture = await Fixture.CreateAsync (JsonSerializer.Serialize (new { percentage = raw }));
+		using var fixture = await Fixture.CreateAsync (JsonSerializer.Serialize (new
+			{
+			percentage = raw
+			}));
 		Assert.That (await fixture.Facade.GetBatteryLevelAsync (), Is.EqualTo (raw));
 		Assert.That (await fixture.Facade.GetBatteryLevelAsync (scale: true), Is.EqualTo (scaled).Within (1e-10));
 		Assert.That (await fixture.Facade.LevelAsync (scale: true), Is.EqualTo (scaled).Within (1e-10));
@@ -108,19 +112,38 @@ public sealed class BatteryLevelReadTests
 			var fixture = new Fixture ();
 			fixture.Handler.Payload = payload;
 			fixture._transport = new PowerwallLocalClient (new PowerwallOptions
-				{ Host = "battery.test", AuthMode = "token", CacheExpireSeconds = 60, NoLocalSessionPersistence = true }, fixture.Handler);
+				{
+				Host = "battery.test",
+				AuthMode = "token",
+				CacheExpireSeconds = 60,
+				NoLocalSessionPersistence = true
+				}, fixture.Handler);
 			await fixture._transport.AuthenticateAsync ();
 			OperationRegressionTests.SetField (fixture.Facade, "_client", fixture._transport);
 			return fixture;
 			}
-		public void Dispose () { Facade.Dispose (); _transport?.Dispose (); Handler.Dispose (); }
+		public void Dispose ()
+			{
+			Facade.Dispose ();
+			_transport?.Dispose ();
+			Handler.Dispose ();
+			}
 		}
 
 	private sealed class BatteryHandler : HttpMessageHandler
 		{
-		internal string? Payload { get; set; }
-		internal int Reads { get; private set; }
-		internal bool Fail { get; set; }
+		internal string? Payload
+			{
+			get; set;
+			}
+		internal int Reads
+			{
+			get; private set;
+			}
+		internal bool Fail
+			{
+			get; set;
+			}
 		protected override Task<HttpResponseMessage> SendAsync (HttpRequestMessage request, CancellationToken cancellationToken)
 			{
 			cancellationToken.ThrowIfCancellationRequested ();
@@ -129,7 +152,8 @@ public sealed class BatteryLevelReadTests
 				return Task.FromResult (new HttpResponseMessage (HttpStatusCode.OK) { Content = new StringContent ("{\"token\":\"synthetic\"}") });
 			Assert.That (request.RequestUri.AbsolutePath, Is.EqualTo ("/api/system_status/soe"));
 			Reads++;
-			if (Fail) throw new HttpRequestException ("Synthetic battery read failure.");
+			if (Fail)
+				throw new HttpRequestException ("Synthetic battery read failure.");
 			return Task.FromResult (new HttpResponseMessage (HttpStatusCode.OK) { Content = new StringContent (Payload ?? "null") });
 			}
 		}

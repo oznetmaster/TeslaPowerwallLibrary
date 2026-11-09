@@ -5,7 +5,9 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+
 using NUnit.Framework;
+
 using TeslaPowerwallLibrary.App.Services;
 
 namespace TeslaPowerwallLibrary.App.Tests;
@@ -59,7 +61,11 @@ public sealed class PollingRecoveryTests
 			cancel.Cancel ();
 			return Task.FromCanceled<PowerFlowSnapshot> (token);
 			}
-		Task Delay (TimeSpan interval, CancellationToken token) { delays++; return Task.CompletedTask; }
+		Task Delay (TimeSpan interval, CancellationToken token)
+			{
+			delays++;
+			return Task.CompletedTask;
+			}
 		await Assert.CatchAsync<OperationCanceledException> (async () => await connection.PollLoopAsync (Read, Delay, cancel.Token));
 		Assert.That (reads, Is.EqualTo (1));
 		Assert.That (delays, Is.Zero);

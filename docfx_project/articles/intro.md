@@ -45,6 +45,8 @@ Both cloud modes provide typed calendar-history methods such as `GetEnergyCalend
 
 ## Reads and controls
 
+After connecting, independent cloud reads can overlap. Authentication, controls, site changes and reconnects are sequenced; classic local and TEDAPI requests retain transport serialization. Use one client per credential set, configure options before use and coordinate mutations of returned models. Token callbacks must be thread-safe and non-blocking. Disposal cancels admitted calls and releases owned resources after they drain. Token-file locks protect file integrity across instances/processes; applications must coordinate credentials if multiple clients would otherwise rotate the same refresh token.
+
 `CacheExpireSeconds` controls response reuse. The caller decides when to read. New TEDAPI connections are read-only unless signed local control is explicitly enabled. Classic gateway defaults remain compatible with earlier releases; the example above opts into read-only, memory-only behavior.
 
 Firmware and diagnostic queries read status; they do not start updates, self-tests or phase-detection procedures. Hardware and firmware coverage is recorded in the local-access guide.

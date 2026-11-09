@@ -7,8 +7,8 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
-using System.Net.Http;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -23,8 +23,8 @@ using LiveChartsCore.SkiaSharpView.Painting;
 using SkiaSharp;
 
 using TeslaPowerwallLibrary.App.Services;
-using TeslaPowerwallLibrary.Models;
 using TeslaPowerwallLibrary.Cloud;
+using TeslaPowerwallLibrary.Models;
 
 namespace TeslaPowerwallLibrary.App.ViewModels;
 
@@ -36,7 +36,7 @@ namespace TeslaPowerwallLibrary.App.ViewModels;
 /// </summary>
 public sealed partial class EnergyViewModel : ViewModelBase, IDisposable
 	{
-	private const string LifetimePeriod = "lifetime";
+	private const string LIFETIME_PERIOD = "lifetime";
 
 	private readonly PowerwallConnectionService _connection;
 	private readonly EnergyHistoryCache _historyCache;
@@ -135,7 +135,10 @@ public sealed partial class EnergyViewModel : ViewModelBase, IDisposable
 		}
 
 	/// <summary>Gets the selectable aggregation periods.</summary>
-	public ObservableCollection<string> Periods { get; }
+	public ObservableCollection<string> Periods
+		{
+		get;
+		}
 
 	/// <summary>Gets or sets the label for the currently connected Tesla site or gateway host.</summary>
 	[ObservableProperty]
@@ -145,7 +148,10 @@ public sealed partial class EnergyViewModel : ViewModelBase, IDisposable
 	/// Gets the selectable chart components (Solar, Home, Powerwall, Grid). Exactly one is graphed at a
 	/// time - selecting one clears the others, mirroring the Tesla app - so switching never reloads history.
 	/// </summary>
-	public ObservableCollection<EnergySeriesOption> Components { get; }
+	public ObservableCollection<EnergySeriesOption> Components
+		{
+		get;
+		}
 
 	/// <summary>Gets or sets the selected aggregation period.</summary>
 	[ObservableProperty]
@@ -161,10 +167,16 @@ public sealed partial class EnergyViewModel : ViewModelBase, IDisposable
 	private ISeries[] _series = Array.Empty<ISeries> ();
 
 	/// <summary>Gets the chart X axes.</summary>
-	public Axis[] XAxes { get; }
+	public Axis[] XAxes
+		{
+		get;
+		}
 
 	/// <summary>Gets the chart Y axes.</summary>
-	public Axis[] YAxes { get; }
+	public Axis[] YAxes
+		{
+		get;
+		}
 
 	/// <summary>Gets whether the connected mode can display local readings or cloud history.</summary>
 	public bool IsAvailable => _mode () is PowerwallMode.Cloud or PowerwallMode.FleetApi or PowerwallMode.Local;
@@ -277,7 +289,8 @@ public sealed partial class EnergyViewModel : ViewModelBase, IDisposable
 		settings.HistorySiteName = SelectedHistorySite.SiteName;
 		AppSettingsStore.Save (settings);
 		_historySiteId = SelectedHistorySite.SiteId;
-		if (_connection.SiteName is null) _connection.SetSiteName (SelectedHistorySite.SiteName);
+		if (_connection.SiteName is null)
+			_connection.SetSiteName (SelectedHistorySite.SiteName);
 		NotifyHistoryBinding ();
 		HistorySourceLabel = $"Live readings: LAN. History: {HistoryProvider} / {SelectedHistorySite.SiteName ?? _historySiteId}.";
 		OnPropertyChanged (nameof (IsAvailable));
@@ -316,7 +329,8 @@ public sealed partial class EnergyViewModel : ViewModelBase, IDisposable
 			_pendingHistoryForce |= force;
 			return;
 			}
-		if (_disposed) return;
+		if (_disposed)
+			return;
 		AdvanceCurrentPeriod (_now ());
 		ResolveRange ();
 		ClearHistory ();
@@ -416,9 +430,9 @@ public sealed partial class EnergyViewModel : ViewModelBase, IDisposable
 		return LoadAsync ();
 		}
 
-	private bool CanGoPrevious () => IsAvailable && SelectedPeriod != LifetimePeriod;
+	private bool CanGoPrevious () => IsAvailable && SelectedPeriod != LIFETIME_PERIOD;
 
-	private bool CanGoNext () => IsAvailable && SelectedPeriod != LifetimePeriod && IsBeforeCurrentPeriod ();
+	private bool CanGoNext () => IsAvailable && SelectedPeriod != LIFETIME_PERIOD && IsBeforeCurrentPeriod ();
 
 	// The current, most-recent bucket is the newest data available; stepping past it would request the future.
 	private bool IsBeforeCurrentPeriod () =>
@@ -427,16 +441,16 @@ public sealed partial class EnergyViewModel : ViewModelBase, IDisposable
 	private DateTimeOffset StepAnchor (int direction) =>
 		SelectedPeriod switch
 			{
-			"week" => _anchor.AddDays (7 * direction),
-			"month" => _anchor.AddMonths (direction),
-			"year" => _anchor.AddYears (direction),
-			_ => _anchor.AddDays (direction)
-			};
+				"week" => _anchor.AddDays (7 * direction),
+				"month" => _anchor.AddMonths (direction),
+				"year" => _anchor.AddYears (direction),
+				_ => _anchor.AddDays (direction)
+				};
 
 	// Resolves the RFC 3339 window for the current anchor and updates the display label as a side effect.
 	private (string? StartDate, string? EndDate) ResolveRange ()
 		{
-		if (SelectedPeriod == LifetimePeriod)
+		if (SelectedPeriod == LIFETIME_PERIOD)
 			{
 			PeriodLabel = "Lifetime";
 			return (null, null);
@@ -452,12 +466,12 @@ public sealed partial class EnergyViewModel : ViewModelBase, IDisposable
 	private static HistoryPeriod ToHistoryPeriod (string period) =>
 		period switch
 			{
-			"week" => HistoryPeriod.Week,
-			"month" => HistoryPeriod.Month,
-			"year" => HistoryPeriod.Year,
-			LifetimePeriod => HistoryPeriod.Lifetime,
-			_ => HistoryPeriod.Day
-			};
+				"week" => HistoryPeriod.Week,
+				"month" => HistoryPeriod.Month,
+				"year" => HistoryPeriod.Year,
+				LIFETIME_PERIOD => HistoryPeriod.Lifetime,
+				_ => HistoryPeriod.Day
+				};
 
 	private static (DateTimeOffset Start, DateTimeOffset End) GetPeriodRange (string period, DateTimeOffset anchor)
 		{
@@ -487,19 +501,19 @@ public sealed partial class EnergyViewModel : ViewModelBase, IDisposable
 		var culture = CultureInfo.CurrentCulture;
 		return period switch
 			{
-			"week" => start.Year == end.Year
-				? $"{start.ToString ("MMM d", culture)} - {end.ToString ("MMM d, yyyy", culture)}"
-				: $"{start.ToString ("MMM d, yyyy", culture)} - {end.ToString ("MMM d, yyyy", culture)}",
-			"month" => start.ToString ("MMMM yyyy", culture),
-			"year" => start.ToString ("yyyy", culture),
-			_ => start.ToString ("MMMM d, yyyy", culture)
-			};
+				"week" => start.Year == end.Year
+					? $"{start.ToString ("MMM d", culture)} - {end.ToString ("MMM d, yyyy", culture)}"
+					: $"{start.ToString ("MMM d, yyyy", culture)} - {end.ToString ("MMM d, yyyy", culture)}",
+				"month" => start.ToString ("MMMM yyyy", culture),
+				"year" => start.ToString ("yyyy", culture),
+				_ => start.ToString ("MMMM d, yyyy", culture)
+				};
 		}
 
 	// Match the Monday-Sunday calendar window returned by Tesla weekly history.
 	private static DateTimeOffset StartOfWeek (DateTimeOffset local)
 		{
-		int current = ((int) local.DayOfWeek + 6) % 7;
+		int current = ((int)local.DayOfWeek + 6) % 7;
 		var day = local.Date.AddDays (-current);
 		return LocalMidnight (day.Year, day.Month, day.Day);
 		}
@@ -540,20 +554,20 @@ public sealed partial class EnergyViewModel : ViewModelBase, IDisposable
 
 	private void OnConnectionChanged (object? sender, EventArgs e) => RunOnUi (() =>
 		{
-		_generation++;
-		SiteLabel = _connection.SiteLabel;
-		_latestLocal = null;
-		_localSamples.Clear ();
-		LiveReadingText = "Waiting for a LAN reading.";
-		_historySiteId = null;
-		SelectedHistorySite = null;
-		HistorySites.Clear ();
-		ClearHistory ();
-		RestoreHistoryAssociation ();
-		_ = LoadLocalHistoryAsync ();
-		OnPropertyChanged (nameof (IsLocal));
-		OnPropertyChanged (nameof (IsAvailable));
-		OnPropertyChanged (nameof (CanLoadCloudHistory));
+			_generation++;
+			SiteLabel = _connection.SiteLabel;
+			_latestLocal = null;
+			_localSamples.Clear ();
+			LiveReadingText = "Waiting for a LAN reading.";
+			_historySiteId = null;
+			SelectedHistorySite = null;
+			HistorySites.Clear ();
+			ClearHistory ();
+			RestoreHistoryAssociation ();
+			_ = LoadLocalHistoryAsync ();
+			OnPropertyChanged (nameof (IsLocal));
+			OnPropertyChanged (nameof (IsAvailable));
+			OnPropertyChanged (nameof (CanLoadCloudHistory));
 		});
 
 	private void ClearHistory ()
@@ -582,7 +596,8 @@ public sealed partial class EnergyViewModel : ViewModelBase, IDisposable
 		if (binding is not null)
 			{
 			_historySiteId = binding.SiteId;
-			if (_connection.SiteName is null) _connection.SetSiteName (binding.SiteName);
+			if (_connection.SiteName is null)
+				_connection.SetSiteName (binding.SiteName);
 			HistorySourceLabel = $"Live readings: LAN. History: {HistoryProvider} / {binding.SiteName ?? _historySiteId}.";
 			}
 		else
@@ -665,7 +680,7 @@ public sealed partial class EnergyViewModel : ViewModelBase, IDisposable
 			}
 		XAxes[0].MinLimit = -0.5;
 		XAxes[0].MaxLimit = _buckets.Count - 0.5;
-		XAxes[0].MinStep = SelectedPeriod == LifetimePeriod ? Math.Max (1, Math.Ceiling (_buckets.Count / 8.0)) : 1;
+		XAxes[0].MinStep = SelectedPeriod == LIFETIME_PERIOD ? Math.Max (1, Math.Ceiling (_buckets.Count / 8.0)) : 1;
 		XAxes[0].ForceStepToMin = false;
 
 		XAxes[0].Labels = _buckets.Select (b => b.Label).ToArray ();
@@ -685,7 +700,7 @@ public sealed partial class EnergyViewModel : ViewModelBase, IDisposable
 	// power rather than summing into fixed slots.
 	private static IReadOnlyList<EnergyBucket> BuildBuckets (string period, DateTimeOffset anchor, IReadOnlyList<StoredEnergyPoint> points)
 		{
-		if (period == LifetimePeriod)
+		if (period == LIFETIME_PERIOD)
 			return BuildLifetimeBuckets (points);
 
 		if (period == "day")
@@ -723,7 +738,11 @@ public sealed partial class EnergyViewModel : ViewModelBase, IDisposable
 				RoundToTenth (fromGrid),
 				RoundToTenth (toGrid),
 				RoundToTenth (batteryCharge),
-				RoundToTenth (batteryDischarge)) { HasData = hasData, BatteryToHomeKwh = hasData && contributionKnown ? Math.Max (0, RoundToTenth (batteryToHome)) : null });
+				RoundToTenth (batteryDischarge))
+				{
+				HasData = hasData,
+				BatteryToHomeKwh = hasData && contributionKnown ? Math.Max (0, RoundToTenth (batteryToHome)) : null
+				});
 			}
 
 		return buckets;
@@ -733,11 +752,12 @@ public sealed partial class EnergyViewModel : ViewModelBase, IDisposable
 	// and retain missing intervening months as gaps rather than compressing the timeline or inventing zero.
 	private static IReadOnlyList<EnergyBucket> BuildLifetimeBuckets (IReadOnlyList<StoredEnergyPoint> points)
 		{
-		if (points.Count == 0) return Array.Empty<EnergyBucket> ();
+		if (points.Count == 0)
+			return Array.Empty<EnergyBucket> ();
 		var months = points.GroupBy (p =>
 			{
-			var local = p.Timestamp.ToLocalTime ();
-			return new DateTime (local.Year, local.Month, 1);
+				var local = p.Timestamp.ToLocalTime ();
+				return new DateTime (local.Year, local.Month, 1);
 			}).ToDictionary (group => group.Key, group => group.ToArray ());
 		DateTime last = months.Keys.Max ();
 		var buckets = new List<EnergyBucket> ();
@@ -749,8 +769,12 @@ public sealed partial class EnergyViewModel : ViewModelBase, IDisposable
 				RoundToTenth (values.Sum (p => p.SolarKwh)), RoundToTenth (values.Sum (p => p.HomeKwh)),
 				RoundToTenth (values.Sum (p => p.FromGridKwh)), RoundToTenth (values.Sum (p => p.ToGridKwh)),
 				RoundToTenth (values.Sum (p => p.BatteryChargeKwh)), RoundToTenth (values.Sum (p => p.BatteryDischargeKwh)))
-				{ HasData = hasData, BatteryToHomeKwh = hasData && values.All (p => p.BatteryToHomeKwh.HasValue) ? Math.Max (0, RoundToTenth (values.Sum (p => p.BatteryToHomeKwh!.Value))) : null });
-			if (month.Year == 9999 && month.Month == 12) break;
+				{
+				HasData = hasData,
+				BatteryToHomeKwh = hasData && values.All (p => p.BatteryToHomeKwh.HasValue) ? Math.Max (0, RoundToTenth (values.Sum (p => p.BatteryToHomeKwh!.Value))) : null
+				});
+			if (month.Year == 9999 && month.Month == 12)
+				break;
 			}
 		return buckets;
 		}
@@ -760,7 +784,7 @@ public sealed partial class EnergyViewModel : ViewModelBase, IDisposable
 	// calendar-history "energy" kind reports energy accumulated over each interval (kWh), not instantaneous
 	// power, so each sample is converted to average power (kW) over its interval - dividing the energy delta
 	// by the elapsed time - which is the closest available approximation of an instantaneous reading.
-	private static IReadOnlyList<EnergyBucket> BuildDayPoints (IReadOnlyList<StoredEnergyPoint> points)
+	private static List<EnergyBucket> BuildDayPoints (IReadOnlyList<StoredEnergyPoint> points)
 		{
 		var ordered = points.OrderBy (p => p.Timestamp).ToArray ();
 		var buckets = new List<EnergyBucket> (ordered.Length);
@@ -796,7 +820,7 @@ public sealed partial class EnergyViewModel : ViewModelBase, IDisposable
 	// Builds the fixed bucket slots for a period: week = 4 x 6 hours per day (starting Monday), month = one
 	// per calendar day, year = one per calendar month. The day period does not use fixed slots - see
 	// BuildDayPoints.
-	private static IReadOnlyList<BucketSlot> BuildSlots (string period, DateTimeOffset anchor)
+	private static List<BucketSlot> BuildSlots (string period, DateTimeOffset anchor)
 		{
 		var (rangeStart, _) = GetPeriodRange (period, anchor);
 		var slots = new List<BucketSlot> ();
@@ -886,7 +910,10 @@ public sealed record EnergyBucket (
 	public bool HasData { get; init; } = true;
 
 	/// <summary>Reported battery energy supplied to home loads in this bucket, or null when unavailable.</summary>
-	public double? BatteryToHomeKwh { get; init; }
+	public double? BatteryToHomeKwh
+		{
+		get; init;
+		}
 	}
 
 /// <summary>
@@ -908,10 +935,16 @@ public sealed partial class EnergySeriesOption : ObservableObject
 		}
 
 	/// <summary>Gets the display name shown in the key.</summary>
-	public string Name { get; }
+	public string Name
+		{
+		get;
+		}
 
 	/// <summary>Gets the series fill color.</summary>
-	public SKColor Color { get; }
+	public SKColor Color
+		{
+		get;
+		}
 
 	/// <summary>Gets the media brush used to tint the key swatch, matching <see cref="Color"/>.</summary>
 	public System.Windows.Media.Brush Swatch =>
@@ -919,7 +952,10 @@ public sealed partial class EnergySeriesOption : ObservableObject
 			System.Windows.Media.Color.FromArgb (Color.Alpha, Color.Red, Color.Green, Color.Blue));
 
 	/// <summary>Gets the selector that projects a bucket onto this component's value.</summary>
-	public Func<EnergyBucket, double?> ValueSelector { get; }
+	public Func<EnergyBucket, double?> ValueSelector
+		{
+		get;
+		}
 
 	/// <summary>Gets or sets a value indicating whether this is the single currently-graphed component.</summary>
 	[ObservableProperty]

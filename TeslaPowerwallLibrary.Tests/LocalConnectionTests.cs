@@ -2,19 +2,23 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System.IO;
-using Google.Protobuf;
-using Classic = TeslaPowerwallLibrary.Tedapi.Protocol.Classic;
 using System.Net;
 using System.Net.Http;
 using System.Text;
 
+using Google.Protobuf;
+
 using TeslaPowerwallLibrary.Local;
+
+using Classic = TeslaPowerwallLibrary.Tedapi.Protocol.Classic;
 
 namespace TeslaPowerwallLibrary.Tests;
 
 [TestFixture]
 public sealed class LocalConnectionTests
 	{
+	private static readonly string[] _expectedRequests = ["/api/login/Basic", "/api/system_status/soe"];
+	private static readonly string[] _expectedAlerts = ["example-alert"];
 	[TestCase ("192.0.2.1", "192.0.2.1", 443)]
 	[TestCase ("powerwall.local", "powerwall.local", 443)]
 	[TestCase ("powerwall.local:8443", "powerwall.local", 8443)]
@@ -101,25 +105,28 @@ public sealed class LocalConnectionTests
 		var requests = new List<string> ();
 		using var handler = new Handler (async request =>
 			{
-			requests.Add (request.RequestUri!.AbsolutePath);
-			Assert.That (request.RequestUri.Host, Is.EqualTo ("powerwall.test"));
-			if (request.RequestUri.AbsolutePath == "/api/login/Basic")
-				{
-				var payload = await request.Content!.ReadAsStringAsync ();
-				Assert.That (payload, Does.Contain ("force_sm_off").And.Contain ("false"));
-				return Response ("{\"token\":\"synthetic-token\"}");
-				}
-			Assert.That (request.Headers.Authorization!.Parameter, Is.EqualTo ("synthetic-token"));
-			return Response ("{\"percentage\":50}");
+				requests.Add (request.RequestUri!.AbsolutePath);
+				Assert.That (request.RequestUri.Host, Is.EqualTo ("powerwall.test"));
+				if (request.RequestUri.AbsolutePath == "/api/login/Basic")
+					{
+					var payload = await request.Content!.ReadAsStringAsync ();
+					Assert.That (payload, Does.Contain ("force_sm_off").And.Contain ("false"));
+					return Response ("{\"token\":\"synthetic-token\"}");
+					}
+				Assert.That (request.Headers.Authorization!.Parameter, Is.EqualTo ("synthetic-token"));
+				return Response ("{\"percentage\":50}");
 			});
 		using var client = new PowerwallLocalClient (new PowerwallOptions
 			{
-			Host = "powerwall.test", NoLocalSessionPersistence = true, Password = "synthetic", AuthMode = "token",
+			Host = "powerwall.test",
+			NoLocalSessionPersistence = true,
+			Password = "synthetic",
+			AuthMode = "token",
 			CacheFile = Path.Combine (Path.GetTempPath (), Guid.NewGuid () + ".json")
 			}, handler);
 		await client.AuthenticateAsync ();
 		Assert.That (await client.PollAsync ("/api/system_status/soe"), Does.Contain ("50"));
-		Assert.That (requests, Is.EqualTo (new[] { "/api/login/Basic", "/api/system_status/soe" }));
+		Assert.That (requests, Is.EqualTo (_expectedRequests));
 		}
 
 	[Test]
@@ -128,9 +135,9 @@ public sealed class LocalConnectionTests
 		var calls = 0;
 		using var handler = new Handler (request =>
 			{
-			calls++;
-			return Task.FromResult (request.RequestUri!.AbsolutePath == "/api/login/Basic"
-				? Response ("{\"token\":\"synthetic\"}") : new HttpResponseMessage (HttpStatusCode.NotFound));
+				calls++;
+				return Task.FromResult (request.RequestUri!.AbsolutePath == "/api/login/Basic"
+					? Response ("{\"token\":\"synthetic\"}") : new HttpResponseMessage (HttpStatusCode.NotFound));
 			});
 		using var client = new PowerwallLocalClient (new PowerwallOptions { Host = "powerwall.test", NoLocalSessionPersistence = true, AuthMode = "token" }, handler);
 		await client.AuthenticateAsync ();
@@ -161,11 +168,11 @@ public sealed class LocalConnectionTests
 		int logins = 0, reads = 0;
 		using var handler = new Handler (request =>
 			{
-			if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
-				return Task.FromResult (Response ($"{{\"token\":\"token-{++logins}\"}}"));
-			reads++;
-			Assert.That (request.Headers.Authorization!.Parameter, Is.EqualTo ($"token-{logins}"));
-			return Task.FromResult (Response ($"{{\"percentage\":{logins * 10}}}"));
+				if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
+					return Task.FromResult (Response ($"{{\"token\":\"token-{++logins}\"}}"));
+				reads++;
+				Assert.That (request.Headers.Authorization!.Parameter, Is.EqualTo ($"token-{logins}"));
+				return Task.FromResult (Response ($"{{\"percentage\":{logins * 10}}}"));
 			});
 		using var client = new PowerwallLocalClient (new PowerwallOptions { Host = "powerwall.test", NoLocalSessionPersistence = true, AuthMode = "token" }, handler);
 		await client.AuthenticateAsync ();
@@ -182,10 +189,10 @@ public sealed class LocalConnectionTests
 		int logins = 0, reads = 0;
 		using var handler = new Handler (request =>
 			{
-			if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
-				return Task.FromResult (++logins == 1 ? Response ("""{"token":"old"}""") : Response ("{}"));
-			reads++;
-			return Task.FromResult (Response ("""{"percentage":50}"""));
+				if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
+					return Task.FromResult (++logins == 1 ? Response ("""{"token":"old"}""") : Response ("{}"));
+				reads++;
+				return Task.FromResult (Response ("""{"percentage":50}"""));
 			});
 		using var client = new PowerwallLocalClient (new PowerwallOptions { Host = "powerwall.test", NoLocalSessionPersistence = true, AuthMode = "token" }, handler);
 		await client.AuthenticateAsync ();
@@ -212,8 +219,13 @@ public sealed class LocalConnectionTests
 		{
 		var device = new Classic.SiteControllerConnectedDeviceWithVitals
 			{
-			Device = new Classic.SiteControllerConnectedDevice { Device = new Classic.Device
-				{ Din = new Classic.StringValue { Value = "TEPOD--part--serial" } } }
+			Device = new Classic.SiteControllerConnectedDevice
+				{
+				Device = new Classic.Device
+					{
+					Din = new Classic.StringValue { Value = "TEPOD--part--serial" }
+					}
+				}
 			};
 		device.Vitals.Add (new Classic.DeviceVital { Name = "integer", IntValue = 9007199254740993L });
 		device.Vitals.Add (new Classic.DeviceVital { Name = "zero", FloatValue = 0 });
@@ -233,7 +245,7 @@ public sealed class LocalConnectionTests
 		Assert.That (values["false"], Is.False);
 		Assert.That (values["missing"], Is.Null);
 		Assert.That (values["firmwareVersion"], Is.Null);
-		Assert.That (values["alerts"], Is.EqualTo (new[] { "example-alert" }));
+		Assert.That (values["alerts"], Is.EqualTo (_expectedAlerts));
 		}
 
 	[TestCase (false)]
@@ -242,12 +254,12 @@ public sealed class LocalConnectionTests
 		{
 		using var handler = new Handler (request =>
 			{
-			if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
-				return Task.FromResult (Response ("""{"token":"synthetic"}"""));
-			var content = new ByteArrayContent (new byte[] { 255 });
-			if (oversized)
-				content.Headers.ContentLength = 8 * 1024 * 1024 + 1;
-			return Task.FromResult (new HttpResponseMessage (HttpStatusCode.OK) { Content = content });
+				if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
+					return Task.FromResult (Response ("""{"token":"synthetic"}"""));
+				var content = new ByteArrayContent (new byte[] { 255 });
+				if (oversized)
+					content.Headers.ContentLength = 8 * 1024 * 1024 + 1;
+				return Task.FromResult (new HttpResponseMessage (HttpStatusCode.OK) { Content = content });
 			});
 		using var client = new PowerwallLocalClient (new PowerwallOptions { Host = "powerwall.test", NoLocalSessionPersistence = true, AuthMode = "token" }, handler);
 		await client.AuthenticateAsync ();

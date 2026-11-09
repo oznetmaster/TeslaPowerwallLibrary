@@ -2,9 +2,8 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System;
-using System.IO;
 using System.Collections.Generic;
-
+using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -24,35 +23,59 @@ public sealed class AppSettings
 
 	/// <summary>Gets or sets the cloud provider used only for local-mode history (Cloud or FleetApi).</summary>
 	[JsonPropertyName ("historyMode")]
-	public string? HistoryMode { get; set; }
+	public string? HistoryMode
+		{
+		get; set;
+		}
 
 	/// <summary>Gets or sets the explicitly associated local host for the history site.</summary>
 	[JsonPropertyName ("historyHost")]
-	public string? HistoryHost { get; set; }
+	public string? HistoryHost
+		{
+		get; set;
+		}
 
 	/// <summary>Gets or sets the account scope associated with the history site.</summary>
 	[JsonPropertyName ("historyAccount")]
-	public string? HistoryAccount { get; set; }
+	public string? HistoryAccount
+		{
+		get; set;
+		}
 
 	/// <summary>Gets or sets the explicitly selected cloud history site identifier.</summary>
 	[JsonPropertyName ("historySiteId")]
-	public string? HistorySiteId { get; set; }
+	public string? HistorySiteId
+		{
+		get; set;
+		}
 
 	/// <summary>Gets or sets the display name of the selected cloud history site.</summary>
 	[JsonPropertyName ("historySiteName")]
-	public string? HistorySiteName { get; set; }
+	public string? HistorySiteName
+		{
+		get; set;
+		}
 
 	/// <summary>Gets or sets the last connection mode used (<c>Cloud</c> or <c>Local</c>).</summary>
 	[JsonPropertyName ("mode")]
-	public string? Mode { get; set; }
+	public string? Mode
+		{
+		get; set;
+		}
 
 	/// <summary>Gets or sets the gateway host name or IP address for local mode.</summary>
 	[JsonPropertyName ("host")]
-	public string? Host { get; set; }
+	public string? Host
+		{
+		get; set;
+		}
 
 	/// <summary>Gets or sets the encrypted (DPAPI, base64) Powerwall™ password; never stored in plaintext.</summary>
 	[JsonPropertyName ("protectedPassword")]
-	public string? ProtectedPassword { get; set; }
+	public string? ProtectedPassword
+		{
+		get; set;
+		}
 
 	/// <summary>Gets or sets the desktop's local refresh interval; zero means manual refresh only.</summary>
 	[JsonPropertyName ("localPollSeconds")]
@@ -60,27 +83,45 @@ public sealed class AppSettings
 
 	/// <summary>Gets or sets the selected local transport.</summary>
 	[JsonPropertyName ("localProtocol")]
-	public PowerwallLocalProtocol LocalProtocol { get; set; }
+	public PowerwallLocalProtocol LocalProtocol
+		{
+		get; set;
+		}
 
 	/// <summary>Gets or sets the explicit local vendor-signed query version.</summary>
 	[JsonPropertyName ("localQueryVersion")]
-	public Tedapi.TedapiQueryVersion LocalQueryVersion { get; set; }
+	public Tedapi.TedapiQueryVersion LocalQueryVersion
+		{
+		get; set;
+		}
 
 	/// <summary>Gets or sets the existing Windows signing-key name; private key material is never stored here.</summary>
 	[JsonPropertyName ("localSigningKeyName")]
-	public string? LocalSigningKeyName { get; set; }
+	public string? LocalSigningKeyName
+		{
+		get; set;
+		}
 
 	/// <summary>Gets or sets the customer email for cloud mode.</summary>
 	[JsonPropertyName ("email")]
-	public string? Email { get; set; }
+	public string? Email
+		{
+		get; set;
+		}
 
 	/// <summary>Gets or sets the Tesla region (<c>us</c> or <c>cn</c>) used by the browser sign-in flow.</summary>
 	[JsonPropertyName ("region")]
-	public string? Region { get; set; }
+	public string? Region
+		{
+		get; set;
+		}
 
 	/// <summary>Gets or sets the Tesla FleetAPI application Client ID.</summary>
 	[JsonPropertyName ("fleetApiClientId")]
-	public string? FleetApiClientId { get; set; }
+	public string? FleetApiClientId
+		{
+		get; set;
+		}
 
 	/// <summary>
 	/// Gets or sets the encrypted (DPAPI, base64) Tesla FleetAPI refresh token; never stored in plaintext.
@@ -89,11 +130,17 @@ public sealed class AppSettings
 	/// successful connect populates the library's own cache.
 	/// </summary>
 	[JsonPropertyName ("protectedFleetApiRefreshToken")]
-	public string? ProtectedFleetApiRefreshToken { get; set; }
+	public string? ProtectedFleetApiRefreshToken
+		{
+		get; set;
+		}
 
 	/// <summary>Gets or sets the Tesla FleetAPI region (<c>na</c>, <c>eu</c>, or <c>cn</c>).</summary>
 	[JsonPropertyName ("fleetApiRegion")]
-	public string? FleetApiRegion { get; set; }
+	public string? FleetApiRegion
+		{
+		get; set;
+		}
 	}
 
 /// <summary>
@@ -102,6 +149,7 @@ public sealed class AppSettings
 /// </summary>
 public static class AppSettingsStore
 	{
+	private static readonly JsonSerializerOptions _writeOptions = new () { WriteIndented = true };
 	/// <summary>Gets the full path to the settings file under the user's local application data folder.</summary>
 	public static string FilePath { get; } = BuildFilePath ();
 
@@ -127,8 +175,7 @@ public static class AppSettingsStore
 	/// <param name="settings">The settings to persist.</param>
 	public static void Save (AppSettings settings)
 		{
-		if (settings is null)
-			throw new ArgumentNullException (nameof (settings));
+		ArgumentNullException.ThrowIfNull (settings);
 
 		try
 			{
@@ -136,7 +183,7 @@ public static class AppSettingsStore
 			if (!string.IsNullOrEmpty (directory))
 				Directory.CreateDirectory (directory!);
 
-			var json = JsonSerializer.Serialize (settings, new JsonSerializerOptions { WriteIndented = true });
+			var json = JsonSerializer.Serialize (settings, _writeOptions);
 			File.WriteAllText (FilePath, json);
 			}
 		catch (Exception exc) when (exc is IOException or UnauthorizedAccessException)

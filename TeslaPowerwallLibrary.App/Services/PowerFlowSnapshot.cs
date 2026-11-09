@@ -3,6 +3,7 @@
 
 using System;
 using System.Linq;
+
 using TeslaPowerwallLibrary.Tedapi;
 
 namespace TeslaPowerwallLibrary.App.Services;
@@ -31,8 +32,7 @@ public sealed record PowerFlowSnapshot (
 	/// <returns>A snapshot preserving unreported fields as null.</returns>
 	public static PowerFlowSnapshot FromLocal (LocalTelemetry telemetry)
 		{
-		if (telemetry is null)
-			throw new ArgumentNullException (nameof (telemetry));
+		ArgumentNullException.ThrowIfNull (telemetry);
 		double? Watts (string location) => telemetry.Control?.MeterAggregates?
 			.FirstOrDefault (reading => string.Equals (reading.Location, location, StringComparison.OrdinalIgnoreCase))?.Watts;
 		var energy = telemetry.Control?.SystemStatus;

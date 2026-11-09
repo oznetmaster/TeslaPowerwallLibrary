@@ -55,7 +55,10 @@ internal static class LocalKeyEnrollmentProtocol
 				Authorization = new EnrollmentAuthorization
 					{
 					Add = description is null ? null : new EnrollmentAdd
-						{ PublicKey = Convert.ToBase64String (publicKey), Description = description },
+						{
+						PublicKey = Convert.ToBase64String (publicKey),
+						Description = description
+						},
 					List = description is null ? new EnrollmentEmpty () : null
 					}
 				}
@@ -147,10 +150,16 @@ internal sealed record EnrollmentAuthorization
 	{
 	/// <summary>Public key to enroll.</summary>
 	[JsonPropertyName ("add_authorized_client_request"), JsonIgnore (Condition = JsonIgnoreCondition.WhenWritingNull)]
-	public EnrollmentAdd? Add { get; init; }
+	public EnrollmentAdd? Add
+		{
+		get; init;
+		}
 	/// <summary>Read-only request for existing keys.</summary>
 	[JsonPropertyName ("list_authorized_clients_request"), JsonIgnore (Condition = JsonIgnoreCondition.WhenWritingNull)]
-	public EnrollmentEmpty? List { get; init; }
+	public EnrollmentEmpty? List
+		{
+		get; init;
+		}
 	}
 
 /// <summary>Empty authorization-list request.</summary>
@@ -178,7 +187,10 @@ internal sealed record EnrollmentResponse
 	{
 	/// <summary>Command result.</summary>
 	[JsonPropertyName ("response")]
-	public EnrollmentResponseMessage? Response { get; init; }
+	public EnrollmentResponseMessage? Response
+		{
+		get; init;
+		}
 	}
 
 /// <summary>Cloud command message.</summary>
@@ -186,7 +198,10 @@ internal sealed record EnrollmentResponseMessage
 	{
 	/// <summary>Message payload.</summary>
 	[JsonPropertyName ("message")]
-	public EnrollmentPayloadContainer? Message { get; init; }
+	public EnrollmentPayloadContainer? Message
+		{
+		get; init;
+		}
 	}
 
 /// <summary>Energy-device payload container.</summary>
@@ -194,7 +209,10 @@ internal sealed record EnrollmentPayloadContainer
 	{
 	/// <summary>Authorization payload.</summary>
 	[JsonPropertyName ("payload")]
-	public EnrollmentAuthorizationContainer? Payload { get; init; }
+	public EnrollmentAuthorizationContainer? Payload
+		{
+		get; init;
+		}
 	}
 
 /// <summary>Authorization response container.</summary>
@@ -202,7 +220,10 @@ internal sealed record EnrollmentAuthorizationContainer
 	{
 	/// <summary>Authorization result.</summary>
 	[JsonPropertyName ("authorization")]
-	public EnrollmentReplyContainer? Authorization { get; init; }
+	public EnrollmentReplyContainer? Authorization
+		{
+		get; init;
+		}
 	}
 
 /// <summary>Authorization reply message.</summary>
@@ -210,7 +231,10 @@ internal sealed record EnrollmentReplyContainer
 	{
 	/// <summary>Concrete add or list response.</summary>
 	[JsonPropertyName ("message")]
-	public EnrollmentReplies? Message { get; init; }
+	public EnrollmentReplies? Message
+		{
+		get; init;
+		}
 	}
 
 /// <summary>Known wire aliases for authorization replies.</summary>
@@ -218,16 +242,28 @@ internal sealed record EnrollmentReplies
 	{
 	/// <summary>Pascal-case registration reply.</summary>
 	[JsonPropertyName ("AddAuthorizedClientResponse")]
-	public EnrollmentAddReply? Add { get; init; }
+	public EnrollmentAddReply? Add
+		{
+		get; init;
+		}
 	/// <summary>Snake-case registration reply.</summary>
 	[JsonPropertyName ("add_authorized_client_response")]
-	public EnrollmentAddReply? AddSnake { get; init; }
+	public EnrollmentAddReply? AddSnake
+		{
+		get; init;
+		}
 	/// <summary>Pascal-case list reply.</summary>
 	[JsonPropertyName ("ListAuthorizedClientsResponse")]
-	public EnrollmentListReply? List { get; init; }
+	public EnrollmentListReply? List
+		{
+		get; init;
+		}
 	/// <summary>Snake-case list reply.</summary>
 	[JsonPropertyName ("list_authorized_clients_response")]
-	public EnrollmentListReply? ListSnake { get; init; }
+	public EnrollmentListReply? ListSnake
+		{
+		get; init;
+		}
 	}
 
 /// <summary>Newly enrolled client's state.</summary>
@@ -235,7 +271,10 @@ internal sealed record EnrollmentAddReply
 	{
 	/// <summary>Registered client.</summary>
 	[JsonPropertyName ("client")]
-	public EnrollmentClient? Client { get; init; }
+	public EnrollmentClient? Client
+		{
+		get; init;
+		}
 	}
 
 /// <summary>Existing authorized clients.</summary>
@@ -243,7 +282,10 @@ internal sealed record EnrollmentListReply
 	{
 	/// <summary>Clients returned by the selected site.</summary>
 	[JsonPropertyName ("clients")]
-	public IReadOnlyList<EnrollmentClient>? Clients { get; init; }
+	public IReadOnlyList<EnrollmentClient>? Clients
+		{
+		get; init;
+		}
 	}
 
 /// <summary>A public authorization record.</summary>
@@ -251,11 +293,20 @@ internal sealed record EnrollmentClient
 	{
 	/// <summary>Public key using the Pascal-case wire name.</summary>
 	[JsonPropertyName ("PublicKey")]
-	public string? PublicKey { get; init; }
+	public string? PublicKey
+		{
+		get; init;
+		}
 	/// <summary>Public key using the snake-case wire name.</summary>
 	[JsonPropertyName ("public_key")]
-	public string? PublicKeySnake { get; init; }
+	public string? PublicKeySnake
+		{
+		get; init;
+		}
 	/// <summary>Gateway authorization state.</summary>
 	[JsonPropertyName ("state")]
-	public int? State { get; init; }
+	public int? State
+		{
+		get; init;
+		}
 	}

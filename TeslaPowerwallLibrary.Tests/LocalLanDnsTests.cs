@@ -49,7 +49,10 @@ public sealed class LocalLanDnsTests
 	private static byte[] Answer ()
 		{
 		byte[] packet = MdnsPacket.Query ("powerwall", 1);
-		packet[0] = 18; packet[1] = 52; packet[2] = 0x81; packet[7] = 1;
+		packet[0] = 18;
+		packet[1] = 52;
+		packet[2] = 0x81;
+		packet[7] = 1;
 		byte[] answer = { 0xc0, 12, 0, 1, 0, 1, 0, 0, 0, 120, 0, 4, 192, 0, 2, 7 };
 		return packet.Concat (answer).ToArray ();
 		}

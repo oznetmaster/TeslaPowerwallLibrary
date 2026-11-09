@@ -2,6 +2,7 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System.Text.Json;
+
 using TeslaPowerwallLibrary.Tedapi;
 
 namespace TeslaPowerwallLibrary.Tests;
@@ -10,6 +11,7 @@ namespace TeslaPowerwallLibrary.Tests;
 [TestFixture]
 public sealed class LocalBatteryProjectionTests
 	{
+	private static readonly string[] _expectedDisableReasons = ["example"];
 	/// <summary>Measurements attach only to the queried unit and identified expansion; followers remain unmeasured.</summary>
 	[Test]
 	public void BatterySummary_PreservesIdentityMissingValuesAndPhysicalUnits ()
@@ -59,7 +61,7 @@ public sealed class LocalBatteryProjectionTests
 		Assert.That (data.Powerwall3Bus.FirmwareUpdate.Progress!.NumberOfSteps, Is.Zero);
 		Assert.That (data.Powerwall3Bus.FirmwareUpdate.Progress.Progress, Is.Zero);
 		Assert.That (data.Powerwall3Bus.FirmwareUpdate.Progress.CurrentStep, Is.Null);
-		Assert.That (data.Control!.Islanding!.DisableReasons, Is.EqualTo (new[] { "example" }));
+		Assert.That (data.Control!.Islanding!.DisableReasons, Is.EqualTo (_expectedDisableReasons));
 		var roundTrip = JsonSerializer.Deserialize<LocalTelemetry> (JsonSerializer.Serialize (data))!;
 		Assert.That (roundTrip.Powerwall3Bus!.Enumeration!.InProgress, Is.False);
 		}

@@ -71,26 +71,47 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
 	private void OnSiteNameChanged (object? sender, EventArgs e)
 		{
-		void Notify () { OnPropertyChanged (nameof (SiteName)); OnPropertyChanged (nameof (WindowTitle)); }
+		void Notify ()
+			{
+			OnPropertyChanged (nameof (SiteName));
+			OnPropertyChanged (nameof (WindowTitle));
+			}
 		var dispatcher = global::System.Windows.Application.Current?.Dispatcher;
-		if (dispatcher is null || dispatcher.CheckAccess ()) Notify ();
-		else dispatcher.Invoke (Notify);
+		if (dispatcher is null || dispatcher.CheckAccess ())
+			Notify ();
+		else
+			dispatcher.Invoke (Notify);
 		}
 
 	/// <summary>Gets the connect screen view-model.</summary>
-	public ConnectViewModel Connect { get; }
+	public ConnectViewModel Connect
+		{
+		get;
+		}
 
 	/// <summary>Gets the Home screen view-model.</summary>
-	public HomeViewModel Home { get; }
+	public HomeViewModel Home
+		{
+		get;
+		}
 
 	/// <summary>Gets the Energy screen view-model.</summary>
-	public EnergyViewModel Energy { get; }
+	public EnergyViewModel Energy
+		{
+		get;
+		}
 
 	/// <summary>Gets the Settings screen view-model.</summary>
-	public SettingsViewModel Settings { get; }
+	public SettingsViewModel Settings
+		{
+		get;
+		}
 
 	/// <summary>Gets the System screen view-model.</summary>
-	public SystemViewModel System { get; }
+	public SystemViewModel System
+		{
+		get;
+		}
 
 	/// <summary>Gets or sets the currently displayed view-model.</summary>
 	[ObservableProperty]
@@ -122,13 +143,13 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
 		Current = screen switch
 			{
-			AppScreen.Connect => Connect,
-			AppScreen.Home => Home,
-			AppScreen.Energy => Energy,
-			AppScreen.Settings => Settings,
-			AppScreen.System => System,
-			_ => Current
-			};
+				AppScreen.Connect => Connect,
+				AppScreen.Home => Home,
+				AppScreen.Energy => Energy,
+				AppScreen.Settings => Settings,
+				AppScreen.System => System,
+				_ => Current
+				};
 		CurrentScreen = screen;
 		Energy.IsActive = screen == AppScreen.Energy;
 

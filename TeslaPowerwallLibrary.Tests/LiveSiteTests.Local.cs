@@ -14,17 +14,41 @@ public sealed partial class LiveSiteTests
 	public sealed partial class LiveSettings
 		{
 		/// <summary>Gets or sets Gateway, Setup Wi-Fi, or Signed LAN.</summary>
-		[JsonPropertyName ("localProtocol")] public string? LocalProtocol { get; set; }
+		[JsonPropertyName ("localProtocol")]
+		public string? LocalProtocol
+			{
+			get; set;
+			}
 		/// <summary>Gets or sets the local DNS hostname or IP address.</summary>
-		[JsonPropertyName ("host")] public string? Host { get; set; }
+		[JsonPropertyName ("host")]
+		public string? Host
+			{
+			get; set;
+			}
 		/// <summary>Gets or sets the customer password, or full label password for setup Wi-Fi.</summary>
-		[JsonPropertyName ("password")] public string? Password { get; set; }
+		[JsonPropertyName ("password")]
+		public string? Password
+			{
+			get; set;
+			}
 		/// <summary>Gets or sets an already registered RSA-4096 private key in portable XML form.</summary>
-		[JsonPropertyName ("localSigningKey")] public string? LocalSigningKey { get; set; }
+		[JsonPropertyName ("localSigningKey")]
+		public string? LocalSigningKey
+			{
+			get; set;
+			}
 		/// <summary>Gets or sets an existing Windows-only CNG key; processor runs require portable XML instead.</summary>
-		[JsonPropertyName ("localSigningKeyName")] public string? LocalSigningKeyName { get; set; }
+		[JsonPropertyName ("localSigningKeyName")]
+		public string? LocalSigningKeyName
+			{
+			get; set;
+			}
 		/// <summary>Gets or sets the shared cache interval; zero selects fifteen seconds.</summary>
-		[JsonPropertyName ("localRefreshIntervalSeconds")] public int LocalRefreshIntervalSeconds { get; set; }
+		[JsonPropertyName ("localRefreshIntervalSeconds")]
+		public int LocalRefreshIntervalSeconds
+			{
+			get; set;
+			}
 
 		/// <summary>Checks local inputs without network access or key enrollment.</summary>
 		public void ValidateLocal ()
@@ -51,14 +75,18 @@ public sealed partial class LiveSiteTests
 			key = LocalProtocol == "Signed LAN" ? OpenSigningKey () : null;
 			return new PowerwallOptions
 				{
-				Host = Host!, Password = Password!, GatewayPassword = Password!,
+				Host = Host!,
+				Password = Password!,
+				GatewayPassword = Password!,
 				LocalProtocol = LocalProtocol switch
 					{
-					"Gateway" => PowerwallLocalProtocol.Gateway,
-					"Setup Wi-Fi" => PowerwallLocalProtocol.Tedapi,
-					_ => PowerwallLocalProtocol.TedapiSigned
-					},
-				LocalSigningKey = key, AllowLocalControl = false, NoLocalSessionPersistence = true,
+						"Gateway" => PowerwallLocalProtocol.Gateway,
+						"Setup Wi-Fi" => PowerwallLocalProtocol.Tedapi,
+						_ => PowerwallLocalProtocol.TedapiSigned
+						},
+				LocalSigningKey = key,
+				AllowLocalControl = false,
+				NoLocalSessionPersistence = true,
 				CacheExpireSeconds = LocalRefreshIntervalSeconds == 0 ? 15 : LocalRefreshIntervalSeconds,
 				Timeout = TimeSpan.FromSeconds (20)
 				};
@@ -68,7 +96,7 @@ public sealed partial class LiveSiteTests
 			{
 			if (!string.IsNullOrWhiteSpace (LocalSigningKeyName))
 				{
-				if (!string.IsNullOrWhiteSpace (LocalSigningKey) || 
+				if (!string.IsNullOrWhiteSpace (LocalSigningKey) ||
 #if NETFRAMEWORK
 			Environment.OSVersion.Platform != PlatformID.Win32NT
 #else
@@ -78,16 +106,19 @@ public sealed partial class LiveSiteTests
 					throw new InvalidDataException ("Select one signing key source. A Windows-only key cannot be used by processor tests.");
 				using CngKey stored = CngKey.Open (LocalSigningKeyName, CngProvider.MicrosoftSoftwareKeyStorageProvider);
 				var windowsKey = new RSACng (stored);
-				if (windowsKey.KeySize == 4096) return windowsKey;
+				if (windowsKey.KeySize == 4096)
+					return windowsKey;
 				windowsKey.Dispose ();
 				throw new InvalidDataException ("Signed LAN requires RSA-4096.");
 				}
 			var key = new RSACryptoServiceProvider { PersistKeyInCsp = false };
 			try
 				{
-				if (string.IsNullOrWhiteSpace (LocalSigningKey)) throw new CryptographicException ();
+				if (string.IsNullOrWhiteSpace (LocalSigningKey))
+					throw new CryptographicException ();
 				key.FromXmlString (LocalSigningKey);
-				if (key.KeySize != 4096 || key.PublicOnly) throw new CryptographicException ();
+				if (key.KeySize != 4096 || key.PublicOnly)
+					throw new CryptographicException ();
 				return key;
 				}
 			catch

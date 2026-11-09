@@ -88,7 +88,7 @@ public sealed class FleetTokenRefreshTests
 			Url = request.RequestUri!.AbsoluteUri;
 			Method = request.Method;
 			MediaType = request.Content!.Headers.ContentType!.MediaType;
-			Body = await request.Content.ReadAsStringAsync ();
+			Body = await request.Content.ReadAsStringAsync (cancellationToken);
 			return new HttpResponseMessage (status) { Content = new StringContent (response) };
 			}
 		}

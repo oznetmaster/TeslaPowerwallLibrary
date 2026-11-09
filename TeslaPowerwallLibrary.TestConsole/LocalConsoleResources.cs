@@ -3,6 +3,7 @@
 
 using System.CommandLine;
 using System.Security.Cryptography;
+
 using TeslaPowerwallLibrary.Tedapi;
 using TeslaPowerwallLibrary.Tools;
 
@@ -39,9 +40,13 @@ internal sealed class LocalConsoleResources : IDisposable
 				resources._setup = new PowerwallTedapiClient (setupOptions);
 				await resources._setup.AuthenticateAsync (cancellationToken).ConfigureAwait (false);
 				}
-			resources.Options = resolved.Options with { LocalSigningKey = resources._key,
-				LocalFollowerConnection = resources._setup, EnableLocalReadFailover = failover,
-				LocalReadFailoverRetryInterval = TimeSpan.FromSeconds (retry) };
+			resources.Options = resolved.Options with
+				{
+				LocalSigningKey = resources._key,
+				LocalFollowerConnection = resources._setup,
+				EnableLocalReadFailover = failover,
+				LocalReadFailoverRetryInterval = TimeSpan.FromSeconds (retry)
+				};
 			return resources;
 			}
 		catch { resources.Dispose (); throw; }
@@ -56,19 +61,33 @@ internal sealed class LocalConsoleResources : IDisposable
 	/// <returns>Separate read-only setup options, or null when no alternate was requested.</returns>
 	internal static PowerwallOptions? SetupOptions (PowerwallOptions primary, string? host, string? password, bool failover, int retrySeconds)
 		{
-		if (retrySeconds <= 0) throw new ArgumentException ("Local recovery delay must be positive.");
+		if (retrySeconds <= 0)
+			throw new ArgumentException ("Local recovery delay must be positive.");
 		if (string.IsNullOrWhiteSpace (host))
 			{
-			if (failover) throw new ArgumentException ("--local-read-failover requires --local-setup-host.");
+			if (failover)
+				throw new ArgumentException ("--local-read-failover requires --local-setup-host.");
 			return null;
 			}
 		if (primary.CloudMode || primary.FleetApi || primary.LocalProtocol != PowerwallLocalProtocol.TedapiSigned)
 			throw new ArgumentException ("--local-setup-host requires a signed local LAN connection.");
-		if (string.IsNullOrWhiteSpace (password)) throw new ArgumentException ("Set PW_SETUP_PASSWORD to the equipment-label password for the explicit setup connection.");
-		return new PowerwallOptions { Host = host!.Trim (), LocalProtocol = PowerwallLocalProtocol.Tedapi,
-			GatewayPassword = password!, Password = primary.Password, Email = primary.Email, Timezone = primary.Timezone,
-			LocalQueryVersion = primary.LocalQueryVersion, Timeout = primary.Timeout, CacheExpireSeconds = primary.CacheExpireSeconds,
-			NoLocalSessionPersistence = true, AllowLocalControl = false, Logger = primary.Logger };
+		if (string.IsNullOrWhiteSpace (password))
+			throw new ArgumentException ("Set PW_SETUP_PASSWORD to the equipment-label password for the explicit setup connection.");
+		return new PowerwallOptions
+			{
+			Host = host!.Trim (),
+			LocalProtocol = PowerwallLocalProtocol.Tedapi,
+			GatewayPassword = password!,
+			Password = primary.Password,
+			Email = primary.Email,
+			Timezone = primary.Timezone,
+			LocalQueryVersion = primary.LocalQueryVersion,
+			Timeout = primary.Timeout,
+			CacheExpireSeconds = primary.CacheExpireSeconds,
+			NoLocalSessionPersistence = true,
+			AllowLocalControl = false,
+			Logger = primary.Logger
+			};
 		}
 
 	/// <summary>Disposes the owned alternate and key after the primary connection has finished.</summary>

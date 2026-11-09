@@ -40,7 +40,8 @@ public sealed partial class PowerwallTedapiClient
 			// TEPOD is appended only to unsigned June 2024 variables. Captured
 			// query text, signatures and the existing type order remain intact.
 			var types = variables["msaComp"]!["types"]!.AsArray ();
-			if (!types.Any (value => value?.GetValue<string> () == "TEPOD")) types.Add ("TEPOD");
+			if (!types.Any (value => value?.GetValue<string> () == "TEPOD"))
+				types.Add ("TEPOD");
 			}
 		foreach (var group in extras)
 			{

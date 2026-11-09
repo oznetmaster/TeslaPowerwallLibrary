@@ -34,8 +34,10 @@ public sealed partial class TedapiTests
 		int configurations = 0, queries = 0;
 		using var handler = new ScriptedHandler (async (request, _) =>
 			{
-				if (request.RequestUri!.AbsolutePath == "/api/login/Basic") return Text ("""{"token":"synthetic"}""");
-				if (request.RequestUri.AbsolutePath == "/tedapi/din") return Text (DIN);
+				if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
+					return Text ("""{"token":"synthetic"}""");
+				if (request.RequestUri.AbsolutePath == "/tedapi/din")
+					return Text (DIN);
 				var envelope = DecodeLegacyRequest (protocol, await request.Content!.ReadAsByteArrayAsync ());
 				if (envelope.Config is not null)
 					{
@@ -56,8 +58,12 @@ public sealed partial class TedapiTests
 			});
 		using var client = new PowerwallTedapiClient (new PowerwallOptions
 			{
-			Host = "powerwall.test", GatewayPassword = "label", Password = "customer",
-			LocalProtocol = protocol, LocalSigningKey = key, CacheExpireSeconds = int.MaxValue
+			Host = "powerwall.test",
+			GatewayPassword = "label",
+			Password = "customer",
+			LocalProtocol = protocol,
+			LocalSigningKey = key,
+			CacheExpireSeconds = int.MaxValue
 			}, handler);
 		await client.AuthenticateAsync ();
 		var status = JsonSerializer.Deserialize<SystemStatus> ((await client.PollAsync ("/api/system_status"))!)!;

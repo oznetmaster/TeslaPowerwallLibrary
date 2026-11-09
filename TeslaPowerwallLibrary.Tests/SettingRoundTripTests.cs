@@ -7,6 +7,22 @@ namespace TeslaPowerwallLibrary.Tests;
 [TestFixture]
 public sealed class SettingRoundTripTests
 	{
+	private static readonly int[] _expectedWrites = [19, 20];
+
+	[Test]
+	public async Task TrialAndRestorationFailures_AreBothRetainedAndBlockFurtherTrials ()
+		{
+		var trialFailure = new InvalidOperationException ("Synthetic trial failure");
+		var restoreFailure = new InvalidOperationException ("Synthetic restore failure");
+		bool blocked = false;
+		AggregateException? result = await Assert.ThrowsAsync<AggregateException> (() => SettingRoundTrip.RunAsync (20, 19,
+			() => Task.FromResult (19), _ => Task.CompletedTask, (a, b) => a == b,
+			(expected, _) => throw (expected == 19 ? trialFailure : restoreFailure),
+			() => Assert.Fail ("Restoration was not confirmed."), () => blocked = true));
+		Assert.That (result!.InnerExceptions[0], Is.SameAs (trialFailure));
+		Assert.That (result.InnerExceptions[1], Is.SameAs (restoreFailure));
+		Assert.That (blocked, Is.True);
+		}
 	/// <summary>Restores after success, a lost acknowledgement, or failed change confirmation.</summary>
 	/// <param name="failure">Simulated request or confirmation failure.</param>
 	[TestCase ("none"), TestCase ("change-response"), TestCase ("change-confirmation"), TestCase ("restore-response"), TestCase ("restore-confirmation")]
@@ -18,27 +34,29 @@ public sealed class SettingRoundTripTests
 		bool restored = false, blocked = false;
 		Task Run () => SettingRoundTrip.RunAsync (20, 19, () => Task.FromResult (state), value =>
 			{
-			writes.Add (value);
-			state = value;
-			if ((value == 19 && failure == "change-response") || (value == 20 && failure == "restore-response"))
-				throw new InvalidOperationException ("Synthetic lost acknowledgement");
-			return Task.CompletedTask;
+				writes.Add (value);
+				state = value;
+				if ((value == 19 && failure == "change-response") || (value == 20 && failure == "restore-response"))
+					throw new InvalidOperationException ("Synthetic lost acknowledgement");
+				return Task.CompletedTask;
 			}, (a, b) => a == b, async (expected, read) =>
 			{
-			confirmations.Add (expected);
-			if ((expected == 19 && failure == "change-confirmation") || (expected == 20 && failure == "restore-confirmation"))
-				throw new InvalidOperationException ("Synthetic unavailable confirmation");
-			Assert.That (await read (), Is.EqualTo (expected));
+				confirmations.Add (expected);
+				if ((expected == 19 && failure == "change-confirmation") || (expected == 20 && failure == "restore-confirmation"))
+					throw new InvalidOperationException ("Synthetic unavailable confirmation");
+				Assert.That (await read (), Is.EqualTo (expected));
 			}, () => restored = true, () => blocked = true);
-		if (failure is "none" or "restore-response") await Run ();
-		else Assert.That (async () => await Run (), Throws.TypeOf<InvalidOperationException> ());
+		if (failure is "none" or "restore-response")
+			await Run ();
+		else
+			Assert.That (async () => await Run (), Throws.TypeOf<InvalidOperationException> ());
 		Assert.Multiple (() =>
 			{
-			Assert.That (state, Is.EqualTo (20));
-			Assert.That (writes, Is.EqualTo (new[] { 19, 20 }));
-			Assert.That (confirmations.Last (), Is.EqualTo (20));
-			Assert.That (restored, Is.EqualTo (failure != "restore-confirmation"));
-			Assert.That (blocked, Is.EqualTo (failure == "restore-confirmation"));
+				Assert.That (state, Is.EqualTo (20));
+				Assert.That (writes, Is.EqualTo (_expectedWrites));
+				Assert.That (confirmations.Last (), Is.EqualTo (20));
+				Assert.That (restored, Is.EqualTo (failure != "restore-confirmation"));
+				Assert.That (blocked, Is.EqualTo (failure == "restore-confirmation"));
 			});
 		}
 
@@ -49,7 +67,10 @@ public sealed class SettingRoundTripTests
 		int writes = 0;
 		bool restored = false;
 		Assert.That (async () => await SettingRoundTrip.RunAsync (true, false, () => Task.FromResult (true), _ =>
-			{ writes++; throw new InvalidOperationException ("Rejected"); }, (a, b) => a == b,
+			{
+				writes++;
+				throw new InvalidOperationException ("Rejected");
+			}, (a, b) => a == b,
 			async (expected, read) => Assert.That (await read (), Is.EqualTo (expected)),
 			() => restored = true, () => Assert.Fail ("Original should be confirmed")), Throws.TypeOf<InvalidOperationException> ());
 		Assert.That (writes, Is.EqualTo (1));

@@ -66,7 +66,7 @@ internal static class PowerwallMdns
 			await AskAsync ("_http._tcp.local", 12).ConfigureAwait (false);
 			while (!cancellationToken.IsCancellationRequested && records.Count < 4096)
 				{
-				#if NETFRAMEWORK
+#if NETFRAMEWORK
 				UdpReceiveResult packet = await socket.ReceiveAsync ().ConfigureAwait (false);
 #else
 				UdpReceiveResult packet = await socket.ReceiveAsync (CancellationToken.None).ConfigureAwait (false);

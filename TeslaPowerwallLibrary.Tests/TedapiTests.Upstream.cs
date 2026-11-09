@@ -47,7 +47,7 @@ public sealed partial class TedapiTests
 				bool components = send.Payload.Text.Contains ("query ComponentsQuery");
 				var capture = captures.RootElement.GetProperty (components ? "components" : "device_controller_full");
 				Assert.That (send.Payload.Text, Is.EqualTo (capture.GetProperty ("text").GetString ()));
-				Assert.That (BitConverter.ToString (send.Code.ToByteArray ()).Replace ("-", "").ToLowerInvariant (),
+				Assert.That (HexLower (send.Code.ToByteArray ()),
 					Is.EqualTo (capture.GetProperty ("code").GetString ()));
 				using var original = JsonDocument.Parse (capture.GetProperty ("b_value").GetString ()!);
 				using var variables = JsonDocument.Parse (send.B.Value);

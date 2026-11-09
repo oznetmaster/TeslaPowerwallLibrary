@@ -11,7 +11,10 @@ public sealed record LocalSupportMode
 	/// <summary>Reported remote-service state.</summary>
 	/// <value>Reported remote-service state.</value>
 	[JsonPropertyName ("remoteService")]
-	public LocalRemoteServiceStatus? RemoteService { get; init; }
+	public LocalRemoteServiceStatus? RemoteService
+		{
+		get; init;
+		}
 
 	}
 
@@ -21,11 +24,17 @@ public sealed record LocalRemoteServiceStatus
 	/// <summary>Whether remote service is enabled.</summary>
 	/// <value>Whether remote service is enabled.</value>
 	[JsonPropertyName ("isEnabled")]
-	public bool? IsEnabled { get; init; }
+	public bool? IsEnabled
+		{
+		get; init;
+		}
 
 	/// <summary>Service expiry timestamp as reported on the wire.</summary>
 	/// <value>Service expiry timestamp as reported on the wire.</value>
 	[JsonPropertyName ("expiryTime")]
-	public string? ExpiryTime { get; init; }
+	public string? ExpiryTime
+		{
+		get; init;
+		}
 
 	}

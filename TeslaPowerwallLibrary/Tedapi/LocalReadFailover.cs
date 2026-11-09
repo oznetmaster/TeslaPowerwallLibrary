@@ -25,6 +25,8 @@ public sealed partial class PowerwallTedapiClient
 
 	private async Task AuthenticateWithReadFailoverAsync (CancellationToken cancellationToken)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		if (!_options.EnableLocalReadFailover)
 			{
 			await AuthenticatePrimaryAsync (cancellationToken).ConfigureAwait (false);
@@ -52,10 +54,12 @@ public sealed partial class PowerwallTedapiClient
 		finally { _readRouteGate.Release (); }
 		}
 
-	private async Task<T> ReadWithFailoverAsync<T> (Func<bool, Task<T>> primary, Func<PowerwallTedapiClient, Task<T>> alternate, CancellationToken cancellationToken)
+	private async Task<T> ReadWithFailoverAsync<T> (Func<bool, CancellationToken, Task<T>> primary, Func<PowerwallTedapiClient, CancellationToken, Task<T>> alternate, CancellationToken cancellationToken)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		if (!_options.EnableLocalReadFailover)
-			return await primary (false).ConfigureAwait (false);
+			return await primary (false, cancellationToken).ConfigureAwait (false);
 		await _readRouteGate.WaitAsync (cancellationToken).ConfigureAwait (false);
 		try
 			{
@@ -63,7 +67,7 @@ public sealed partial class PowerwallTedapiClient
 			EnsureConnected ();
 			bool recovering = _readFallbackActive;
 			if (recovering && _readRouteClock () < _primaryReadRetryAt)
-				return await alternate (MatchingFallback ()).ConfigureAwait (false);
+				return await alternate (MatchingFallback (), cancellationToken).ConfigureAwait (false);
 			try
 				{
 				if (_primaryNeedsAuthentication)
@@ -72,20 +76,22 @@ public sealed partial class PowerwallTedapiClient
 					ValidatePrimaryIdentity ();
 					_primaryNeedsAuthentication = false;
 					}
-				T value = await primary (recovering).ConfigureAwait (false);
+				T value = await primary (recovering, cancellationToken).ConfigureAwait (false);
 				_primaryReadFailures = 0;
 				_readFallbackActive = false;
-				if (recovering) await ClearReadCacheAsync (cancellationToken).ConfigureAwait (false);
+				if (recovering)
+					await ClearReadCacheAsync (cancellationToken).ConfigureAwait (false);
 				return value;
 				}
 			catch (Exception error) when (CanFailOver (error, cancellationToken))
 				{
 				// Authentication clears DIN before sending. Retain only the already established route identity.
 				_din = _readRouteIdentity;
-				if (++_primaryReadFailures < 3 && !recovering) throw;
+				if (++_primaryReadFailures < 3 && !recovering)
+					throw;
 				TripReadFallback ();
 				await ClearReadCacheAsync (cancellationToken).ConfigureAwait (false);
-				return await alternate (MatchingFallback ()).ConfigureAwait (false);
+				return await alternate (MatchingFallback (), cancellationToken).ConfigureAwait (false);
 				}
 			}
 		finally { _readRouteGate.Release (); }
@@ -122,13 +128,20 @@ public sealed partial class PowerwallTedapiClient
 
 	private async Task ClearReadCacheAsync (CancellationToken cancellationToken)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		await _gate.WaitAsync (cancellationToken).ConfigureAwait (false);
-		try { _cache.Clear (); }
+		try
+			{
+			_cache.Clear ();
+			}
 		finally { _gate.Release (); }
 		}
 
 	private async Task CloseReadRouteAsync (CancellationToken cancellationToken)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		await _readRouteGate.WaitAsync (cancellationToken).ConfigureAwait (false);
 		try
 			{

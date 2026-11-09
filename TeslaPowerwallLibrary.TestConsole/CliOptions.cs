@@ -4,9 +4,9 @@
 using System.CommandLine;
 using System.Globalization;
 using System.Security.Cryptography;
-using TeslaPowerwallLibrary.Tools;
 
 using TeslaPowerwallLibrary.Login;
+using TeslaPowerwallLibrary.Tools;
 
 namespace TeslaPowerwallLibrary.TestConsole;
 
@@ -17,177 +17,264 @@ namespace TeslaPowerwallLibrary.TestConsole;
 internal static class CliOptions
 	{
 	/// <summary>Gateway host name or IP address (environment variable <c>PW_HOST</c>).</summary>
-	public static Option<string?> Host { get; } = new ("--host")
+	public static Option<string?> Host
 		{
-		Description = "Powerwall gateway host name or IP address (env: PW_HOST).",
-		Recursive = true
-		};
+		get;
+		} = new ("--host")
+			{
+			Description = "Powerwall gateway host name or IP address (env: PW_HOST).",
+			Recursive = true
+			};
 
 	/// <summary>Explicit local protocol; selecting it never falls back to a cloud connection.</summary>
-	public static Option<PowerwallLocalProtocol?> LocalProtocol { get; } = new ("--local-protocol")
+	public static Option<PowerwallLocalProtocol?> LocalProtocol
 		{
-		Description = "Local transport: Gateway, Tedapi (setup Wi-Fi), TedapiSigned (LAN), or TedapiBearer (installer).",
-		Recursive = true
-		};
+		get;
+		} = new ("--local-protocol")
+			{
+			Description = "Local transport: Gateway, Tedapi (setup Wi-Fi), TedapiSigned (LAN), or TedapiBearer (installer).",
+			Recursive = true
+			};
 
 	/// <summary>Explicit vendor-signed TEDAPI query version.</summary>
-	public static Option<Tedapi.TedapiQueryVersion?> LocalQueryVersion { get; } = new ("--local-query-version")
+	public static Option<Tedapi.TedapiQueryVersion?> LocalQueryVersion
 		{
-		Description = "TEDAPI query set: June2024 (default) or June2026. No automatic fallback.",
-		Recursive = true
-		};
+		get;
+		} = new ("--local-query-version")
+			{
+			Description = "TEDAPI query set: June2024 (default) or June2026. No automatic fallback.",
+			Recursive = true
+			};
 
 	/// <summary>Name of an existing signing key in the current Windows user's key store.</summary>
-	public static Option<string?> LocalKeyName { get; } = new ("--local-key")
+	public static Option<string?> LocalKeyName
 		{
-		Description = "Windows local signing key name (env: PW_LOCAL_KEY).",
-		Recursive = true
-		};
+		get;
+		} = new ("--local-key")
+			{
+			Description = "Windows local signing key name (env: PW_LOCAL_KEY).",
+			Recursive = true
+			};
 
 	/// <summary>Explicitly permits local writes for this invocation; never persisted.</summary>
-	public static Option<bool> AllowLocalControl { get; } = new ("--allow-local-control")
+	public static Option<bool> AllowLocalControl
 		{
-		Description = "Permit local setting/control commands for this invocation only.",
-		Recursive = true
-		};
+		get;
+		} = new ("--allow-local-control")
+			{
+			Description = "Permit local setting/control commands for this invocation only.",
+			Recursive = true
+			};
 
 	/// <summary>Explicit accessible setup-network host for follower reads; not persisted.</summary>
-	public static Option<string?> LocalSetupHost { get; } = new ("--local-setup-host")
-		{ Description = "Optional setup-network host for a signed LAN session; label password comes from PW_SETUP_PASSWORD.", Recursive = true };
+	public static Option<string?> LocalSetupHost
+		{
+		get;
+		} = new ("--local-setup-host")
+			{
+			Description = "Optional setup-network host for a signed LAN session; label password comes from PW_SETUP_PASSWORD.",
+			Recursive = true
+			};
 
 	/// <summary>Opts this invocation into controller read failover through the explicit setup host.</summary>
-	public static Option<bool> LocalReadFailover { get; } = new ("--local-read-failover")
-		{ Description = "Allow supported reads to fail over to --local-setup-host; never redirects controls.", Recursive = true };
+	public static Option<bool> LocalReadFailover
+		{
+		get;
+		} = new ("--local-read-failover")
+			{
+			Description = "Allow supported reads to fail over to --local-setup-host; never redirects controls.",
+			Recursive = true
+			};
 
 	/// <summary>Minimum seconds before a subsequent read attempts LAN recovery.</summary>
-	public static Option<int?> LocalRetrySeconds { get; } = new ("--local-retry-seconds")
-		{ Description = "Positive LAN recovery delay after read failover (default 60 seconds). No background polling.", Recursive = true };
+	public static Option<int?> LocalRetrySeconds
+		{
+		get;
+		} = new ("--local-retry-seconds")
+			{
+			Description = "Positive LAN recovery delay after read failover (default 60 seconds). No background polling.",
+			Recursive = true
+			};
 
 	/// <summary>Customer password (environment variable <c>PW_PASSWORD</c>).</summary>
-	public static Option<string?> Password { get; } = new ("--password", "-p")
+	public static Option<string?> Password
 		{
-		Description = "Powerwall customer password (env: PW_PASSWORD).",
-		Recursive = true
-		};
+		get;
+		} = new ("--password", "-p")
+			{
+			Description = "Powerwall customer password (env: PW_PASSWORD).",
+			Recursive = true
+			};
 
 	/// <summary>Customer email (environment variable <c>PW_EMAIL</c>).</summary>
-	public static Option<string?> Email { get; } = new ("--email", "-e")
+	public static Option<string?> Email
 		{
-		Description = "Customer email, required for cloud mode (env: PW_EMAIL).",
-		Recursive = true
-		};
+		get;
+		} = new ("--email", "-e")
+			{
+			Description = "Customer email, required for cloud mode (env: PW_EMAIL).",
+			Recursive = true
+			};
 
 	/// <summary>Forces Tesla™ Owners (cloud) mode even when a host is configured.</summary>
-	public static Option<bool> Cloud { get; } = new ("--cloud")
+	public static Option<bool> Cloud
 		{
-		Description = "Use Tesla Owners (cloud) mode instead of local gateway access.",
-		Recursive = true
-		};
+		get;
+		} = new ("--cloud")
+			{
+			Description = "Use Tesla Owners (cloud) mode instead of local gateway access.",
+			Recursive = true
+			};
 
 	/// <summary>Tesla Owners API access token for cloud mode (environment variable <c>PW_ACCESS_TOKEN</c>).</summary>
-	public static Option<string?> AccessToken { get; } = new ("--access-token")
+	public static Option<string?> AccessToken
 		{
-		Description = "Tesla Owners API OAuth access token for cloud mode (env: PW_ACCESS_TOKEN).",
-		Recursive = true
-		};
+		get;
+		} = new ("--access-token")
+			{
+			Description = "Tesla Owners API OAuth access token for cloud mode (env: PW_ACCESS_TOKEN).",
+			Recursive = true
+			};
 
 	/// <summary>Tesla Owners API refresh token for cloud mode (environment variable <c>PW_REFRESH_TOKEN</c>).</summary>
-	public static Option<string?> RefreshToken { get; } = new ("--refresh-token")
+	public static Option<string?> RefreshToken
 		{
-		Description = "Tesla Owners API OAuth refresh token for cloud mode (env: PW_REFRESH_TOKEN).",
-		Recursive = true
-		};
+		get;
+		} = new ("--refresh-token")
+			{
+			Description = "Tesla Owners API OAuth refresh token for cloud mode (env: PW_REFRESH_TOKEN).",
+			Recursive = true
+			};
 
 	/// <summary>Tesla energy site identifier for cloud mode (environment variable <c>PW_SITE_ID</c>).</summary>
-	public static Option<string?> SiteId { get; } = new ("--site-id")
+	public static Option<string?> SiteId
 		{
-		Description = "Tesla energy site identifier to select in cloud mode (env: PW_SITE_ID).",
-		Recursive = true
-		};
+		get;
+		} = new ("--site-id")
+			{
+			Description = "Tesla energy site identifier to select in cloud mode (env: PW_SITE_ID).",
+			Recursive = true
+			};
 
 	/// <summary>Tesla region used for the cloud browser login (environment variable <c>PW_REGION</c>).</summary>
-	public static Option<string?> Region { get; } = new ("--region")
+	public static Option<string?> Region
 		{
-		Description = "Tesla region for cloud login: us or cn (env: PW_REGION).",
-		Recursive = true
-		};
+		get;
+		} = new ("--region")
+			{
+			Description = "Tesla region for cloud login: us or cn (env: PW_REGION).",
+			Recursive = true
+			};
 
 	/// <summary>Forces Tesla™ FleetAPI mode even when a host is configured.</summary>
-	public static Option<bool> FleetApi { get; } = new ("--fleet-api")
+	public static Option<bool> FleetApi
 		{
-		Description = "Use Tesla FleetAPI mode instead of local gateway or cloud access.",
-		Recursive = true
-		};
+		get;
+		} = new ("--fleet-api")
+			{
+			Description = "Use Tesla FleetAPI mode instead of local gateway or cloud access.",
+			Recursive = true
+			};
 
 	/// <summary>Tesla FleetAPI application Client ID (environment variable <c>PW_FLEETAPI_CLIENT_ID</c>).</summary>
-	public static Option<string?> FleetApiClientId { get; } = new ("--fleet-api-client-id")
+	public static Option<string?> FleetApiClientId
 		{
-		Description = "Tesla FleetAPI application Client ID (env: PW_FLEETAPI_CLIENT_ID).",
-		Recursive = true
-		};
+		get;
+		} = new ("--fleet-api-client-id")
+			{
+			Description = "Tesla FleetAPI application Client ID (env: PW_FLEETAPI_CLIENT_ID).",
+			Recursive = true
+			};
 
 	/// <summary>Tesla FleetAPI application Client Secret (environment variable <c>PW_FLEETAPI_CLIENT_SECRET</c>).</summary>
-	public static Option<string?> FleetApiClientSecret { get; } = new ("--fleet-api-client-secret")
+	public static Option<string?> FleetApiClientSecret
 		{
-		Description = "Tesla FleetAPI application Client Secret, reserved for future use (env: PW_FLEETAPI_CLIENT_SECRET).",
-		Recursive = true
-		};
+		get;
+		} = new ("--fleet-api-client-secret")
+			{
+			Description = "Tesla FleetAPI application Client Secret, reserved for future use (env: PW_FLEETAPI_CLIENT_SECRET).",
+			Recursive = true
+			};
 
 	/// <summary>Tesla FleetAPI access token (environment variable <c>PW_FLEETAPI_ACCESS_TOKEN</c>).</summary>
-	public static Option<string?> FleetApiAccessToken { get; } = new ("--fleet-api-access-token")
+	public static Option<string?> FleetApiAccessToken
 		{
-		Description = "Tesla FleetAPI OAuth access token (env: PW_FLEETAPI_ACCESS_TOKEN).",
-		Recursive = true
-		};
+		get;
+		} = new ("--fleet-api-access-token")
+			{
+			Description = "Tesla FleetAPI OAuth access token (env: PW_FLEETAPI_ACCESS_TOKEN).",
+			Recursive = true
+			};
 
 	/// <summary>Tesla FleetAPI refresh token (environment variable <c>PW_FLEETAPI_REFRESH_TOKEN</c>).</summary>
-	public static Option<string?> FleetApiRefreshToken { get; } = new ("--fleet-api-refresh-token")
+	public static Option<string?> FleetApiRefreshToken
 		{
-		Description = "Tesla FleetAPI OAuth refresh token (env: PW_FLEETAPI_REFRESH_TOKEN).",
-		Recursive = true
-		};
+		get;
+		} = new ("--fleet-api-refresh-token")
+			{
+			Description = "Tesla FleetAPI OAuth refresh token (env: PW_FLEETAPI_REFRESH_TOKEN).",
+			Recursive = true
+			};
 
 	/// <summary>Tesla FleetAPI region used to select the regional Fleet API base URL (environment variable <c>PW_FLEETAPI_REGION</c>).</summary>
-	public static Option<string?> FleetApiRegion { get; } = new ("--fleet-api-region")
+	public static Option<string?> FleetApiRegion
 		{
-		Description = "Tesla FleetAPI region: na, eu, or cn (env: PW_FLEETAPI_REGION).",
-		Recursive = true
-		};
+		get;
+		} = new ("--fleet-api-region")
+			{
+			Description = "Tesla FleetAPI region: na, eu, or cn (env: PW_FLEETAPI_REGION).",
+			Recursive = true
+			};
 
 	/// <summary>IANA time zone (environment variable <c>PW_TIMEZONE</c>).</summary>
-	public static Option<string?> Timezone { get; } = new ("--timezone", "-z")
+	public static Option<string?> Timezone
 		{
-		Description = "IANA time zone reported to the gateway (env: PW_TIMEZONE).",
-		Recursive = true
-		};
+		get;
+		} = new ("--timezone", "-z")
+			{
+			Description = "IANA time zone reported to the gateway (env: PW_TIMEZONE).",
+			Recursive = true
+			};
 
 	/// <summary>Per-request HTTP timeout, in seconds (environment variable <c>PW_TIMEOUT</c>).</summary>
-	public static Option<int?> Timeout { get; } = new ("--timeout", "-t")
+	public static Option<int?> Timeout
 		{
-		Description = "Per-request HTTP timeout in seconds (env: PW_TIMEOUT).",
-		Recursive = true
-		};
+		get;
+		} = new ("--timeout", "-t")
+			{
+			Description = "Per-request HTTP timeout in seconds (env: PW_TIMEOUT).",
+			Recursive = true
+			};
 
 	/// <summary>Cache expiry, in seconds (environment variable <c>PW_CACHE_EXPIRE</c>).</summary>
-	public static Option<int?> CacheExpire { get; } = new ("--cache-expire", "-c")
+	public static Option<int?> CacheExpire
 		{
-		Description = "Cached response expiry in seconds (env: PW_CACHE_EXPIRE).",
-		Recursive = true
-		};
+		get;
+		} = new ("--cache-expire", "-c")
+			{
+			Description = "Cached response expiry in seconds (env: PW_CACHE_EXPIRE).",
+			Recursive = true
+			};
 
 	/// <summary>Enables verbose library logging to the console.</summary>
-	public static Option<bool> Verbose { get; } = new ("--verbose")
+	public static Option<bool> Verbose
 		{
-		Description = "Enable verbose library logging to the console.",
-		Recursive = true
-		};
+		get;
+		} = new ("--verbose")
+			{
+			Description = "Enable verbose library logging to the console.",
+			Recursive = true
+			};
 
 	/// <summary>Disables persisting the resolved connection settings for the next run.</summary>
-	public static Option<bool> NoSave { get; } = new ("--no-save")
+	public static Option<bool> NoSave
 		{
-		Description = "Do not persist the resolved connection settings for the next run.",
-		Recursive = true
-		};
+		get;
+		} = new ("--no-save")
+			{
+			Description = "Do not persist the resolved connection settings for the next run.",
+			Recursive = true
+			};
 
 	/// <summary>
 	/// Resolves a <see cref="PowerwallOptions"/> from the parsed command line, applying environment-variable
@@ -350,7 +437,7 @@ internal static class CliOptions
 			Persist (options, timeout, cacheExpire, NormalizeRegion (region), fleetApiMode);
 
 		var keyName = Coalesce (parseResult.GetValue (LocalKeyName), Environment.GetEnvironmentVariable ("PW_LOCAL_KEY"), settings.LocalSigningKeyName)
-			?? LocalSigningKeyStore.DefaultKeyName;
+			?? LocalSigningKeyStore.DEFAULT_KEY_NAME;
 		if (!parseResult.GetValue (NoSave))
 			{
 			var saved = SettingsStore.Load ();
@@ -583,10 +670,10 @@ internal static class CliOptions
 	private static string FleetApiRegionAudience (string region) =>
 		region switch
 			{
-			"eu" => "https://fleet-api.prd.eu.vn.cloud.tesla.com",
-			"cn" => "https://fleet-api.prd.cn.vn.cloud.tesla.cn",
-			_ => "https://fleet-api.prd.na.vn.cloud.tesla.com"
-			};
+				"eu" => "https://fleet-api.prd.eu.vn.cloud.tesla.com",
+				"cn" => "https://fleet-api.prd.cn.vn.cloud.tesla.cn",
+				_ => "https://fleet-api.prd.na.vn.cloud.tesla.com"
+				};
 
 	internal static string NormalizeRegion (string? region) =>
 		string.Equals (region?.Trim (), "cn", StringComparison.OrdinalIgnoreCase) ? "cn" : "us";
@@ -595,10 +682,10 @@ internal static class CliOptions
 	internal static string NormalizeFleetApiRegion (string? region) =>
 		region?.Trim ().ToLowerInvariant () switch
 			{
-			"eu" => "eu",
-			"cn" => "cn",
-			_ => "na"
-			};
+				"eu" => "eu",
+				"cn" => "cn",
+				_ => "na"
+				};
 
 	/// <summary>
 	/// Persists resolved options after a mid-session account switch, deriving the timeout and cache-expiry
@@ -606,11 +693,11 @@ internal static class CliOptions
 	/// </summary>
 	internal static void PersistOptions (PowerwallOptions options, string region)
 		{
-		var timeoutSeconds = (int) options.Timeout.TotalSeconds == Constants.DEFAULT_TIMEOUT_SECONDS
-			? (int?) null
-			: (int) options.Timeout.TotalSeconds;
+		var timeoutSeconds = (int)options.Timeout.TotalSeconds == Constants.DEFAULT_TIMEOUT_SECONDS
+			? (int?)null
+			: (int)options.Timeout.TotalSeconds;
 		var cacheExpireSeconds = options.CacheExpireSeconds == Constants.DEFAULT_CACHE_EXPIRE_SECONDS
-			? (int?) null
+			? (int?)null
 			: options.CacheExpireSeconds;
 
 		Persist (options, timeoutSeconds, cacheExpireSeconds, NormalizeRegion (region), options.FleetApi);

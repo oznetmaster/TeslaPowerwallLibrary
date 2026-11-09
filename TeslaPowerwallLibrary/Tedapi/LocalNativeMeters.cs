@@ -2,6 +2,7 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System.Text;
+
 using TeslaPowerwallLibrary.Local;
 using TeslaPowerwallLibrary.Models;
 
@@ -18,11 +19,13 @@ public sealed partial class PowerwallTedapiClient
 	/// <param name="cancellationToken">Cancels the operation.</param>
 	/// <returns>Typed native meter readings; unavailable fields remain null.</returns>
 	public Task<MeterAggregates> GetNativeMeterAggregatesAsync (bool force = false, CancellationToken cancellationToken = default) =>
-		ReadWithFailoverAsync (recovering => GetPrimaryNativeMeterAggregatesAsync (force || recovering, cancellationToken),
-			fallback => fallback.GetNativeMeterAggregatesAsync (force, cancellationToken), cancellationToken);
+		ReadWithFailoverAsync ((recovering, token) => GetPrimaryNativeMeterAggregatesAsync (force || recovering, token),
+			(fallback, token) => fallback.GetNativeMeterAggregatesAsync (force, token), cancellationToken);
 
 	private async Task<MeterAggregates> GetPrimaryNativeMeterAggregatesAsync (bool force, CancellationToken cancellationToken)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		await _gate.WaitAsync (cancellationToken).ConfigureAwait (false);
 		try
 			{
@@ -31,8 +34,10 @@ public sealed partial class PowerwallTedapiClient
 				return (MeterAggregates)cached.Value;
 			for (int attempt = 0; attempt < 2; attempt++)
 				{
-				if (IsSigned) _nativeToken = _token;
-				if (_nativeToken is null) await LoginNativeAsync (cancellationToken).ConfigureAwait (false);
+				if (IsSigned)
+					_nativeToken = _token;
+				if (_nativeToken is null)
+					await LoginNativeAsync (cancellationToken).ConfigureAwait (false);
 				try
 					{
 					var bytes = await SendAsync (HttpMethod.Get, "/api/meters/aggregates", null, cancellationToken, bearerOverride: _nativeToken).ConfigureAwait (false);
@@ -43,14 +48,18 @@ public sealed partial class PowerwallTedapiClient
 					}
 				catch (LocalAuthenticationException) when (attempt == 0)
 					{
-					if (IsSigned) await LoginAsync (cancellationToken).ConfigureAwait (false);
-					else _nativeToken = null;
+					if (IsSigned)
+						await LoginAsync (cancellationToken).ConfigureAwait (false);
+					else
+						_nativeToken = null;
 					}
 				}
 			throw new PowerwallConnectionException ("Local meter authentication did not recover.");
 			}
 		catch (System.Text.Json.JsonException exc)
-			{ throw new PowerwallConnectionException ("The local gateway returned malformed native meter data.", exc); }
+			{
+			throw new PowerwallConnectionException ("The local gateway returned malformed native meter data.", exc);
+			}
 		finally { _gate.Release (); }
 		}
 
@@ -61,8 +70,13 @@ public sealed partial class PowerwallTedapiClient
 			password = GatewayPassword.Substring (GatewayPassword.Length - 5);
 		if (string.IsNullOrEmpty (password))
 			throw new PowerwallInvalidConfigurationException ("Native meter readings require a local customer password.");
-		var login = new LocalLoginRequest { Username = "customer", Password = password, Email = Email,
-			ClientInfo = new LocalClientInfo { Timezone = _options.Timezone } };
+		var login = new LocalLoginRequest
+			{
+			Username = "customer",
+			Password = password,
+			Email = Email,
+			ClientInfo = new LocalClientInfo { Timezone = _options.Timezone }
+			};
 		var bytes = await SendAsync (HttpMethod.Post, "/api/login/Basic", Encoding.UTF8.GetBytes (JsonHelper.Serialize (login)), cancellationToken, login: true).ConfigureAwait (false);
 		var response = JsonHelper.Deserialize<LocalLoginResponse> (Encoding.UTF8.GetString (bytes));
 		_nativeToken = !string.IsNullOrWhiteSpace (response?.Token) ? response!.Token

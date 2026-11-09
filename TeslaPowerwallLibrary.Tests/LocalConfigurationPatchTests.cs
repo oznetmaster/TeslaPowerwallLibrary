@@ -35,7 +35,8 @@ public sealed class LocalConfigurationPatchTests
 		Assert.That (settings.GetProperty ("backup_reserve_percent").GetDouble (), Is.EqualTo (5));
 		Assert.That (settings.GetProperty ("disallow_charge_from_grid_with_solar_installed").GetBoolean (), Is.True);
 		Assert.That (settings.GetProperty ("customer_preferred_export_rule").GetString (), Is.EqualTo ("never"));
-		if (site.Contains ("unknown")) Assert.That (settings.GetProperty ("unknown").ValueKind, Is.EqualTo (JsonValueKind.Null));
+		if (site.Contains ("unknown"))
+			Assert.That (settings.GetProperty ("unknown").ValueKind, Is.EqualTo (JsonValueKind.Null));
 		}
 
 	/// <summary>Malformed, ambiguous and incomplete configurations cannot be used for replacement writes.</summary>

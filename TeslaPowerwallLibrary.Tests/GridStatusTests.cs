@@ -14,18 +14,18 @@ public sealed class GridStatusTests
 	[Test]
 	public void WhenUpThenValueIsOne ()
 		{
-		Assert.That ((int) GridStatus.Up, Is.EqualTo (1));
+		Assert.That ((int)GridStatus.Up, Is.EqualTo (1));
 		}
 
 	[Test]
 	public void WhenDownThenValueIsZero ()
 		{
-		Assert.That ((int) GridStatus.Down, Is.EqualTo (0));
+		Assert.That ((int)GridStatus.Down, Is.EqualTo (0));
 		}
 
 	[Test]
 	public void WhenSyncingThenValueIsNegativeOne ()
 		{
-		Assert.That ((int) GridStatus.Syncing, Is.EqualTo (-1));
+		Assert.That ((int)GridStatus.Syncing, Is.EqualTo (-1));
 		}
 	}

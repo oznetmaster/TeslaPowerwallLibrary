@@ -13,7 +13,7 @@ namespace TeslaPowerwallLibrary.TestConsole;
 internal static class ConsoleHelpers
 	{
 	/// <summary>Legend explaining the trailing <c>*</c> marker used by <see cref="FormatChoices"/>.</summary>
-	public const string DefaultChoiceLegend = "* = default";
+	public const string DEFAULT_CHOICE_LEGEND = "* = default";
 
 	/// <summary>Writes a label and reads a line of input from the console.</summary>
 	public static string? Prompt (string label)

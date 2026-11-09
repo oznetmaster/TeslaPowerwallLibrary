@@ -93,9 +93,15 @@ public sealed class LocalGatewayUptimeTests
 			{"components":{"msa":[null,{"serialNumber":"sync","signals":null},
 			{"serialNumber":"sync","signals":[null,{"name":"SYNC_Uptime","value":0}]}]}}
 			""")!.Components;
-		Assert.That (new LocalGatewayUptimeTracker ().Update (sample with { Components = components })!.Uptime, Is.EqualTo (TimeSpan.Zero));
+		Assert.That (new LocalGatewayUptimeTracker ().Update (sample with
+			{
+			Components = components
+			})!.Uptime, Is.EqualTo (TimeSpan.Zero));
 		var absent = JsonSerializer.Deserialize<LocalTelemetry> ("""{"components":{"msa":null}}""")!.Components;
-		Assert.That (new LocalGatewayUptimeTracker ().Update (sample with { Components = absent }), Is.Null);
+		Assert.That (new LocalGatewayUptimeTracker ().Update (sample with
+			{
+			Components = absent
+			}), Is.Null);
 		}
 
 	/// <summary>Publication jitter and older snapshots retain a boot estimate; a counter reset and a new session replace it.</summary>

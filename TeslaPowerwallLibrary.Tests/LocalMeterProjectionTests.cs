@@ -11,6 +11,9 @@ namespace TeslaPowerwallLibrary.Tests;
 [TestFixture]
 public sealed class LocalMeterProjectionTests
 	{
+	private static readonly int[] _expectedChannels = [0, 2];
+	private static readonly double[] _expectedPowers = [200d, 0d];
+	private static readonly string[] _expectedLocations = ["site", "solar", "solar"];
 	/// <summary>Wired and Wi-Fi remote meters retain the same configured CT identity, location and scale.</summary>
 	/// <param name="type">The configured remote-meter connection type.</param>
 	[TestCase ("trm_mb"), TestCase ("trm_wifi")]
@@ -23,9 +26,9 @@ public sealed class LocalMeterProjectionTests
 			{"teslaRemoteMeter":{"meters":[{"din":"meter","reading":{"ctReadings":[{"realPowerW":100},{"realPowerW":900},{"realPowerW":0}]}}]}}
 			""")!;
 		var meter = LocalMeterProjection.Create (configuration, telemetry).Single ();
-		Assert.That (meter.Channels.Select (channel => channel.Index), Is.EqualTo (new[] { 0, 2 }));
+		Assert.That (meter.Channels.Select (channel => channel.Index), Is.EqualTo (_expectedChannels));
 		Assert.That (meter.Channels.All (channel => channel.IsConfigured && channel.Location == "solar"), Is.True);
-		Assert.That (meter.Channels.Select (channel => channel.RealPowerWatts), Is.EqualTo (new[] { 200d, 0d }));
+		Assert.That (meter.Channels.Select (channel => channel.RealPowerWatts), Is.EqualTo (_expectedPowers));
 		Assert.That (LocalMeterProjection.Aggregate (configuration, telemetry).Solar!.InstantPower, Is.EqualTo (200));
 		}
 	/// <summary>Remote-meter signal strength uses the upstream fixture's numeric wire field and preserves absence.</summary>
@@ -59,7 +62,7 @@ public sealed class LocalMeterProjectionTests
 			""")!;
 		var result = LocalMeterProjection.Create (config, telemetry);
 		Assert.That (result, Has.Count.EqualTo (2));
-		Assert.That (result[0].Channels.Select (c => c.Index), Is.EqualTo (new[] { 0, 2 }));
+		Assert.That (result[0].Channels.Select (c => c.Index), Is.EqualTo (_expectedChannels));
 		Assert.That (result[0].Channels[0].RealPowerWatts, Is.Zero);
 		Assert.That (result[0].Channels[1].RealPowerWatts, Is.EqualTo (-100));
 		Assert.That (result[0].Channels[1].Inverted, Is.True, "Inversion metadata must not cause a second sign reversal.");
@@ -83,7 +86,7 @@ public sealed class LocalMeterProjectionTests
 		var data = JsonSerializer.Deserialize<LocalTelemetry> ("""{"neurio":{"readings":[{"serial":"n1","dataRead":[{"realPowerW":10},{"realPowerW":25},{}]}]}}""")!;
 		var channels = LocalMeterProjection.Create (config, data).Single ().Channels;
 		Assert.That (channels.Select (c => c.RealPowerWatts), Is.EqualTo (new double?[] { 20, 0, null }));
-		Assert.That (channels.Select (c => c.Location), Is.EqualTo (new[] { "site", "solar", "solar" }));
+		Assert.That (channels.Select (c => c.Location), Is.EqualTo (_expectedLocations));
 		}
 
 	/// <summary>Unconfigured measurements remain accessible and unidentified meters are not given fabricated identifiers.</summary>

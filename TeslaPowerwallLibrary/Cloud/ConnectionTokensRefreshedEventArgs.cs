@@ -27,11 +27,20 @@ internal sealed class ConnectionTokensRefreshedEventArgs : EventArgs
 		}
 
 	/// <summary>Gets the current Tesla Owners API access token.</summary>
-	public string? AccessToken { get; }
+	public string? AccessToken
+		{
+		get;
+		}
 
 	/// <summary>Gets the current Tesla Owners API refresh token, which may have been rotated by Tesla.</summary>
-	public string? RefreshToken { get; }
+	public string? RefreshToken
+		{
+		get;
+		}
 
 	/// <summary>Gets a value indicating whether this refresh rotated the refresh token itself.</summary>
-	public bool RefreshTokenChanged { get; }
+	public bool RefreshTokenChanged
+		{
+		get;
+		}
 	}

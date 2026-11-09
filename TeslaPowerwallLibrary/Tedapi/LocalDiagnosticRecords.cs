@@ -17,10 +17,17 @@ public sealed class LocalDiagnosticRecords<T> : IReadOnlyList<T?> where T : clas
 	/// <summary>Creates a record container from deserialized, ordered entries.</summary>
 	/// <param name="items">Entries, including any null slots.</param>
 	/// <param name="array">Whether the device supplied an array.</param>
-	internal LocalDiagnosticRecords (IEnumerable<T?> items, bool array) { _items = Array.AsReadOnly (items.ToArray ()); WasReportedAsArray = array; }
+	internal LocalDiagnosticRecords (IEnumerable<T?> items, bool array)
+		{
+		_items = Array.AsReadOnly (items.ToArray ());
+		WasReportedAsArray = array;
+		}
 	/// <summary>Gets whether the device supplied an array rather than a single object.</summary>
 	/// <value>Whether the device supplied an array rather than a single object.</value>
-	public bool WasReportedAsArray { get; }
+	public bool WasReportedAsArray
+		{
+		get;
+		}
 	/// <summary>Gets the number of entries, including null slots.</summary>
 	/// <value>The number of entries, including null slots.</value>
 	public int Count => _items.Count;
@@ -50,22 +57,30 @@ internal sealed class LocalDiagnosticRecordsConverter : JsonConverterFactory
 			{
 			if (reader.TokenType == JsonTokenType.StartObject)
 				return new (new[] { JsonSerializer.Deserialize<T> (ref reader, options) }, array: false);
-			if (reader.TokenType != JsonTokenType.StartArray) throw new JsonException ("Expected diagnostic records as an object or an array.");
+			if (reader.TokenType != JsonTokenType.StartArray)
+				throw new JsonException ("Expected diagnostic records as an object or an array.");
 			var items = new List<T?> ();
 			while (reader.Read () && reader.TokenType != JsonTokenType.EndArray)
 				{
-				if (reader.TokenType is not (JsonTokenType.StartObject or JsonTokenType.Null)) throw new JsonException ("Expected a diagnostic record or null array slot.");
+				if (reader.TokenType is not (JsonTokenType.StartObject or JsonTokenType.Null))
+					throw new JsonException ("Expected a diagnostic record or null array slot.");
 				items.Add (JsonSerializer.Deserialize<T> (ref reader, options));
 				}
-			if (reader.TokenType != JsonTokenType.EndArray) throw new JsonException ("Incomplete diagnostic array.");
+			if (reader.TokenType != JsonTokenType.EndArray)
+				throw new JsonException ("Incomplete diagnostic array.");
 			return new (items, array: true);
 			}
 		/// <inheritdoc/>
 		public override void Write (Utf8JsonWriter writer, LocalDiagnosticRecords<T> value, JsonSerializerOptions options)
 			{
-			if (!value.WasReportedAsArray) { JsonSerializer.Serialize (writer, value[0], options); return; }
+			if (!value.WasReportedAsArray)
+				{
+				JsonSerializer.Serialize (writer, value[0], options);
+				return;
+				}
 			writer.WriteStartArray ();
-			foreach (T? item in value) JsonSerializer.Serialize (writer, item, options);
+			foreach (T? item in value)
+				JsonSerializer.Serialize (writer, item, options);
 			writer.WriteEndArray ();
 			}
 		}

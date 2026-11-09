@@ -105,6 +105,8 @@ public sealed partial class PowerwallTedapiClient
 	/// <returns>A matched uptime and clock sample, or null without supported hardware, clock or query fields.</returns>
 	public async Task<LocalGatewayUptime?> GetGatewayUptimeAsync (bool force = false, CancellationToken cancellationToken = default)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		EnsureConnected ();
 		cancellationToken.ThrowIfCancellationRequested ();
 		if (_options.LocalQueryVersion == TedapiQueryVersion.June2026)

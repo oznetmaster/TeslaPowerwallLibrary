@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+
 using TeslaPowerwallLibrary.Cloud;
 using TeslaPowerwallLibrary.Models;
 
@@ -95,7 +96,9 @@ internal sealed class CloudHistorySource : IDisposable
 				throw new InvalidOperationException ("No saved Fleet account. Sign in through the connection screen first.");
 			return new PowerwallOptions
 				{
-				CloudMode = true, FleetApi = true, FleetApiClientId = settings.FleetApiClientId.Trim (),
+				CloudMode = true,
+				FleetApi = true,
+				FleetApiClientId = settings.FleetApiClientId.Trim (),
 				FleetApiRefreshToken = CredentialProtector.Unprotect (settings.ProtectedFleetApiRefreshToken),
 				FleetApiRegion = "auto"
 				};
@@ -138,10 +141,16 @@ internal sealed class CloudHistorySource : IDisposable
 		{
 		/// <summary>Gets or sets a stored token solely to determine whether the account has saved authentication.</summary>
 		[JsonPropertyName ("access_token")]
-		public string? AccessToken { get; set; }
+		public string? AccessToken
+			{
+			get; set;
+			}
 		/// <summary>Gets or sets the stored refresh-token marker; it is never copied or decrypted here.</summary>
 		[JsonPropertyName ("refresh_token")]
-		public string? RefreshToken { get; set; }
+		public string? RefreshToken
+			{
+			get; set;
+			}
 		}
 
 	private static void OnFleetTokensRefreshed (object? sender, FleetApiTokensRefreshedEventArgs e)

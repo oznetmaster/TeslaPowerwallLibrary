@@ -1,23 +1,28 @@
-using TeslaPowerwallLibrary.Models;
+// Copyright © 2026 Neil Colvin.
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
 
 using TeslaPowerwallLibrary.Cloud;
 using TeslaPowerwallLibrary.FleetApi;
+using TeslaPowerwallLibrary.Models;
 
 namespace TeslaPowerwallLibrary.Tests;
 
 [TestFixture]
 public sealed class OperationRegressionTests
 	{
+	private static readonly string[] _modeWrite = ["/api/1/energy_sites/123/operation"];
+	private static readonly string[] _reserveWrite = ["/api/1/energy_sites/123/backup"];
 	[TestCase (false)]
 	[TestCase (true)]
 	public async Task ModeOnly_SendsOnlyMode (bool fleet)
 		{
 		using var rig = new OperationRig (fleet);
 		await rig.Powerwall.SetModeAsync ("autonomous");
-		Assert.That (rig.Handler.Posts.Select (p => p.Path), Is.EqualTo (new[] { "/api/1/energy_sites/123/operation" }));
+		Assert.That (rig.Handler.Posts.Select (p => p.Path), Is.EqualTo (_modeWrite));
 		}
 
 	[TestCase (false)]
@@ -26,7 +31,7 @@ public sealed class OperationRegressionTests
 		{
 		using var rig = new OperationRig (fleet);
 		await rig.Powerwall.SetReserveAsync (0);
-		Assert.That (rig.Handler.Posts.Select (p => p.Path), Is.EqualTo (new[] { "/api/1/energy_sites/123/backup" }));
+		Assert.That (rig.Handler.Posts.Select (p => p.Path), Is.EqualTo (_reserveWrite));
 		Assert.That (JsonHelper.Deserialize<BackupReserveRequest> (rig.Handler.Posts[0].Body)!.BackupReservePercent, Is.Zero);
 		}
 
@@ -152,7 +157,7 @@ public sealed class OperationRegressionTests
 			string path = request.RequestUri!.AbsolutePath;
 			if (request.Method == HttpMethod.Post)
 				{
-				string body = await request.Content!.ReadAsStringAsync ();
+				string body = await request.Content!.ReadAsStringAsync (cancellationToken);
 				Posts.Add ((path, body));
 
 				if (path.EndsWith ("/operation", StringComparison.Ordinal))

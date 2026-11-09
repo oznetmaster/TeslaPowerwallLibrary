@@ -13,7 +13,6 @@
 		<AnalysisLevel>latest-recommended</AnalysisLevel>
 		<EnableNETAnalyzers>true</EnableNETAnalyzers>
 		<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
-		<CodeAnalysisTreatWarningsAsErrors>false</CodeAnalysisTreatWarningsAsErrors>
 		<GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
 
 		<!-- Migrated from AssemblyInfo.cs -->
@@ -23,13 +22,13 @@
 		<Product>TeslaPowerwallLibrary</Product>
 		<Copyright>Copyright © 2026 Neil Colvin</Copyright>
 		<AssemblyVersion>2.0.0.0</AssemblyVersion>
-		<FileVersion>2.5.0.0</FileVersion>
+		<FileVersion>2.5.1.0</FileVersion>
 		<PackageId>TeslaPowerwallLibrary</PackageId>
-		<Version>2.5.0</Version>
+		<Version>2.5.1</Version>
 		<!-- Retain AssemblyVersion 2.0.0.0 for existing binary consumers. -->
 		<EnablePackageValidation>true</EnablePackageValidation>
-		<PackageValidationBaselineVersion>2.4.0</PackageValidationBaselineVersion>
-		<PackageReleaseNotes>Add nullable PW2 instantaneous available charge/discharge power in watts through June 2024 TEDAPI and show it in the console. Preserve real zeroes and leave incomplete or unavailable totals null. Floor scaled battery levels at zero below the 5% reserve. Existing signatures, assembly identity and runtime dependencies remain compatible; June 2026 query captures are unchanged. PW2 validation is offline. See RELEASE-NOTES.md.</PackageReleaseNotes>
+		<PackageValidationBaselineVersion>2.5.0</PackageValidationBaselineVersion>
+		<PackageReleaseNotes>Coordinate overlapping Owner/Fleet token refreshes, reads, site changes and reconnects; prevent stale cache replacement and late session publication after disposal. Serialize token-file updates across cache instances and processes with atomic replacement. Retain native energy fetch failures instead of fabricated zeroes. Assembly identity and runtime dependencies remain compatible. See RELEASE-NOTES.md.</PackageReleaseNotes>
 		<Authors>Neil Colvin</Authors>
 		<PackageTags>tesla;powerwall;smart-home;iot;rest;api;nuget</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -69,7 +68,6 @@
 	<PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
 		<!-- Use semicolon-delimited symbols matching the code's #if checks -->
 		<DefineConstants>TRACE;DEBUG</DefineConstants>
-		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
 		<NoWarn>CRR0029,CRRSP08</NoWarn>
 	</PropertyGroup>
@@ -78,6 +76,7 @@
 	<ItemGroup Condition=" '$(TargetFramework)' == 'net472' ">
 		<Reference Include="System.Runtime" />
 		<Reference Include="Microsoft.CSharp" />
+		<Reference Include="System.Net.Http" />
 	</ItemGroup>
 
 		<ItemGroup>
@@ -121,14 +120,9 @@
 		<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.12" />
 		<PackageReference Include="Microsoft.Bcl.HashCode" Version="6.0.0" />
 		<PackageReference Include="Microsoft.Bcl.Memory" Version="10.0.9" />
-		<PackageReference Include="System.Net.Http" Version="4.3.4" />
 		<PackageReference Include="System.Threading.Tasks.Extensions" Version="4.6.3" />
 	</ItemGroup>
 
-	<!-- Include CompilerServices shim only for net472: remove for other TFMs -->
-	<ItemGroup Condition=" '$(TargetFramework)' != 'net472' ">
-		<Compile Remove="CompilerServicesShim.cs" />
-	</ItemGroup>
 	<ItemGroup>
 		<Folder Include="Annotations\" />
 	</ItemGroup>

@@ -2,12 +2,11 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-
-using System.Text.Json;
-using System.Text.Json.Serialization;
 
 using TeslaPowerwallLibrary.Cloud;
 
@@ -30,7 +29,6 @@ internal sealed class TeslaFleetApiTokenCache
 	{
 	private readonly ILogger _log;
 
-	private readonly object _gate = new ();
 	private readonly string _filePath;
 	private readonly string _email;
 	private readonly bool _isExplicitPath;
@@ -50,7 +48,7 @@ internal sealed class TeslaFleetApiTokenCache
 		_log = logger ?? NullLogger.Instance;
 		_email = string.IsNullOrWhiteSpace (email) ? Constants.DEFAULT_EMAIL : email;
 		_isExplicitPath = !string.IsNullOrWhiteSpace (authPath);
-		_filePath = ResolveFilePath (authPath);
+		_filePath = Path.GetFullPath (ResolveFilePath (authPath));
 		}
 
 	/// <summary>Gets the resolved full path to the cache file.</summary>
@@ -60,7 +58,9 @@ internal sealed class TeslaFleetApiTokenCache
 	/// <returns>The cached tokens and site for this email.</returns>
 	public FleetApiTokenCacheEntry Load ()
 		{
-		lock (_gate)
+		using IDisposable? lease = EnterFile ();
+		if (lease is null)
+			return FleetApiTokenCacheEntry.Empty;
 			{
 			Dictionary<string, FleetApiTokenCacheFileEntry> root = ReadRoot ();
 			if (!root.TryGetValue (_email, out FleetApiTokenCacheFileEntry? entry) || entry is null)
@@ -80,7 +80,9 @@ internal sealed class TeslaFleetApiTokenCache
 	/// <param name="refreshToken">The current Tesla FleetAPI refresh token (may have been rotated).</param>
 	public void SaveTokens (string? clientId, string? accessToken, string? refreshToken)
 		{
-		lock (_gate)
+		using IDisposable? lease = EnterFile ();
+		if (lease is null)
+			return;
 			{
 			Dictionary<string, FleetApiTokenCacheFileEntry> root = ReadRoot ();
 			root.TryGetValue (_email, out FleetApiTokenCacheFileEntry? existing);
@@ -102,7 +104,9 @@ internal sealed class TeslaFleetApiTokenCache
 	/// <param name="siteId">The Tesla energy site identifier to remember, or <see langword="null"/> to clear it.</param>
 	public void SaveSite (string? siteId)
 		{
-		lock (_gate)
+		using IDisposable? lease = EnterFile ();
+		if (lease is null)
+			return;
 			{
 			Dictionary<string, FleetApiTokenCacheFileEntry> root = ReadRoot ();
 			root.TryGetValue (_email, out FleetApiTokenCacheFileEntry? existing);
@@ -143,6 +147,20 @@ internal sealed class TeslaFleetApiTokenCache
 			}
 		}
 
+	private IDisposable? EnterFile ()
+		{
+		try
+			{
+			return TokenCacheFile.Enter (_filePath);
+			}
+		catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+			{
+			if (_isExplicitPath)
+				throw new PowerwallFleetApiTokenCacheStorageException ("Unable to lock the explicitly configured Tesla FleetAPI token cache.", error);
+			LibraryLog.UnableToWriteTeslaFleetAPITokenCache (_log, _filePath, "Unable to acquire the token cache lock.");
+			return null;
+			}
+		}
 	private void WriteRoot (Dictionary<string, FleetApiTokenCacheFileEntry> root)
 		{
 		try
@@ -151,7 +169,7 @@ internal sealed class TeslaFleetApiTokenCache
 			if (!string.IsNullOrEmpty (directory))
 				Directory.CreateDirectory (directory!);
 
-			File.WriteAllText (_filePath, JsonHelper.Serialize (root, true));
+			TokenCacheFile.Write (_filePath, JsonHelper.Serialize (root, true));
 			}
 		catch (Exception exc) when (exc is IOException or UnauthorizedAccessException)
 			{
@@ -237,21 +255,36 @@ internal sealed record FleetApiTokenCacheFileEntry
 	{
 	/// <summary>The Tesla FleetAPI application Client ID.</summary>
 	[JsonPropertyName ("client_id")]
-	public string? ClientId { get; init; }
+	public string? ClientId
+		{
+		get; init;
+		}
 
 	/// <summary>The access token, protected at rest when <see cref="Protected"/> is <see langword="true"/>.</summary>
 	[JsonPropertyName ("access_token")]
-	public string? AccessToken { get; init; }
+	public string? AccessToken
+		{
+		get; init;
+		}
 
 	/// <summary>The refresh token, protected at rest when <see cref="Protected"/> is <see langword="true"/>.</summary>
 	[JsonPropertyName ("refresh_token")]
-	public string? RefreshToken { get; init; }
+	public string? RefreshToken
+		{
+		get; init;
+		}
 
 	/// <summary>Indicates whether <see cref="AccessToken"/> and <see cref="RefreshToken"/> were DPAPI-protected when written.</summary>
 	[JsonPropertyName ("protected")]
-	public bool Protected { get; init; }
+	public bool Protected
+		{
+		get; init;
+		}
 
 	/// <summary>The remembered Tesla energy site identifier, when one has been selected.</summary>
 	[JsonPropertyName ("site_id")]
-	public string? SiteId { get; init; }
+	public string? SiteId
+		{
+		get; init;
+		}
 	}

@@ -13,6 +13,7 @@ namespace TeslaPowerwallLibrary.TestConsole;
 /// <summary>Shared local commands for one-shot and interactive console sessions.</summary>
 internal static class LocalConsoleCommands
 	{
+	private static readonly JsonSerializerOptions _displayOptions = CreateDisplayOptions ();
 	/// <summary>Runs one action with the selected connection; tests may reject execution before connecting.</summary>
 	/// <param name="result">Parsed command arguments.</param>
 	/// <param name="action">Requested operation.</param>
@@ -201,6 +202,9 @@ internal static class LocalConsoleCommands
 	/// <param name="value">Value to display.</param>
 	/// <returns>Indented diagnostic text with provisioning credentials omitted.</returns>
 	internal static string SerializeForDisplay<T> (T value)
+		=> JsonSerializer.Serialize (value, _displayOptions);
+
+	private static JsonSerializerOptions CreateDisplayOptions ()
 		{
 		var resolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver ();
 		resolver.Modifiers.Add (info =>
@@ -211,7 +215,7 @@ internal static class LocalConsoleCommands
 					if (property.Name == "pin")
 						property.ShouldSerialize = (_, _) => false;
 			});
-		return JsonSerializer.Serialize (value, new JsonSerializerOptions { WriteIndented = true, TypeInfoResolver = resolver });
+		return new JsonSerializerOptions { WriteIndented = true, TypeInfoResolver = resolver };
 		}
 	private static Task<int> Denied () => Invalid ("Local controls require a signed LAN session started with --allow-local-control.");
 	private static Task<int> Invalid (string message)

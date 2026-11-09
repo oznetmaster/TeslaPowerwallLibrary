@@ -21,9 +21,17 @@ public sealed class PowerCompatibilityTests
 	public async Task Facade_SystemStatusPreservesReportedInstantaneousLimits (double? charge, double? discharge)
 		{
 		using var handler = new TestHandler (JsonSerializer.Serialize (new
-			{ instantaneous_max_charge_power = charge, instantaneous_max_discharge_power = discharge }));
+			{
+			instantaneous_max_charge_power = charge,
+			instantaneous_max_discharge_power = discharge
+			}));
 		using var client = new PowerwallLocalClient (new PowerwallOptions
-			{ Host = "powerwall.test", AuthMode = "token", NoLocalSessionPersistence = true, AllowLocalControl = false }, handler);
+			{
+			Host = "powerwall.test",
+			AuthMode = "token",
+			NoLocalSessionPersistence = true,
+			AllowLocalControl = false
+			}, handler);
 		await client.AuthenticateAsync ();
 		using var facade = new Powerwall (new PowerwallOptions { Host = "powerwall.test" });
 		OperationRegressionTests.SetField (facade, "_client", client);
@@ -43,9 +51,17 @@ public sealed class PowerCompatibilityTests
 	[TestCase (100d, 100d)]
 	public async Task Facade_BatteryLevelPreservesRawAndFloorsScaledReserve (double raw, double expectedScaled)
 		{
-		using var handler = new TestHandler (JsonSerializer.Serialize (new { percentage = raw }));
+		using var handler = new TestHandler (JsonSerializer.Serialize (new
+			{
+			percentage = raw
+			}));
 		using var client = new PowerwallLocalClient (new PowerwallOptions
-			{ Host = "powerwall.test", AuthMode = "token", NoLocalSessionPersistence = true, AllowLocalControl = false }, handler);
+			{
+			Host = "powerwall.test",
+			AuthMode = "token",
+			NoLocalSessionPersistence = true,
+			AllowLocalControl = false
+			}, handler);
 		await client.AuthenticateAsync ();
 		using var facade = new Powerwall (new PowerwallOptions { Host = "powerwall.test" });
 		OperationRegressionTests.SetField (facade, "_client", client);
@@ -60,7 +76,12 @@ public sealed class PowerCompatibilityTests
 		{
 		using var handler = new TestHandler ("null");
 		using var client = new PowerwallLocalClient (new PowerwallOptions
-			{ Host = "powerwall.test", AuthMode = "token", NoLocalSessionPersistence = true, AllowLocalControl = false }, handler);
+			{
+			Host = "powerwall.test",
+			AuthMode = "token",
+			NoLocalSessionPersistence = true,
+			AllowLocalControl = false
+			}, handler);
 		await client.AuthenticateAsync ();
 		using var facade = new Powerwall (new PowerwallOptions { Host = "powerwall.test" });
 		OperationRegressionTests.SetField (facade, "_client", client);
@@ -100,7 +121,12 @@ public sealed class PowerCompatibilityTests
 		{
 		using var handler = new TestHandler (response);
 		using var client = new PowerwallLocalClient (new PowerwallOptions
-			{ Host = "powerwall.test", AuthMode = "token", NoLocalSessionPersistence = true, AllowLocalControl = false }, handler);
+			{
+			Host = "powerwall.test",
+			AuthMode = "token",
+			NoLocalSessionPersistence = true,
+			AllowLocalControl = false
+			}, handler);
 		await client.AuthenticateAsync ();
 		using var facade = new Powerwall (new PowerwallOptions { Host = "powerwall.test" });
 		OperationRegressionTests.SetField (facade, "_client", client);
@@ -132,11 +158,21 @@ public sealed class PowerCompatibilityTests
 		var options = new PowerwallOptions { LocalProtocol = protocol };
 		Assert.That (options.AllowLocalControl, Is.EqualTo (control));
 		Assert.That (options.NoLocalSessionPersistence, Is.EqualTo (noPersistence));
-		var readOnly = options with { AllowLocalControl = false, NoLocalSessionPersistence = true };
+		var readOnly = options with
+			{
+			AllowLocalControl = false,
+			NoLocalSessionPersistence = true
+			};
 		Assert.That (readOnly.AllowLocalControl, Is.False);
 		Assert.That (readOnly.NoLocalSessionPersistence, Is.True);
-		Assert.That ((readOnly with { LocalProtocol = PowerwallLocalProtocol.Gateway }).AllowLocalControl, Is.False);
-		Assert.That ((new PowerwallOptions () with { LocalProtocol = PowerwallLocalProtocol.TedapiSigned }).AllowLocalControl, Is.False);
+		Assert.That ((readOnly with
+			{
+			LocalProtocol = PowerwallLocalProtocol.Gateway
+			}).AllowLocalControl, Is.False);
+		Assert.That ((new PowerwallOptions () with
+			{
+			LocalProtocol = PowerwallLocalProtocol.TedapiSigned
+			}).AllowLocalControl, Is.False);
 		}
 
 	/// <summary>Both released construction paths reuse session caches and permit explicit writes without new options.</summary>
@@ -160,7 +196,10 @@ public sealed class PowerCompatibilityTests
 				await client.AuthenticateAsync ();
 				Assert.That (handler.Logins, Is.EqualTo (connection == 0 ? 1 : 0));
 				Assert.That (File.Exists (path), Is.True, path + ": " + string.Join ("; ", logger.Entries));
-				await client.PostAsync ("/api/operation", new { backup_reserve_percent = 0 });
+				await client.PostAsync ("/api/operation", new
+					{
+					backup_reserve_percent = 0
+					});
 				Assert.That (handler.Writes, Is.EqualTo (1));
 				}
 			}
@@ -177,8 +216,14 @@ public sealed class PowerCompatibilityTests
 			{
 			File.WriteAllText (path, cached);
 			using var handler = new TestHandler ("{}");
-			using var client = new PowerwallLocalClient (new PowerwallOptions { Host = "powerwall.test", AuthMode = "token",
-				CacheFile = path, NoLocalSessionPersistence = true, AllowLocalControl = false }, handler);
+			using var client = new PowerwallLocalClient (new PowerwallOptions
+				{
+				Host = "powerwall.test",
+				AuthMode = "token",
+				CacheFile = path,
+				NoLocalSessionPersistence = true,
+				AllowLocalControl = false
+				}, handler);
 			await client.AuthenticateAsync ();
 			Assert.That (handler.Logins, Is.EqualTo (1));
 			await Assert.ThrowsAsync<PowerwallNotSupportedException> (async () => await client.PostAsync ("/api/operation", new { }));
@@ -192,11 +237,20 @@ public sealed class PowerCompatibilityTests
 	private sealed class TestHandler (string reading) : HttpMessageHandler
 		{
 		/// <summary>Number of authentication requests.</summary>
-		internal int Logins { get; private set; }
+		internal int Logins
+			{
+			get; private set;
+			}
 		/// <summary>Number of explicit configuration writes.</summary>
-		internal int Writes { get; private set; }
+		internal int Writes
+			{
+			get; private set;
+			}
 		/// <summary>Number of meter reads.</summary>
-		internal int Reads { get; private set; }
+		internal int Reads
+			{
+			get; private set;
+			}
 		/// <inheritdoc/>
 		protected override Task<HttpResponseMessage> SendAsync (HttpRequestMessage request, CancellationToken cancellationToken)
 			{

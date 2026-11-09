@@ -2,6 +2,7 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System.Text.Json;
+
 using TeslaPowerwallLibrary.Tedapi;
 
 namespace TeslaPowerwallLibrary.Tests;
@@ -61,7 +62,8 @@ public sealed class LocalExtendedDiagnosticsTests
 		Assert.That (records.Count, Is.EqualTo (count));
 		using var wire = JsonDocument.Parse (JsonSerializer.Serialize (records));
 		Assert.That (wire.RootElement.ValueKind, Is.EqualTo (array ? JsonValueKind.Array : JsonValueKind.Object));
-		if (count == 2) Assert.That (wire.RootElement[0].ValueKind, Is.EqualTo (JsonValueKind.Null));
+		if (count == 2)
+			Assert.That (wire.RootElement[0].ValueKind, Is.EqualTo (JsonValueKind.Null));
 		}
 
 	/// <summary>Diagnostic values are not an arbitrary JSON payload escape hatch.</summary>
@@ -79,11 +81,13 @@ public sealed class LocalExtendedDiagnosticsTests
 	public void Scalar_ConversionsRequireActualNumbers ()
 		{
 		var zero = JsonSerializer.Deserialize<LocalDiagnosticScalar> ("0")!;
-		Assert.That (zero.TryGetDecimal (out decimal numeric), Is.True); Assert.That (numeric, Is.Zero);
+		Assert.That (zero.TryGetDecimal (out decimal numeric), Is.True);
+		Assert.That (numeric, Is.Zero);
 		var text = JsonSerializer.Deserialize<LocalDiagnosticScalar> ("\"0\"")!;
 		Assert.That (text.TryGetDecimal (out _), Is.False);
 		var huge = JsonSerializer.Deserialize<LocalDiagnosticScalar> ("1e400")!;
-		Assert.That (huge.TryGetDouble (out double unavailable), Is.False); Assert.That (unavailable, Is.Zero);
+		Assert.That (huge.TryGetDouble (out double unavailable), Is.False);
+		Assert.That (unavailable, Is.Zero);
 		Assert.That (huge.TryGetDecimal (out _), Is.False);
 		}
 

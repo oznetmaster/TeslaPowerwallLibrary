@@ -26,20 +26,21 @@ namespace TeslaPowerwallLibrary.Login;
 /// </summary>
 internal static class TeslaAuth
 	{
+	private static readonly char[] _querySeparators = ['&'];
 	// Constants — match tesla_auth (Rust) and pypowerwall exactly.
 	// See: https://github.com/adriankumpf/tesla_auth/blob/master/src/auth.rs
-	private const string ClientId = "ownerapi";
-	private const string AuthUrlPath = "/oauth2/v3/authorize";
-	private const string TokenUrlPath = "/oauth2/v3/token";
+	private const string CLIENT_ID = "ownerapi";
+	private const string AUTH_URL_PATH = "/oauth2/v3/authorize";
+	private const string TOKEN_URL_PATH = "/oauth2/v3/token";
 
 	/// <summary>The custom redirect scheme Tesla uses for the native PKCE callback.</summary>
-	public const string RedirectUri = "tesla://auth/callback";
+	public const string REDIRECT_URI = "tesla://auth/callback";
 
 	// owner-api.teslamotors.com only accepts access tokens produced by a fresh PKCE code exchange.
 	// Energy scopes are NOT needed for the Owners API.
-	private const string Scopes = "openid email offline_access";
+	private const string SCOPES = "openid email offline_access";
 
-	private static readonly IReadOnlyDictionary<string, string> RegionHosts = new Dictionary<string, string> (StringComparer.OrdinalIgnoreCase)
+	private static readonly Dictionary<string, string> _regionHosts = new (StringComparer.OrdinalIgnoreCase)
 		{
 		["us"] = "https://auth.tesla.com",
 		["cn"] = "https://auth.tesla.cn"
@@ -75,7 +76,7 @@ internal static class TeslaAuth
 	/// <param name="region">The region code, <c>us</c> or <c>cn</c>.</param>
 	/// <returns>The SSO base host, for example <c>https://auth.tesla.com</c>.</returns>
 	public static string ResolveAuthHost (string region) =>
-		RegionHosts.TryGetValue (region ?? "us", out var host) ? host : RegionHosts["us"];
+		_regionHosts.TryGetValue (region ?? "us", out var host) ? host : _regionHosts["us"];
 
 	/// <summary>
 	/// Builds the Tesla OAuth authorize URL with PKCE parameters.
@@ -100,17 +101,17 @@ internal static class TeslaAuth
 
 		// Preserve the upstream parameter order.
 		var query = new StringBuilder ();
-		AppendQueryParameter (query, "client_id", ClientId);
+		AppendQueryParameter (query, "client_id", CLIENT_ID);
 		AppendQueryParameter (query, "code_challenge", codeChallenge);
 		AppendQueryParameter (query, "code_challenge_method", "S256");
-		AppendQueryParameter (query, "redirect_uri", RedirectUri);
+		AppendQueryParameter (query, "redirect_uri", REDIRECT_URI);
 		AppendQueryParameter (query, "response_type", "code");
-		AppendQueryParameter (query, "scope", Scopes);
+		AppendQueryParameter (query, "scope", SCOPES);
 		AppendQueryParameter (query, "state", state);
 		if (!string.IsNullOrWhiteSpace (email))
 			AppendQueryParameter (query, "login_hint", email!.Trim ());
 
-		var authUrl = $"{authHost}{AuthUrlPath}?{query}";
+		var authUrl = $"{authHost}{AUTH_URL_PATH}?{query}";
 		return new TeslaAuthRequest (authUrl, codeVerifier, state);
 		}
 
@@ -156,15 +157,15 @@ internal static class TeslaAuth
 		CancellationToken cancellationToken = default)
 		{
 		var authHost = ResolveAuthHost (region);
-		var url = $"{authHost}{TokenUrlPath}";
+		var url = $"{authHost}{TOKEN_URL_PATH}";
 
 		var body = new TeslaCodeExchangeRequest
 			{
 			GrantType = "authorization_code",
-			ClientId = ClientId,
+			ClientId = CLIENT_ID,
 			Code = authCode,
 			CodeVerifier = codeVerifier,
-			RedirectUri = RedirectUri
+			RedirectUri = REDIRECT_URI
 			};
 
 		HttpResponseMessage response;
@@ -299,7 +300,7 @@ internal static class TeslaAuth
 		if (string.IsNullOrEmpty (query))
 			return values;
 
-		foreach (var pair in query.Split (new[] { '&' }, StringSplitOptions.RemoveEmptyEntries))
+		foreach (var pair in query.Split (_querySeparators, StringSplitOptions.RemoveEmptyEntries))
 			{
 			var separator = pair.IndexOf ('=');
 			if (separator < 0)
@@ -308,8 +309,13 @@ internal static class TeslaAuth
 				continue;
 				}
 
+#if NETFRAMEWORK
 			var key = Uri.UnescapeDataString (pair.Substring (0, separator));
 			var value = Uri.UnescapeDataString (pair.Substring (separator + 1));
+#else
+			var key = Uri.UnescapeDataString (pair.AsSpan (0, separator));
+			var value = Uri.UnescapeDataString (pair.AsSpan (separator + 1));
+#endif
 			values[key] = value;
 			}
 
@@ -381,23 +387,38 @@ internal sealed record TeslaTokenExchangeResponse
 	{
 	/// <summary>The long-lived refresh token (valid ~90 days).</summary>
 	[JsonPropertyName ("refresh_token")]
-	public string? RefreshToken { get; init; }
+	public string? RefreshToken
+		{
+		get; init;
+		}
 
 	/// <summary>The short-lived access token (valid ~8 hours).</summary>
 	[JsonPropertyName ("access_token")]
-	public string? AccessToken { get; init; }
+	public string? AccessToken
+		{
+		get; init;
+		}
 
 	/// <summary>The token type, normally <c>Bearer</c>.</summary>
 	[JsonPropertyName ("token_type")]
-	public string? TokenType { get; init; }
+	public string? TokenType
+		{
+		get; init;
+		}
 
 	/// <summary>The raw OpenID id_token, when returned.</summary>
 	[JsonPropertyName ("id_token")]
-	public string? IdToken { get; init; }
+	public string? IdToken
+		{
+		get; init;
+		}
 
 	/// <summary>The access-token lifetime, in seconds.</summary>
 	[JsonPropertyName ("expires_in"), JsonNumberHandling (JsonNumberHandling.AllowReadingFromString)]
-	public int? ExpiresIn { get; init; }
+	public int? ExpiresIn
+		{
+		get; init;
+		}
 	}
 
 /// <summary>
@@ -407,11 +428,17 @@ internal sealed record TeslaIdTokenPayload
 	{
 	/// <summary>The account email, when present directly on the payload.</summary>
 	[JsonPropertyName ("email")]
-	public string? Email { get; init; }
+	public string? Email
+		{
+		get; init;
+		}
 
 	/// <summary>A nested <c>data</c> object that carries the account email on some token shapes.</summary>
 	[JsonPropertyName ("data")]
-	public TeslaIdTokenPayloadData? Data { get; init; }
+	public TeslaIdTokenPayloadData? Data
+		{
+		get; init;
+		}
 	}
 
 /// <summary>
@@ -421,7 +448,10 @@ internal sealed record TeslaIdTokenPayloadData
 	{
 	/// <summary>The account email.</summary>
 	[JsonPropertyName ("email")]
-	public string? Email { get; init; }
+	public string? Email
+		{
+		get; init;
+		}
 	}
 
 #pragma warning restore CA1507

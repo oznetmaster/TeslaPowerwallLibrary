@@ -5,19 +5,19 @@ using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Net.Sockets;
-using TeslaPowerwallLibrary.Local;
 using System.Security.Cryptography;
-using System.Windows;
-using TeslaPowerwallLibrary.Tools;
-using TeslaPowerwallLibrary.Tedapi;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 using TeslaPowerwallLibrary.App.Services;
 using TeslaPowerwallLibrary.Cloud;
+using TeslaPowerwallLibrary.Local;
+using TeslaPowerwallLibrary.Tedapi;
+using TeslaPowerwallLibrary.Tools;
 
 namespace TeslaPowerwallLibrary.App.ViewModels;
 
@@ -33,7 +33,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
 	/// <summary>Gets or sets the local signing-key name shared with the connection screen.</summary>
 	[ObservableProperty]
-	private string _localSigningKeyName = AppSettingsStore.Load ().LocalSigningKeyName ?? LocalSigningKeyStore.DefaultKeyName;
+	private string _localSigningKeyName = AppSettingsStore.Load ().LocalSigningKeyName ?? LocalSigningKeyStore.DEFAULT_KEY_NAME;
 
 	/// <summary>Gets or sets the last explicit enrollment result; never inferred from a successful request.</summary>
 	[ObservableProperty]
@@ -95,12 +95,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
 			RememberLocalKey ();
 			LocalKeyStatus = result.State switch
 				{
-				LocalKeyState.PendingVerification => "Awaiting physical verification. Complete the coordinated procedure, then check status. No automatic retry.",
-				LocalKeyState.VerificationTimedOut => "Physical verification timed out. The same key can be registered again when you are ready.",
-				LocalKeyState.Verified => "Key verified. You can now select signed LAN access on the connection screen.",
-				LocalKeyState.Removed => "This key has been removed from the device.",
-				_ => "Authorization is unknown or the key was not found. Signed access is not confirmed."
-				};
+					LocalKeyState.PendingVerification => "Awaiting physical verification. Complete the coordinated procedure, then check status. No automatic retry.",
+					LocalKeyState.VerificationTimedOut => "Physical verification timed out. The same key can be registered again when you are ready.",
+					LocalKeyState.Verified => "Key verified. You can now select signed LAN access on the connection screen.",
+					LocalKeyState.Removed => "This key has been removed from the device.",
+					_ => "Authorization is unknown or the key was not found. Signed access is not confirmed."
+					};
 			LocalKeyStatus += $"\nPublic-key fingerprint: {result.Fingerprint}";
 			}
 		catch (Exception exc) when (exc is PowerwallException or ArgumentException or InvalidOperationException or CryptographicException or OperationCanceledException)
@@ -139,8 +139,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
 		_connection = connection ?? throw new ArgumentNullException (nameof (connection));
 		_savePollInterval = savePollInterval ?? throw new ArgumentNullException (nameof (savePollInterval));
 		LocalPollSecondsText = connection.LocalPollInterval.TotalSeconds.ToString (System.Globalization.CultureInfo.InvariantCulture);
-		Modes = new ObservableCollection<string> (new[] { "self_consumption", "autonomous", "backup" });
-		ExportRules = new ObservableCollection<string> (new[] { "battery_ok", "pv_only", "never" });
+		Modes = ["self_consumption", "autonomous", "backup"];
+		ExportRules = ["battery_ok", "pv_only", "never"];
 		Sites = new ObservableCollection<CloudSite> ();
 		}
 
@@ -172,7 +172,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
 	[RelayCommand]
 	private async Task ApplyLocalPollIntervalAsync ()
 		{
-		if (IsBusy || !IsLocalMode) return;
+		if (IsBusy || !IsLocalMode)
+			return;
 		if (!int.TryParse (LocalPollSecondsText, out int seconds) || seconds < 0 || seconds > 3600)
 			{
 			StatusMessage = "Enter a whole number from 1 to 3600 seconds, or 0 for manual refresh.";
@@ -188,11 +189,14 @@ public sealed partial class SettingsViewModel : ViewModelBase
 				_savePollInterval (seconds);
 				StatusMessage = "Refresh interval updated. No Powerwall settings have been changed.";
 				}
-			else StatusMessage = "Could not update the refresh interval. The previous interval is still in use.";
+			else
+				StatusMessage = "Could not update the refresh interval. The previous interval is still in use.";
 			}
 		catch (Exception exc) when (exc is PowerwallException or OperationCanceledException or CryptographicException
 			or System.Net.Http.HttpRequestException or System.Text.Json.JsonException or InvalidOperationException)
-			{ StatusMessage = "Could not update the refresh interval: " + exc.Message; }
+			{
+			StatusMessage = "Could not update the refresh interval: " + exc.Message;
+			}
 		finally
 			{
 			OnPropertyChanged (nameof (LocalPollingStatus));
@@ -219,8 +223,13 @@ public sealed partial class SettingsViewModel : ViewModelBase
 		{
 		LocalHostname = host;
 		LocalIpAddresses = host is null ? "Unavailable" : "Resolving…";
-		if (host is null) return;
-		if (!ShowResolvedAddress) { LocalIpAddresses = string.Empty; return; }
+		if (host is null)
+			return;
+		if (!ShowResolvedAddress)
+			{
+			LocalIpAddresses = string.Empty;
+			return;
+			}
 		try
 			{
 			using var deadline = new CancellationTokenSource (TimeSpan.FromSeconds (5));
@@ -235,13 +244,22 @@ public sealed partial class SettingsViewModel : ViewModelBase
 		}
 
 	/// <summary>Gets the selectable operation modes.</summary>
-	public ObservableCollection<string> Modes { get; }
+	public ObservableCollection<string> Modes
+		{
+		get;
+		}
 
 	/// <summary>Gets the selectable grid export rules.</summary>
-	public ObservableCollection<string> ExportRules { get; }
+	public ObservableCollection<string> ExportRules
+		{
+		get;
+		}
 
 	/// <summary>Gets the available Tesla™ energy sites (cloud mode only).</summary>
-	public ObservableCollection<CloudSite> Sites { get; }
+	public ObservableCollection<CloudSite> Sites
+		{
+		get;
+		}
 
 	/// <summary>Gets a value indicating whether cloud-only controls are available.</summary>
 	public bool IsCloudMode => _connection.Mode is PowerwallMode.Cloud or PowerwallMode.FleetApi;
@@ -275,7 +293,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
 	private async Task ChangeLocalControlsAsync (bool enable)
 		{
-		if (IsBusy || !IsLocalMode || CanChangeSettings == enable) return;
+		if (IsBusy || !IsLocalMode || CanChangeSettings == enable)
+			return;
 		IsBusy = true;
 		StatusMessage = enable ? "Enabling controls for this session…" : "Returning to read-only…";
 		try
@@ -327,11 +346,11 @@ public sealed partial class SettingsViewModel : ViewModelBase
 			return;
 		await RunWriteAsync (async (powerwall, token) =>
 			{
-			var events = await powerwall.GetLocalBackupEventsAsync (token).ConfigureAwait (true);
-			BackupStatus = events.ManualBackup is { } manual
-				? $"Reported manual backup start: {manual.StartTime?.ToString ("g") ?? "unreported"}; duration: {manual.DurationSeconds} seconds."
-				: "No manual backup event reported.";
-			BackupStatus += $" Other reported events: {events.Events.Count}.";
+				var events = await powerwall.GetLocalBackupEventsAsync (token).ConfigureAwait (true);
+				BackupStatus = events.ManualBackup is { } manual
+					? $"Reported manual backup start: {manual.StartTime?.ToString ("g", System.Globalization.CultureInfo.CurrentCulture) ?? "unreported"}; duration: {manual.DurationSeconds} seconds."
+					: "No manual backup event reported.";
+				BackupStatus += $" Other reported events: {events.Events.Count}.";
 			}).ConfigureAwait (true);
 		}
 
@@ -351,8 +370,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
 			return;
 		await RunWriteAsync (async (powerwall, token) =>
 			{
-			var result = await powerwall.ScheduleLocalMaxBackupAsync (TimeSpan.FromMinutes (BackupMinutes), token).ConfigureAwait (true);
-			StatusMessage = result.Acknowledged ? "Backup request acknowledged. Read backup events to confirm the schedule." : "Backup request was not acknowledged.";
+				var result = await powerwall.ScheduleLocalMaxBackupAsync (TimeSpan.FromMinutes (BackupMinutes), token).ConfigureAwait (true);
+				StatusMessage = result.Acknowledged ? "Backup request acknowledged. Read backup events to confirm the schedule." : "Backup request was not acknowledged.";
 			}).ConfigureAwait (true);
 		}
 
@@ -365,8 +384,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
 			return;
 		await RunWriteAsync (async (powerwall, token) =>
 			{
-			var result = await powerwall.CancelLocalMaxBackupAsync (token).ConfigureAwait (true);
-			StatusMessage = result.Acknowledged ? "Backup cancellation acknowledged." : "Backup cancellation was not acknowledged.";
+				var result = await powerwall.CancelLocalMaxBackupAsync (token).ConfigureAwait (true);
+				StatusMessage = result.Acknowledged ? "Backup cancellation acknowledged." : "Backup cancellation was not acknowledged.";
 			}).ConfigureAwait (true);
 		}
 
@@ -393,9 +412,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
 			return;
 		await RunWriteAsync (async (powerwall, token) =>
 			{
-			var result = connect ? await powerwall.ReconnectGridAsync (token).ConfigureAwait (true)
-				: await powerwall.GoOffGridAsync (token).ConfigureAwait (true);
-			StatusMessage = result.Acknowledged ? "Grid command acknowledged. Refresh Home to check the reported grid state." : "Grid command was not acknowledged.";
+				var result = connect ? await powerwall.ReconnectGridAsync (token).ConfigureAwait (true)
+					: await powerwall.GoOffGridAsync (token).ConfigureAwait (true);
+				StatusMessage = result.Acknowledged ? "Grid command acknowledged. Refresh Home to check the reported grid state." : "Grid command was not acknowledged.";
 			}).ConfigureAwait (true);
 		}
 
@@ -517,8 +536,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
 			return;
 		await RunWriteAsync (async (powerwall, token) =>
 			{
-			await powerwall.SetOperationAsync (ReservePercent is double reserve ? Math.Round (reserve) : null, SelectedMode, token).ConfigureAwait (true);
-			StatusMessage = "Operation settings applied.";
+				await powerwall.SetOperationAsync (ReservePercent is double reserve ? Math.Round (reserve) : null, SelectedMode, token).ConfigureAwait (true);
+				StatusMessage = "Operation settings applied.";
 			}).ConfigureAwait (true);
 		}
 
@@ -532,8 +551,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
 		await RunWriteAsync (async (powerwall, token) =>
 			{
-			await powerwall.SetGridChargingAsync (GridChargingEnabled!.Value, token).ConfigureAwait (true);
-			StatusMessage = "Grid charging updated.";
+				await powerwall.SetGridChargingAsync (GridChargingEnabled!.Value, token).ConfigureAwait (true);
+				StatusMessage = "Grid charging updated.";
 			}).ConfigureAwait (true);
 		}
 
@@ -547,8 +566,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
 		await RunWriteAsync (async (powerwall, token) =>
 			{
-			await powerwall.SetGridExportAsync (SelectedExportRule!, token).ConfigureAwait (true);
-			StatusMessage = "Grid export rule updated.";
+				await powerwall.SetGridExportAsync (SelectedExportRule!, token).ConfigureAwait (true);
+				StatusMessage = "Grid export rule updated.";
 			}).ConfigureAwait (true);
 		}
 
@@ -562,8 +581,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
 		await RunWriteAsync (async (powerwall, token) =>
 			{
-			await powerwall.SetStormWatchAsync (StormWatchEnabled!.Value, token).ConfigureAwait (true);
-			StatusMessage = "Storm Watch updated.";
+				await powerwall.SetStormWatchAsync (StormWatchEnabled!.Value, token).ConfigureAwait (true);
+				StatusMessage = "Storm Watch updated.";
 			}).ConfigureAwait (true);
 		}
 
@@ -583,16 +602,16 @@ public sealed partial class SettingsViewModel : ViewModelBase
 		{
 		await RunWriteAsync (async (powerwall, token) =>
 			{
-			if (await powerwall.ChangeSiteAsync (siteId, token).ConfigureAwait (true))
-				{
-				StatusMessage = "Active site changed.";
-				var site = Sites.FirstOrDefault (s => s.SiteId == siteId);
-				_connection.SetSiteLabel (site?.SiteName ?? site?.SiteId ?? siteId);
-				}
-			else
-				{
-				StatusMessage = "That site could not be selected.";
-				}
+				if (await powerwall.ChangeSiteAsync (siteId, token).ConfigureAwait (true))
+					{
+					StatusMessage = "Active site changed.";
+					var site = Sites.FirstOrDefault (s => s.SiteId == siteId);
+					_connection.SetSiteLabel (site?.SiteName ?? site?.SiteId ?? siteId);
+					}
+				else
+					{
+					StatusMessage = "That site could not be selected.";
+					}
 			}).ConfigureAwait (true);
 		}
 

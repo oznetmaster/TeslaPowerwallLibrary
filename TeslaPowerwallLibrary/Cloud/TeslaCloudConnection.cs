@@ -1,18 +1,17 @@
-using TeslaPowerwallLibrary.Models;
 // Copyright © 2026 Neil Colvin.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-using System.Text.Json;
-using System.Text.Json.Serialization;
-
-
+using TeslaPowerwallLibrary.Concurrency;
 using TeslaPowerwallLibrary.Local;
+using TeslaPowerwallLibrary.Models;
 using TeslaPowerwallLibrary.Tedapi;
 
 namespace TeslaPowerwallLibrary.Cloud;
@@ -33,8 +32,7 @@ internal sealed class TeslaCloudConnection : IDisposable
 	private readonly ILogger _log;
 
 	private readonly HttpClient _httpClient;
-	private string? _accessToken;
-	private string? _refreshToken;
+	private readonly OAuthSession _session;
 
 	/// <summary>
 	/// Raised after every successful access-token refresh, carrying the current tokens and whether the
@@ -52,14 +50,15 @@ internal sealed class TeslaCloudConnection : IDisposable
 	public TeslaCloudConnection (string? accessToken, string? refreshToken, TimeSpan timeout, ILogger? logger = null)
 		{
 		_log = logger ?? NullLogger.Instance;
-		_accessToken = string.IsNullOrWhiteSpace (accessToken) ? null : accessToken;
-		_refreshToken = string.IsNullOrWhiteSpace (refreshToken) ? null : refreshToken;
-		AccessTokenProvidedAtConstruction = _accessToken is not null;
+		accessToken = string.IsNullOrWhiteSpace (accessToken) ? null : accessToken;
+		refreshToken = string.IsNullOrWhiteSpace (refreshToken) ? null : refreshToken;
+		AccessTokenProvidedAtConstruction = accessToken is not null;
 		_httpClient = new HttpClient { Timeout = timeout };
+		_session = new (typeof (TeslaCloudConnection), accessToken, refreshToken, () => _httpClient.Dispose ());
 		}
 
 	/// <summary>Gets a value indicating whether any usable token (access or refresh) is available.</summary>
-	public bool HasToken => _accessToken is not null || _refreshToken is not null;
+	public bool HasToken => !_session.IsStopped && (_session.Current.AccessToken is not null || _session.Current.RefreshToken is not null);
 
 	/// <summary>
 	/// Gets a value indicating whether a non-null access token was supplied to the constructor (as opposed to
@@ -71,10 +70,10 @@ internal sealed class TeslaCloudConnection : IDisposable
 		}
 
 	/// <summary>Gets the current access token, which may be renewed after a refresh.</summary>
-	public string? AccessToken => _accessToken;
+	public string? AccessToken => _session.IsStopped ? null : _session.Current.AccessToken;
 
 	/// <summary>Gets the current refresh token, which may be rotated after a refresh.</summary>
-	public string? RefreshToken => _refreshToken;
+	public string? RefreshToken => _session.IsStopped ? null : _session.Current.RefreshToken;
 
 	/// <summary>
 	/// Renews the access token using the refresh token against the Tesla SSO service. Always raises
@@ -82,16 +81,19 @@ internal sealed class TeslaCloudConnection : IDisposable
 	/// </summary>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns><see langword="true"/> when a new access token was obtained; otherwise <see langword="false"/>.</returns>
-	public async Task<bool> RefreshAccessTokenAsync (CancellationToken cancellationToken = default)
+	public Task<bool> RefreshAccessTokenAsync (CancellationToken cancellationToken = default)
+		=> _session.RefreshAsync (RefreshAccessTokenCoreAsync, tokens => TokensRefreshed?.Invoke (this, tokens), cancellationToken);
+
+	private async Task<OAuthSession.Snapshot?> RefreshAccessTokenCoreAsync (OAuthSession.Snapshot current, CancellationToken cancellationToken)
 		{
-		if (_refreshToken is null)
-			return false;
+		if (current.RefreshToken is null)
+			return null;
 
 		var body = new CloudRefreshRequest
 			{
 			GrantType = "refresh_token",
 			ClientId = SSO_CLIENT_ID,
-			RefreshToken = _refreshToken,
+			RefreshToken = current.RefreshToken,
 			Scope = O_AUTH_SCOPE
 			};
 
@@ -107,7 +109,7 @@ internal sealed class TeslaCloudConnection : IDisposable
 		catch (Exception exc) when (exc is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
 			{
 			LibraryLog.UnableToRefreshTeslaCloudToken (_log, exc.Message);
-			return false;
+			return null;
 			}
 
 		using (response)
@@ -120,7 +122,7 @@ internal sealed class TeslaCloudConnection : IDisposable
 			if (!response.IsSuccessStatusCode)
 				{
 				LibraryLog.TeslaCloudTokenRefreshFailedHTTP (_log, (int)response.StatusCode);
-				return false;
+				return null;
 				}
 
 			try
@@ -129,25 +131,16 @@ internal sealed class TeslaCloudConnection : IDisposable
 				if (tokens is null || string.IsNullOrWhiteSpace (tokens.AccessToken))
 					{
 					LibraryLog.TeslaCloudTokenRefreshResponseDidNotContainAn (_log);
-					return false;
+					return null;
 					}
 
-				var priorRefreshToken = _refreshToken;
-				_accessToken = tokens.AccessToken;
-				if (!string.IsNullOrWhiteSpace (tokens.RefreshToken))
-					_refreshToken = tokens.RefreshToken;
-
 				LibraryLog.TeslaCloudAccessTokenRefreshed (_log);
-
-				var refreshTokenChanged = !string.Equals (priorRefreshToken, _refreshToken, StringComparison.Ordinal);
-				TokensRefreshed?.Invoke (this, new ConnectionTokensRefreshedEventArgs (_accessToken, _refreshToken, refreshTokenChanged));
-
-				return true;
+				return new (tokens.AccessToken, string.IsNullOrWhiteSpace (tokens.RefreshToken) ? current.RefreshToken : tokens.RefreshToken);
 				}
 			catch (JsonException exc)
 				{
 				LibraryLog.UnableToParseTeslaCloudTokenRefreshResponse (_log, exc.Message);
-				return false;
+				return null;
 				}
 			}
 		}
@@ -354,7 +347,13 @@ internal sealed class TeslaCloudConnection : IDisposable
 		IReadOnlyDictionary<string, string>? query,
 		CancellationToken cancellationToken,
 		bool allowRetry = true)
+		=> await _session.RequestAsync (token => SendApiCoreAsync (method, uri, jsonBody, query, allowRetry, token), cancellationToken).ConfigureAwait (false);
+
+	private async Task<string?> SendApiCoreAsync (
+		HttpMethod method, string uri, object? jsonBody, IReadOnlyDictionary<string, string>? query,
+		bool allowRetry, CancellationToken cancellationToken)
 		{
+		OAuthSession.Snapshot credentials = _session.Current;
 		var url = OWNER_API_BASE_URL + uri;
 		if (query is { Count: > 0 })
 			url += "?" + string.Join ("&", query.Select (static kv => $"{Uri.EscapeDataString (kv.Key)}={Uri.EscapeDataString (kv.Value)}"));
@@ -363,8 +362,8 @@ internal sealed class TeslaCloudConnection : IDisposable
 		try
 			{
 			using var request = new HttpRequestMessage (method, url);
-			if (_accessToken is not null)
-				request.Headers.TryAddWithoutValidation ("Authorization", $"Bearer {_accessToken}");
+			if (credentials.AccessToken is not null)
+				request.Headers.TryAddWithoutValidation ("Authorization", $"Bearer {credentials.AccessToken}");
 
 			if (jsonBody is not null)
 				request.Content = new StringContent (JsonHelper.Serialize (jsonBody), Encoding.UTF8, "application/json");
@@ -387,14 +386,18 @@ internal sealed class TeslaCloudConnection : IDisposable
 			if ((int)response.StatusCode is 401 or 403 && allowRetry)
 				{
 				LibraryLog.TeslaCloudSessionExpiredAttemptingTokenRefresh (_log);
-				if (await RefreshAccessTokenAsync (cancellationToken).ConfigureAwait (false))
-					return await SendApiAsync (method, uri, jsonBody, query, cancellationToken, allowRetry: false).ConfigureAwait (false);
+				if (await _session.RefreshAsync (RefreshAccessTokenCoreAsync, tokens => TokensRefreshed?.Invoke (this, tokens), cancellationToken, credentials).ConfigureAwait (false))
+					return await SendApiCoreAsync (method, uri, jsonBody, query, allowRetry: false, cancellationToken).ConfigureAwait (false);
 
 				LibraryLog.TeslaCloudAPIUnauthorizedAndTokenRefreshFailedRun (_log, uri);
 				return null;
 				}
 
+#if NETFRAMEWORK
 			var payload = await response.Content.ReadAsStringAsync ().ConfigureAwait (false);
+#else
+			var payload = await response.Content.ReadAsStringAsync (cancellationToken).ConfigureAwait (false);
+#endif
 			if (!response.IsSuccessStatusCode)
 				{
 				if ((int)response.StatusCode == 410)
@@ -419,5 +422,5 @@ internal sealed class TeslaCloudConnection : IDisposable
 		  JsonHelper.DeserializeOrNull<ApiError> (payload)?.Error;
 
 	/// <summary>Releases the underlying <see cref="HttpClient"/>.</summary>
-	public void Dispose () => _httpClient.Dispose ();
+	public void Dispose () => _session.Dispose ();
 	}

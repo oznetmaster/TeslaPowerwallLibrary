@@ -2,9 +2,12 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System.Text.Json.Serialization;
+
+using Google.Protobuf;
+
 using TeslaPowerwallLibrary.Local;
 using TeslaPowerwallLibrary.Models;
-using Google.Protobuf;
+
 using Legacy = TeslaPowerwallLibrary.Tedapi.Protocol.Legacy;
 
 namespace TeslaPowerwallLibrary.Tedapi;
@@ -15,27 +18,45 @@ public sealed record LocalSystemInformation
 	/// <summary>Gateway hardware identifiers.</summary>
 	/// <value>Gateway hardware identifiers.</value>
 	[JsonPropertyName ("gateway")]
-	public LocalHardwareIdentity? Gateway { get; init; }
+	public LocalHardwareIdentity? Gateway
+		{
+		get; init;
+		}
 	/// <summary>Reported system device identifier.</summary>
 	/// <value>Reported system device identifier.</value>
 	[JsonPropertyName ("din")]
-	public string? Din { get; init; }
+	public string? Din
+		{
+		get; init;
+		}
 	/// <summary>Installed firmware version and hexadecimal Git hash.</summary>
 	/// <value>Installed firmware version and hexadecimal Git hash.</value>
 	[JsonPropertyName ("version")]
-	public LocalFirmwareVersion? Version { get; init; }
+	public LocalFirmwareVersion? Version
+		{
+		get; init;
+		}
 	/// <summary>Native protobuf device-type number; zero denotes its default value.</summary>
 	/// <value>Native protobuf device-type number; zero denotes its default value.</value>
 	[JsonPropertyName ("deviceType")]
-	public int DeviceType { get; init; }
+	public int DeviceType
+		{
+		get; init;
+		}
 	/// <summary>Read-only system update state, when the message is present.</summary>
 	/// <value>Read-only system update state, when the message is present.</value>
 	[JsonPropertyName ("update")]
-	public LocalSystemUpdate? Update { get; init; }
+	public LocalSystemUpdate? Update
+		{
+		get; init;
+		}
 	/// <summary>Reported radio compliance information.</summary>
 	/// <value>Reported radio compliance information.</value>
 	[JsonPropertyName ("wireless")]
-	public IReadOnlyList<LocalRadioInformation>? Wireless { get; init; }
+	public IReadOnlyList<LocalRadioInformation>? Wireless
+		{
+		get; init;
+		}
 	}
 
 /// <summary>A reported hardware package identity.</summary>
@@ -44,11 +65,17 @@ public sealed record LocalHardwareIdentity
 	/// <summary>Package part number.</summary>
 	/// <value>Package part number.</value>
 	[JsonPropertyName ("partNumber")]
-	public string? PartNumber { get; init; }
+	public string? PartNumber
+		{
+		get; init;
+		}
 	/// <summary>Package serial number.</summary>
 	/// <value>Package serial number.</value>
 	[JsonPropertyName ("serialNumber")]
-	public string? SerialNumber { get; init; }
+	public string? SerialNumber
+		{
+		get; init;
+		}
 	}
 
 /// <summary>Reported radio compliance metadata.</summary>
@@ -57,19 +84,31 @@ public sealed record LocalRadioInformation
 	/// <summary>Radio manufacturer.</summary>
 	/// <value>Radio manufacturer.</value>
 	[JsonPropertyName ("company")]
-	public string? Company { get; init; }
+	public string? Company
+		{
+		get; init;
+		}
 	/// <summary>Radio model.</summary>
 	/// <value>Radio model.</value>
 	[JsonPropertyName ("model")]
-	public string? Model { get; init; }
+	public string? Model
+		{
+		get; init;
+		}
 	/// <summary>FCC identifier.</summary>
 	/// <value>FCC identifier.</value>
 	[JsonPropertyName ("fccId")]
-	public string? FccId { get; init; }
+	public string? FccId
+		{
+		get; init;
+		}
 	/// <summary>Industry Canada identifier.</summary>
 	/// <value>Industry Canada identifier.</value>
 	[JsonPropertyName ("industryCanadaId")]
-	public string? IndustryCanadaId { get; init; }
+	public string? IndustryCanadaId
+		{
+		get; init;
+		}
 	}
 
 /// <summary>Native protobuf update values; scalar defaults are retained when this message is present.</summary>
@@ -78,43 +117,73 @@ public sealed record LocalSystemUpdate
 	/// <summary>Native handshake result code.</summary>
 	/// <value>Native handshake result code.</value>
 	[JsonPropertyName ("handshakeResult")]
-	public int HandshakeResult { get; init; }
+	public int HandshakeResult
+		{
+		get; init;
+		}
 	/// <summary>Native update status code.</summary>
 	/// <value>Native update status code.</value>
 	[JsonPropertyName ("status")]
-	public int Status { get; init; }
+	public int Status
+		{
+		get; init;
+		}
 	/// <summary>Server-staged firmware version.</summary>
 	/// <value>Server-staged firmware version.</value>
 	[JsonPropertyName ("stagedVersion")]
-	public LocalFirmwareVersion? StagedVersion { get; init; }
+	public LocalFirmwareVersion? StagedVersion
+		{
+		get; init;
+		}
 	/// <summary>Reported total download bytes.</summary>
 	/// <value>Reported total download bytes.</value>
 	[JsonPropertyName ("totalBytes")]
-	public decimal TotalBytes { get; init; }
+	public decimal TotalBytes
+		{
+		get; init;
+		}
 	/// <summary>Reported downloaded byte offset.</summary>
 	/// <value>Reported downloaded byte offset.</value>
 	[JsonPropertyName ("bytesOffset")]
-	public decimal BytesOffset { get; init; }
+	public decimal BytesOffset
+		{
+		get; init;
+		}
 	/// <summary>Estimated download bytes per second.</summary>
 	/// <value>Estimated download bytes per second.</value>
 	[JsonPropertyName ("bytesPerSecond")]
-	public decimal BytesPerSecond { get; init; }
+	public decimal BytesPerSecond
+		{
+		get; init;
+		}
 	/// <summary>Native handshake timestamp.</summary>
 	/// <value>Native handshake timestamp.</value>
 	[JsonPropertyName ("lastHandshakeTimestamp")]
-	public decimal LastHandshakeTimestamp { get; init; }
+	public decimal LastHandshakeTimestamp
+		{
+		get; init;
+		}
 	/// <summary>Native last-update result code.</summary>
 	/// <value>Native last-update result code.</value>
 	[JsonPropertyName ("lastUpdateResult")]
-	public int LastUpdateResult { get; init; }
+	public int LastUpdateResult
+		{
+		get; init;
+		}
 	/// <summary>Whether the gateway reports sideloading.</summary>
 	/// <value>Whether the gateway reports sideloading.</value>
 	[JsonPropertyName ("isSideloading")]
-	public bool IsSideloading { get; init; }
+	public bool IsSideloading
+		{
+		get; init;
+		}
 	/// <summary>Server-staged firmware packages.</summary>
 	/// <value>Server-staged firmware packages.</value>
 	[JsonPropertyName ("packages")]
-	public IReadOnlyList<LocalStagedFirmware>? Packages { get; init; }
+	public IReadOnlyList<LocalStagedFirmware>? Packages
+		{
+		get; init;
+		}
 	}
 
 /// <summary>Reported staged firmware package metadata; reading it never installs firmware.</summary>
@@ -123,19 +192,31 @@ public sealed record LocalStagedFirmware
 	/// <summary>Reported package identifier.</summary>
 	/// <value>Reported package identifier.</value>
 	[JsonPropertyName ("packageId")]
-	public decimal PackageId { get; init; }
+	public decimal PackageId
+		{
+		get; init;
+		}
 	/// <summary>Device-provided download URL; may contain authorization data and should not be logged.</summary>
 	/// <value>Device-provided download URL; may contain authorization data and should not be logged.</value>
 	[JsonPropertyName ("downloadUrl")]
-	public string? DownloadUrl { get; init; }
+	public string? DownloadUrl
+		{
+		get; init;
+		}
 	/// <summary>Reported package signature encoded as hexadecimal.</summary>
 	/// <value>Reported package signature encoded as hexadecimal.</value>
 	[JsonPropertyName ("signatureHex")]
-	public string? SignatureHex { get; init; }
+	public string? SignatureHex
+		{
+		get; init;
+		}
 	/// <summary>Staged package firmware version.</summary>
 	/// <value>Staged package firmware version.</value>
 	[JsonPropertyName ("version")]
-	public LocalFirmwareVersion? Version { get; init; }
+	public LocalFirmwareVersion? Version
+		{
+		get; init;
+		}
 	}
 
 public sealed partial class PowerwallTedapiClient
@@ -145,11 +226,13 @@ public sealed partial class PowerwallTedapiClient
 	/// <param name="cancellationToken">Cancels the operation.</param>
 	/// <returns>Reported system information, preserving absent nested messages as null.</returns>
 	public Task<LocalSystemInformation> GetSystemInformationAsync (bool force = false, CancellationToken cancellationToken = default) =>
-		ReadWithFailoverAsync (recovering => GetPrimarySystemInformationAsync (force || recovering, cancellationToken),
-			fallback => fallback.GetSystemInformationAsync (force, cancellationToken), cancellationToken);
+		ReadWithFailoverAsync ((recovering, token) => GetPrimarySystemInformationAsync (force || recovering, token),
+			(fallback, token) => fallback.GetSystemInformationAsync (force, token), cancellationToken);
 
 	private async Task<LocalSystemInformation> GetPrimarySystemInformationAsync (bool force, CancellationToken cancellationToken)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		await _gate.WaitAsync (cancellationToken).ConfigureAwait (false);
 		try
 			{
@@ -177,23 +260,42 @@ public sealed partial class PowerwallTedapiClient
 				{
 				Din = string.IsNullOrEmpty (firmware.Din) ? _din : firmware.Din,
 				Gateway = firmware.Gateway is null ? null : new LocalHardwareIdentity { PartNumber = firmware.Gateway.PartNumber, SerialNumber = firmware.Gateway.SerialNumber },
-				Version = Version (firmware.Version), DeviceType = firmware.DeviceType,
+				Version = Version (firmware.Version),
+				DeviceType = firmware.DeviceType,
 				Wireless = firmware.Wireless?.Device.Select (radio => new LocalRadioInformation
-					{ Company = radio.Company?.Value, Model = radio.Model?.Value, FccId = radio.FccId?.Value, IndustryCanadaId = radio.Ic?.Value }).ToArray (),
+					{
+					Company = radio.Company?.Value,
+					Model = radio.Model?.Value,
+					FccId = radio.FccId?.Value,
+					IndustryCanadaId = radio.Ic?.Value
+					}).ToArray (),
 				Update = update is null ? null : new LocalSystemUpdate
 					{
-					HandshakeResult = update.HandshakeResult, Status = update.UpdateStatus, StagedVersion = Version (update.ServerStagedVersion),
-					TotalBytes = update.TotalBytes, BytesOffset = update.BytesOffset, BytesPerSecond = update.EstimatedBytesPerSecond,
-					LastHandshakeTimestamp = update.LastHandshakeTimestamp, LastUpdateResult = update.LastUpdateResult, IsSideloading = update.IsSideloading,
+					HandshakeResult = update.HandshakeResult,
+					Status = update.UpdateStatus,
+					StagedVersion = Version (update.ServerStagedVersion),
+					TotalBytes = update.TotalBytes,
+					BytesOffset = update.BytesOffset,
+					BytesPerSecond = update.EstimatedBytesPerSecond,
+					LastHandshakeTimestamp = update.LastHandshakeTimestamp,
+					LastUpdateResult = update.LastUpdateResult,
+					IsSideloading = update.IsSideloading,
 					Packages = update.ServerStagedPackages.Select (package => new LocalStagedFirmware
-						{ PackageId = package.PackageId, DownloadUrl = package.DownloadUrl, SignatureHex = Hex (package.PackageSignature), Version = Version (package.ServerStagedVersion) }).ToArray ()
+						{
+						PackageId = package.PackageId,
+						DownloadUrl = package.DownloadUrl,
+						SignatureHex = Hex (package.PackageSignature),
+						Version = Version (package.ServerStagedVersion)
+						}).ToArray ()
 					}
 				};
 			_cache["systemInfo"] = (information, _clock.Elapsed.TotalSeconds);
 			return information;
 			}
 		catch (InvalidProtocolBufferException exc)
-			{ throw new PowerwallConnectionException ("The gateway returned malformed system information.", exc); }
+			{
+			throw new PowerwallConnectionException ("The gateway returned malformed system information.", exc);
+			}
 		finally { _gate.Release (); }
 		}
 	}

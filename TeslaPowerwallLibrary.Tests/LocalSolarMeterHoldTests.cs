@@ -3,6 +3,7 @@
 
 using System.Globalization;
 using System.Text.Json;
+
 using TeslaPowerwallLibrary.Tedapi;
 
 namespace TeslaPowerwallLibrary.Tests;
@@ -24,11 +25,14 @@ public sealed class LocalSolarMeterHoldTests
 				new LocalPowerReading { Location = "SITE", Watts = -500 }, new LocalPowerReading { Location = "BATTERY", Watts = 0 } }
 			},
 		System = new LocalSystemTelemetry { Time = "2026-10-30T12:00:00Z" },
-		RemoteMeters = new LocalRemoteMeterTelemetry { Meters = new[] { new LocalRemoteMeter
+		RemoteMeters = new LocalRemoteMeterTelemetry
+			{
+			Meters = new[] { new LocalRemoteMeter
 			{ Din = "solar-meter", Reading = new LocalRemoteMeterReading
 				{ Timestamp = new DateTimeOffset (2026, 10, 30, 12, 0, 0, TimeSpan.Zero).AddSeconds (-age).ToString ("O", CultureInfo.InvariantCulture),
 				Channels = new[] { new LocalMeterChannel { RealPowerWatts = 1500, VoltageVolts = 240, CurrentAmps = 7, EnergyExportedWattSeconds = 3600 },
-					new LocalMeterChannel { RealPowerWatts = 99999 } } } } } }
+					new LocalMeterChannel { RealPowerWatts = 99999 } } } } }
+			}
 		};
 
 	/// <summary>Both meter families apply scale once, balance load, expose age and retain raw measurements.</summary>
@@ -78,9 +82,15 @@ public sealed class LocalSolarMeterHoldTests
 		{
 		var telemetry = Telemetry ();
 		var meter = telemetry.RemoteMeters!.Meters![0];
-		var badMeter = telemetry with { RemoteMeters = new LocalRemoteMeterTelemetry { Meters = new[] { meter with { Reading = meter.Reading! with { Timestamp = time } } } } };
+		var badMeter = telemetry with
+			{
+			RemoteMeters = new LocalRemoteMeterTelemetry { Meters = new[] { meter with { Reading = meter.Reading! with { Timestamp = time } } } }
+			};
 		Assert.That (LocalMeterProjection.Aggregate (Configuration (), badMeter).Solar!.PowerHoldAgeSeconds, Is.Null);
-		Assert.That (LocalMeterProjection.Aggregate (Configuration (), telemetry with { System = new LocalSystemTelemetry { Time = time } }).Solar!.PowerHoldAgeSeconds, Is.Null);
+		Assert.That (LocalMeterProjection.Aggregate (Configuration (), telemetry with
+			{
+			System = new LocalSystemTelemetry { Time = time }
+			}).Solar!.PowerHoldAgeSeconds, Is.Null);
 		}
 
 	/// <summary>Missing controller solar cannot use an expired CT fallback during the alert.</summary>
@@ -100,16 +110,49 @@ public sealed class LocalSolarMeterHoldTests
 		var telemetry = Telemetry ();
 		var assignment = config.Meters![0];
 		var meter = telemetry.RemoteMeters!.Meters![0];
-		if (failure == "missing-ct") config = config with { Meters = new[] { assignment with { EnabledChannels = new[] { true, false, true } } } };
-		if (failure == "missing-meter") config = config with { Meters = new[] { assignment, assignment with { Connection = new LocalMeterConnection { DeviceSerial = "absent" } } } };
-		if (failure == "mixed-family") config = config with { Meters = new[] { assignment, assignment with { Type = "neurio_w2_tcp", Connection = new LocalMeterConnection { DeviceSerial = "other" } } } };
-		if (failure == "duplicate-meter") telemetry = telemetry with { RemoteMeters = new LocalRemoteMeterTelemetry { Meters = new[] { meter, meter } } };
-		if (failure == "wrong-location") config = config with { Meters = new[] { assignment with { Location = "site" } } };
+		if (failure == "missing-ct")
+			config = config with
+				{
+				Meters = new[] { assignment with { EnabledChannels = new[] { true, false, true } } }
+				};
+		if (failure == "missing-meter")
+			config = config with
+				{
+				Meters = new[] { assignment, assignment with { Connection = new LocalMeterConnection { DeviceSerial = "absent" } } }
+				};
+		if (failure == "mixed-family")
+			config = config with
+				{
+				Meters = new[] { assignment, assignment with { Type = "neurio_w2_tcp", Connection = new LocalMeterConnection { DeviceSerial = "other" } } }
+				};
+		if (failure == "duplicate-meter")
+			telemetry = telemetry with
+				{
+				RemoteMeters = new LocalRemoteMeterTelemetry { Meters = new[] { meter, meter } }
+				};
+		if (failure == "wrong-location")
+			config = config with
+				{
+				Meters = new[] { assignment with { Location = "site" } }
+				};
 		if (failure is "missing-power" or "nan" or "infinity" or "zero" or "negative")
 			{
-			double? watts = failure switch { "nan" => double.NaN, "infinity" => double.PositiveInfinity, "zero" => 0, "negative" => -1, _ => null };
-			telemetry = telemetry with { RemoteMeters = new LocalRemoteMeterTelemetry { Meters = new[] { meter with
-				{ Reading = meter.Reading! with { Channels = new[] { new LocalMeterChannel { RealPowerWatts = watts } } } } } } };
+			double? watts = failure switch
+				{
+					"nan" => double.NaN,
+					"infinity" => double.PositiveInfinity,
+					"zero" => 0,
+					"negative" => -1,
+					_ => null
+					};
+			telemetry = telemetry with
+				{
+				RemoteMeters = new LocalRemoteMeterTelemetry
+					{
+					Meters = new[] { meter with
+				{ Reading = meter.Reading! with { Channels = new[] { new LocalMeterChannel { RealPowerWatts = watts } } } } }
+					}
+				};
 			}
 		var result = LocalMeterProjection.Aggregate (config, telemetry);
 		Assert.That (result.Solar!.InstantPower, Is.Zero);
@@ -123,12 +166,24 @@ public sealed class LocalSolarMeterHoldTests
 		{
 		var config = Configuration ();
 		var assignment = config.Meters![0];
-		config = config with { Meters = new[] { assignment, assignment, assignment with { Type = "trm_mb", Connection = new LocalMeterConnection { DeviceSerial = "second" } } } };
+		config = config with
+			{
+			Meters = new[] { assignment, assignment, assignment with { Type = "trm_mb", Connection = new LocalMeterConnection { DeviceSerial = "second" } } }
+			};
 		var telemetry = Telemetry ();
 		var meter = telemetry.RemoteMeters!.Meters![0];
-		telemetry = telemetry with { RemoteMeters = new LocalRemoteMeterTelemetry { Meters = new[] { meter, meter with
-			{ Din = "second", Reading = meter.Reading! with { Timestamp = "2026-10-30T12:59:50+01:00" } } } },
-			Control = telemetry.Control! with { MeterAggregates = telemetry.Control!.MeterAggregates!.Where (p => p.Location != "LOAD").ToArray () } };
+		telemetry = telemetry with
+			{
+			RemoteMeters = new LocalRemoteMeterTelemetry
+				{
+				Meters = new[] { meter, meter with
+			{ Din = "second", Reading = meter.Reading! with { Timestamp = "2026-10-30T12:59:50+01:00" } } }
+				},
+			Control = telemetry.Control! with
+				{
+				MeterAggregates = telemetry.Control!.MeterAggregates!.Where (p => p.Location != "LOAD").ToArray ()
+				}
+			};
 		var result = LocalMeterProjection.Aggregate (config, telemetry);
 		Assert.That (result.Solar!.InstantPower, Is.EqualTo (6000));
 		Assert.That (result.Solar.PowerHoldAgeSeconds, Is.EqualTo (10));
@@ -141,11 +196,20 @@ public sealed class LocalSolarMeterHoldTests
 	public void MultipleMeters_RejectStaleMember ()
 		{
 		var config = Configuration ();
-		config = config with { Meters = new[] { config.Meters![0], config.Meters[0] with { Connection = new LocalMeterConnection { DeviceSerial = "second" } } } };
+		config = config with
+			{
+			Meters = new[] { config.Meters![0], config.Meters[0] with { Connection = new LocalMeterConnection { DeviceSerial = "second" } } }
+			};
 		var telemetry = Telemetry ();
 		var meter = telemetry.RemoteMeters!.Meters![0];
-		telemetry = telemetry with { RemoteMeters = new LocalRemoteMeterTelemetry { Meters = new[] { meter, meter with
-			{ Din = "second", Reading = meter.Reading! with { Timestamp = "2026-10-30T11:58:59Z" } } } } };
+		telemetry = telemetry with
+			{
+			RemoteMeters = new LocalRemoteMeterTelemetry
+				{
+				Meters = new[] { meter, meter with
+			{ Din = "second", Reading = meter.Reading! with { Timestamp = "2026-10-30T11:58:59Z" } } }
+				}
+			};
 		var result = LocalMeterProjection.Aggregate (config, telemetry);
 		Assert.That (result.Solar!.InstantPower, Is.Zero);
 		Assert.That (result.Load!.InstantPower, Is.EqualTo (-500));
@@ -157,13 +221,29 @@ public sealed class LocalSolarMeterHoldTests
 	public void OtherMeterFamilies_DoNotBecomeRemoteSolarHolds ()
 		{
 		var config = Configuration ();
-		var neurio = config.Meters![0] with { Type = "neurio_w2_tcp", Connection = new LocalMeterConnection { DeviceSerial = "neurio" } };
-		var telemetry = Telemetry (solar: null) with { Neurio = new LocalNeurioTelemetry { Readings = new[] { new LocalNeurioReading
-			{ Serial = "neurio", Channels = new[] { new LocalMeterChannel { RealPowerWatts = 1500 } } } } } };
-		var mixed = LocalMeterProjection.Aggregate (config with { Meters = new[] { config.Meters[0], neurio } }, telemetry);
+		var neurio = config.Meters![0] with
+			{
+			Type = "neurio_w2_tcp",
+			Connection = new LocalMeterConnection { DeviceSerial = "neurio" }
+			};
+		var telemetry = Telemetry (solar: null) with
+			{
+			Neurio = new LocalNeurioTelemetry
+				{
+				Readings = new[] { new LocalNeurioReading
+			{ Serial = "neurio", Channels = new[] { new LocalMeterChannel { RealPowerWatts = 1500 } } } }
+				}
+			};
+		var mixed = LocalMeterProjection.Aggregate (config with
+			{
+			Meters = new[] { config.Meters[0], neurio }
+			}, telemetry);
 		Assert.That (mixed.Solar!.InstantPower, Is.Null, "An incomplete remote-meter subtotal cannot stand in for mixed solar sources.");
 		Assert.That (mixed.Load!.InstantPower, Is.EqualTo (-500));
-		var neurioOnly = LocalMeterProjection.Aggregate (config with { Meters = new[] { neurio } }, telemetry);
+		var neurioOnly = LocalMeterProjection.Aggregate (config with
+			{
+			Meters = new[] { neurio }
+			}, telemetry);
 		Assert.That (neurioOnly.Solar!.InstantPower, Is.EqualTo (3000));
 		Assert.That (neurioOnly.Solar.PowerHoldAgeSeconds, Is.Null);
 		}

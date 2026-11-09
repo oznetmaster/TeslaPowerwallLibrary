@@ -15,7 +15,7 @@ internal sealed record LocalLoginRequest
 	{
 	/// <summary>Always false: authentication must not turn off the site manager.</summary>
 	[JsonPropertyName ("force_sm_off")]
-	#pragma warning disable CA1822 // JSON requires an instance property; the safety value must stay immutable.
+#pragma warning disable CA1822 // JSON requires an instance property; the safety value must stay immutable.
 	public bool ForceSiteManagerOff => false;
 #pragma warning restore CA1822
 	/// <summary>Local account role.</summary>
@@ -62,7 +62,10 @@ internal sealed record LocalLoginResponse
 	{
 	/// <summary>The bearer token issued when the client authenticates in <c>token</c> mode.</summary>
 	[JsonPropertyName ("token")]
-	public string? Token { get; init; }
+	public string? Token
+		{
+		get; init;
+		}
 	}
 
 /// <summary>
@@ -74,15 +77,24 @@ internal sealed record LocalAuthCacheEntry
 	{
 	/// <summary>The cached <c>Authorization</c> header value, used in <c>token</c> auth mode.</summary>
 	[JsonPropertyName ("Authorization")]
-	public string? Authorization { get; init; }
+	public string? Authorization
+		{
+		get; init;
+		}
 
 	/// <summary>The cached gateway session cookie, used in <c>cookie</c> auth mode.</summary>
 	[JsonPropertyName ("AuthCookie")]
-	public string? AuthCookie { get; init; }
+	public string? AuthCookie
+		{
+		get; init;
+		}
 
 	/// <summary>The cached gateway user-record cookie, used in <c>cookie</c> auth mode.</summary>
 	[JsonPropertyName ("UserRecord")]
-	public string? UserRecord { get; init; }
+	public string? UserRecord
+		{
+		get; init;
+		}
 	}
 
 #pragma warning restore CA1507

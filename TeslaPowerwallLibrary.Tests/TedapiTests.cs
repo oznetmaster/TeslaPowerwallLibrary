@@ -23,6 +23,18 @@ namespace TeslaPowerwallLibrary.Tests;
 [TestFixture]
 public sealed partial class TedapiTests
 	{
+	private static readonly string[] _primaryDeviceDins = ["part--one", "part--two"];
+	private static readonly string[] _followerDins = ["part--followerA", "part--followerB"];
+	private static readonly string[] _firstDeviceDin = ["part--one"];
+	private static readonly string[] _diagnosticQueryNames = ["IEEE20305Query", "PinvSelfTestQuery", "ProtectionTripTestQuery"];
+	private static string HexLower (byte[] bytes)
+		{
+#if NETFRAMEWORK
+		return BitConverter.ToString (bytes).Replace ("-", string.Empty).ToLowerInvariant ();
+#else
+		return Convert.ToHexStringLower (bytes);
+#endif
+		}
 	private const string DIN = "1707000-00-A--TEST0000000000";
 	private const string STATUS = """{"control":{"systemStatus":{"nominalFullPackEnergyWh":13500,"nominalEnergyRemainingWh":0},"islanding":{"contactorClosed":false,"gridOK":false},"meterAggregates":[{"location":"SITE","realPowerW":-200},{"location":"SOLAR","realPowerW":1400},{"location":"BATTERY","realPowerW":0},{"location":"LOAD","realPowerW":1200}],"alerts":{"active":[]}},"system":{"time":"2026-10-07T12:00:00Z"}}""";
 
@@ -384,7 +396,7 @@ public sealed partial class TedapiTests
 
 	[TestCase (false)]
 	[TestCase (true)]
-	public async Task June2026Queries_UseCapturedVendorSignatures_AndCorrectTransportFraming (bool signed)
+	public async Task June2026Queries_UseCapturedVendorSignatures_AndCorrectTransportFraming (bool signedEnvelope)
 		{
 		using RSA key = TestRsaKey.Create ();
 		using var resource = typeof (Powerwall).Assembly.GetManifestResourceStream ("TeslaPowerwallLibrary.Tedapi.Protocol.Queries2026.data")!;
@@ -397,30 +409,30 @@ public sealed partial class TedapiTests
 				if (request.RequestUri.AbsolutePath == "/tedapi/din")
 					return Text (DIN);
 				byte[] body = await request.Content!.ReadAsByteArrayAsync ();
-				byte[] envelope = signed ? Signed.RoutableMessage.Parser.ParseFrom (body).ProtobufMessageAsBytes.ToByteArray ()
+				byte[] envelope = signedEnvelope ? Signed.RoutableMessage.Parser.ParseFrom (body).ProtobufMessageAsBytes.ToByteArray ()
 					: Graphql.Frame.Parser.ParseFrom (body).Message.ToByteArray ();
 				var query = Graphql.Envelope.Parser.ParseFrom (envelope);
 				Assert.That (query.Recipient.Din, Is.EqualTo (DIN));
 				Assert.That (query.Graphql.QueryRequest.Format, Is.EqualTo (2));
 				Assert.That (query.Graphql.QueryRequest.Signature.Length, Is.GreaterThan (64));
-				Assert.That (BitConverter.ToString (query.Graphql.QueryRequest.Signature.ToByteArray ()).Replace ("-", "").ToLowerInvariant (), Is.EqualTo (capture.GetProperty ("code").GetString ()));
-				Assert.That (BitConverter.ToString (query.Graphql.QueryRequest.Query.ToByteArray ()).Replace ("-", "").ToLowerInvariant (), Is.EqualTo (capture.GetProperty ("signed_bytes").GetString ()));
+				Assert.That (HexLower (query.Graphql.QueryRequest.Signature.ToByteArray ()), Is.EqualTo (capture.GetProperty ("code").GetString ()));
+				Assert.That (HexLower (query.Graphql.QueryRequest.Query.ToByteArray ()), Is.EqualTo (capture.GetProperty ("signed_bytes").GetString ()));
 				Assert.That (Encoding.UTF8.GetString (query.Graphql.QueryRequest.Query.ToByteArray ()), Does.Contain ("DeviceControllerQuery"));
 				Assert.That (query.Graphql.QueryRequest.VariablesJson.Value, Is.EqualTo ("{}"));
 				var response = new Graphql.Envelope
 					{
 					Graphql = new Graphql.GraphQLMessages { QueryResponse = new Graphql.QueryResponse { Status = 1, Data = STATUS } }
 					};
-				return Binary (signed
+				return Binary (signedEnvelope
 					? new Signed.RoutableMessage { ProtobufMessageAsBytes = response.ToByteString () }.ToByteArray ()
 					: new Graphql.Frame { Message = response.ToByteString (), Tail = new Graphql.Tail { Value = 1 } }.ToByteArray ());
 			});
 		using var client = new PowerwallTedapiClient (Options () with
 			{
-			LocalProtocol = signed ? PowerwallLocalProtocol.TedapiSigned : PowerwallLocalProtocol.Tedapi,
+			LocalProtocol = signedEnvelope ? PowerwallLocalProtocol.TedapiSigned : PowerwallLocalProtocol.Tedapi,
 			LocalQueryVersion = TedapiQueryVersion.June2026,
 			Password = "synthetic",
-			LocalSigningKey = signed ? key : null
+			LocalSigningKey = signedEnvelope ? key : null
 			}, handler);
 		await client.AuthenticateAsync ();
 		var data = await client.GetTelemetryAsync ();
@@ -544,9 +556,9 @@ public sealed partial class TedapiTests
 			await primary.GetComponentsAsync ("part--one");
 			await primary.GetComponentsAsync ("part--two");
 			Assert.That (primaryHandler.Count, Is.EqualTo (2));
-			Assert.That (requested, Is.EqualTo (new[] { "part--one", "part--two" }));
+			Assert.That (requested, Is.EqualTo (_primaryDeviceDins));
 			var snapshot = await primary.GetDeviceSnapshotAsync ();
-			Assert.That (snapshot.Devices.Select (d => d.Din), Is.EqualTo (new[] { "part--one", "part--two" }));
+			Assert.That (snapshot.Devices.Select (d => d.Din), Is.EqualTo (_primaryDeviceDins));
 			Assert.That (snapshot.Devices.All (d => d.Telemetry is not null && d.UnavailableReason is null), Is.True);
 			Assert.That (requested.Count, Is.EqualTo (2), "Snapshot reuse must retain per-follower caches.");
 			using var cancelled = new CancellationTokenSource ();
@@ -591,7 +603,7 @@ public sealed partial class TedapiTests
 		await client.GetComponentsAsync ("part--followerA");
 		await client.GetComponentsAsync ("part--followerA");
 		await client.GetComponentsAsync ("part--followerB");
-		Assert.That (requested, Is.EqualTo (new[] { "part--followerA", "part--followerB" }));
+		Assert.That (requested, Is.EqualTo (_followerDins));
 		Assert.That (handler.Count, Is.EqualTo (3));
 		Assert.Throws<ArgumentException> (() => client.GetComponentsAsync ("../another-host"));
 		Assert.That (handler.Count, Is.EqualTo (3));
@@ -646,7 +658,7 @@ public sealed partial class TedapiTests
 		using var client = Create (handler);
 		await client.AuthenticateAsync ();
 		var snapshot = await client.GetDeviceSnapshotAsync ();
-		Assert.That (queried, Is.EqualTo (new[] { "part--one", "part--two" }));
+		Assert.That (queried, Is.EqualTo (_primaryDeviceDins));
 		Assert.That (snapshot.Batteries!.Select (b => b.NominalEnergyRemaining), Is.EqualTo (new double?[] { 4000, 7000 }));
 		Assert.That (snapshot.Devices.All (d => d.Telemetry is not null && d.UnavailableReason is null), Is.True);
 		await client.GetDeviceSnapshotAsync ();
@@ -747,7 +759,7 @@ public sealed partial class TedapiTests
 		if (failure == "cancel")
 			{
 			await Assert.CatchAsync<OperationCanceledException> (async () => await client.GetDeviceSnapshotAsync (cancellationToken: cancel.Token));
-			Assert.That (queried, Is.EqualTo (new[] { "part--one" }));
+			Assert.That (queried, Is.EqualTo (_firstDeviceDin));
 			return;
 			}
 		var snapshot = await client.GetDeviceSnapshotAsync (cancellationToken: cancel.Token);
@@ -781,13 +793,13 @@ public sealed partial class TedapiTests
 						};
 				var query = Graphql.Envelope.Parser.ParseFrom (envelope).Graphql.QueryRequest;
 				string queryText = query.Query.ToStringUtf8 ();
-				string name = new[] { "IEEE20305Query", "PinvSelfTestQuery", "ProtectionTripTestQuery" }.Single (queryText.Contains);
+				string name = _diagnosticQueryNames.Single (queryText.Contains);
 				names.Add (name);
 				var definition = definitions.RootElement.GetProperty (name);
 				Assert.That (definition.GetProperty ("text").GetString ()!.TrimStart (), Does.StartWith ("query "));
 				Assert.That (query.Format, Is.EqualTo (2));
-				Assert.That (BitConverter.ToString (query.Query.ToByteArray ()).Replace ("-", "").ToLowerInvariant (), Is.EqualTo (definition.GetProperty ("signed_bytes").GetString ()));
-				Assert.That (BitConverter.ToString (query.Signature.ToByteArray ()).Replace ("-", "").ToLowerInvariant (), Is.EqualTo (definition.GetProperty ("code").GetString ()));
+				Assert.That (HexLower (query.Query.ToByteArray ()), Is.EqualTo (definition.GetProperty ("signed_bytes").GetString ()));
+				Assert.That (HexLower (query.Signature.ToByteArray ()), Is.EqualTo (definition.GetProperty ("code").GetString ()));
 				string data = name switch
 					{
 						"IEEE20305Query" => """{"ieee20305":{"longFormDeviceID":"synthetic"}}""",
@@ -815,7 +827,7 @@ public sealed partial class TedapiTests
 			Assert.That ((await client.GetInverterSelfTestsAsync ())!.IsRunning, Is.False);
 			Assert.That ((await client.GetProtectionTestStatusAsync ())!.Results![0]!.Status!.Text, Is.EqualTo ("not-run"));
 			}
-		Assert.That (names, Is.EqualTo (new[] { "IEEE20305Query", "PinvSelfTestQuery", "ProtectionTripTestQuery" }));
+		Assert.That (names, Is.EqualTo (_diagnosticQueryNames));
 		await client.GetIeee20305Async (force: true);
 		Assert.That (names.Count, Is.EqualTo (4));
 		Assert.That (names[3], Is.EqualTo ("IEEE20305Query"));

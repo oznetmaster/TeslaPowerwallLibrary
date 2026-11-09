@@ -68,13 +68,13 @@ public static class TeslaLoginService
 
 		return result.Status switch
 			{
-			TeslaCloudLoginStatus.Success => new TeslaLoginResult (
-				TeslaLoginStatus.Success,
-				new TeslaCloudTokens (result.Tokens!.RefreshToken, result.Tokens.AccessToken, result.Tokens.Email),
-				null),
-			TeslaCloudLoginStatus.Cancelled => new TeslaLoginResult (TeslaLoginStatus.Cancelled, null, result.Message),
-			_ => new TeslaLoginResult (TeslaLoginStatus.Failed, null, result.Message)
-			};
+				TeslaCloudLoginStatus.Success => new TeslaLoginResult (
+					TeslaLoginStatus.Success,
+					new TeslaCloudTokens (result.Tokens!.RefreshToken, result.Tokens.AccessToken, result.Tokens.Email),
+					null),
+				TeslaCloudLoginStatus.Cancelled => new TeslaLoginResult (TeslaLoginStatus.Cancelled, null, result.Message),
+				_ => new TeslaLoginResult (TeslaLoginStatus.Failed, null, result.Message)
+				};
 		}
 
 	/// <summary>

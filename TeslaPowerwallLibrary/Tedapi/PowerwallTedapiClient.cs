@@ -28,6 +28,8 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 	private readonly HttpClient _httpClient;
 	private readonly Uri _endpoint;
 	private readonly SemaphoreSlim _gate = new (1, 1);
+	private readonly AsyncClientGate _lifetime = new (typeof (PowerwallTedapiClient));
+	private int _disposed;
 	private readonly Stopwatch _clock = Stopwatch.StartNew ();
 	private readonly Dictionary<string, (object Value, double Time)> _cache = [];
 	private double _cooldownUntil;
@@ -122,7 +124,7 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 
 	/// <summary>Gets the device identifier returned by the local endpoint during authentication, or null before authentication.</summary>
 	/// <value>The device identifier returned by the local endpoint during authentication, or null before authentication.</value>
-	public string? DeviceIdentificationNumber => _din;
+	public string? DeviceIdentificationNumber => _lifetime.Observe (() => _lifetime.IsStopped ? null : _din);
 
 	private bool IsBearer => _options.LocalProtocol == PowerwallLocalProtocol.TedapiBearer;
 	private bool BareEnvelope => IsSigned || IsBearer;
@@ -134,6 +136,8 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 
 	private async Task AuthenticatePrimaryAsync (CancellationToken cancellationToken)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		await _gate.WaitAsync (cancellationToken).ConfigureAwait (false);
 		try
 			{
@@ -152,8 +156,11 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 				{
 				throw new PowerwallConnectionException ("The gateway did not return a valid device identification number.");
 				}
-			_din = din;
-			_cache.Clear ();
+			_lifetime.Commit (() =>
+				{
+					_din = din;
+					_cache.Clear ();
+				});
 			}
 		finally
 			{
@@ -221,11 +228,13 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 		}
 
 	private Task<T> ReadQueryAsync<T> (string name, bool force, CancellationToken cancellationToken, string? deviceDin = null) where T : class =>
-		ReadWithFailoverAsync (recovering => ReadPrimaryQueryAsync<T> (name, force || recovering, deviceDin, cancellationToken),
-			fallback => fallback.ReadQueryAsync<T> (name, force, cancellationToken, deviceDin), cancellationToken);
+		ReadWithFailoverAsync ((recovering, token) => ReadPrimaryQueryAsync<T> (name, force || recovering, deviceDin, token),
+			(fallback, token) => fallback.ReadQueryAsync<T> (name, force, token, deviceDin), cancellationToken);
 
 	private async Task<T> ReadPrimaryQueryAsync<T> (string name, bool force, string? deviceDin, CancellationToken cancellationToken) where T : class
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		await _gate.WaitAsync (cancellationToken).ConfigureAwait (false);
 		try
 			{
@@ -291,11 +300,13 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 	/// <param name="cancellationToken">Cancels the operation.</param>
 	/// <returns>Typed site configuration without passwords or installer credentials.</returns>
 	public Task<LocalConfiguration> GetConfigurationAsync (bool force = false, CancellationToken cancellationToken = default) =>
-		ReadWithFailoverAsync (recovering => GetPrimaryConfigurationAsync (force || recovering, cancellationToken),
-			fallback => fallback.GetConfigurationAsync (force, cancellationToken), cancellationToken);
+		ReadWithFailoverAsync ((recovering, token) => GetPrimaryConfigurationAsync (force || recovering, token),
+			(fallback, token) => fallback.GetConfigurationAsync (force, token), cancellationToken);
 
 	private async Task<LocalConfiguration> GetPrimaryConfigurationAsync (bool force, CancellationToken cancellationToken)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		await _gate.WaitAsync (cancellationToken).ConfigureAwait (false);
 		try
 			{
@@ -427,8 +438,8 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 		byte[] payload = await SendAsync (HttpMethod.Post, "/api/login/Basic",
 			Encoding.UTF8.GetBytes (JsonHelper.Serialize (login)), cancellationToken, login: true).ConfigureAwait (false);
 		LocalLoginResponse? response = JsonHelper.Deserialize<LocalLoginResponse> (Encoding.UTF8.GetString (payload));
-		_token = !string.IsNullOrWhiteSpace (response?.Token) ? response!.Token
-			: throw new PowerwallConnectionException ("Customer login did not return a bearer token.");
+		_lifetime.Commit (() => _token = !string.IsNullOrWhiteSpace (response?.Token) ? response!.Token
+			: throw new PowerwallConnectionException ("Customer login did not return a bearer token."));
 		}
 
 	private async Task<byte[]> SendAsync (HttpMethod method, string path, byte[]? data, CancellationToken cancellationToken, bool login = false, string? bearerOverride = null)
@@ -451,6 +462,7 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 			request.Content.Headers.ContentType = new MediaTypeHeaderValue (login ? "application/json" : "application/octet-stream");
 			}
 		using HttpResponseMessage response = await _httpClient.SendAsync (request, cancellationToken).ConfigureAwait (false);
+		_lifetime.CheckRunning ();
 		if ((int)response.StatusCode is 429 or 503)
 			{
 			_cooldownUntil = _clock.Elapsed.TotalSeconds + 300;
@@ -465,7 +477,12 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 				throw new LocalTransportUnavailableException ((int)response.StatusCode);
 			throw new PowerwallConnectionException ("Local gateway request failed with HTTP " + (int)response.StatusCode + ".");
 			}
+#if NETFRAMEWORK
 		byte[] bytes = await response.Content.ReadAsByteArrayAsync ().ConfigureAwait (false);
+#else
+		byte[] bytes = await response.Content.ReadAsByteArrayAsync (cancellationToken).ConfigureAwait (false);
+#endif
+		_lifetime.CheckRunning ();
 		cancellationToken.ThrowIfCancellationRequested ();
 		if (bytes.Length > 2 && bytes[0] == 0x1f && bytes[1] == 0x8b)
 			{
@@ -566,6 +583,8 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 
 	private async Task ClosePrimarySessionAsync (CancellationToken cancellationToken)
 		{
+		using AsyncClientGate.Operation lifetime = await _lifetime.EnterAsync (exclusive: false, cancellationToken).ConfigureAwait (false);
+		cancellationToken = lifetime.Token;
 		await _gate.WaitAsync (cancellationToken).ConfigureAwait (false);
 		try
 			{
@@ -583,6 +602,7 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 
 	private void EnsureConnected ()
 		{
+		_lifetime.CheckRunning ();
 		if (_din is null)
 			{
 			throw new PowerwallConnectionException ("Connect to the local gateway before requesting telemetry.");
@@ -646,9 +666,21 @@ public sealed partial class PowerwallTedapiClient : PowerwallClientBase, IDispos
 	/// <summary>Disposes the HTTP transport. The caller-owned RSA key and optional follower connection are not disposed.</summary>
 	public void Dispose ()
 		{
+		if (Interlocked.Exchange (ref _disposed, 1) != 0)
+			return;
+		_ = DisposeAfterDrainAsync (_lifetime.Stop ());
+		}
+	private async Task DisposeAfterDrainAsync (Task drained)
+		{
+		await drained.ConfigureAwait (false);
 		_httpClient.Dispose ();
 		_gate.Dispose ();
 		_readRouteGate.Dispose ();
+		_din = null;
+		_token = null;
+		_nativeToken = null;
+		_cache.Clear ();
+		_gatewayUptime.Reset ();
 		}
 
 	/// <summary>A signed read-only query captured in the upstream reference.</summary>

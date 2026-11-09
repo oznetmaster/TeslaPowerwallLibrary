@@ -1,8 +1,9 @@
 // Copyright © 2026 Neil Colvin.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
-using TeslaPowerwallLibrary.Cloud;
 using System.Security.Cryptography;
+
+using TeslaPowerwallLibrary.Cloud;
 using TeslaPowerwallLibrary.Tools;
 
 namespace TeslaPowerwallLibrary.TestConsole;
@@ -37,10 +38,16 @@ internal sealed class InteractiveConnection : IDisposable
 		}
 
 	/// <summary>Gets the currently connected Powerwall™ for the session.</summary>
-	public Powerwall Powerwall { get; private set; }
+	public Powerwall Powerwall
+		{
+		get; private set;
+		}
 
 	/// <summary>Gets the options backing the current connection, carrying both credential groups.</summary>
-	public PowerwallOptions Options { get; private set; }
+	public PowerwallOptions Options
+		{
+		get; private set;
+		}
 
 	/// <summary>Gets the normalized Tesla™ region (<c>us</c> or <c>cn</c>) used for cloud browser login.</summary>
 	public string Region => _region;
@@ -55,8 +62,12 @@ internal sealed class InteractiveConnection : IDisposable
 	/// <returns><see langword="true"/> when the switch and reconnect succeed; otherwise <see langword="false"/>.</returns>
 	public Task<bool> SwitchCloudAsync (CloudTokens tokens, CancellationToken cancellationToken)
 		{
+#if NETFRAMEWORK
 		if (tokens is null)
 			throw new ArgumentNullException (nameof (tokens));
+#else
+		ArgumentNullException.ThrowIfNull (tokens);
+#endif
 
 		return ReconnectAsync (BuildCloudOptions (Options, tokens), cancellationToken);
 		}
@@ -74,7 +85,10 @@ internal sealed class InteractiveConnection : IDisposable
 		if (string.IsNullOrWhiteSpace (host))
 			throw new ArgumentException ("A host is required for a local connection.", nameof (host));
 
-		return ReconnectAsync (BuildLocalOptions (Options, host, password) with { LocalProtocol = _localProtocol }, cancellationToken);
+		return ReconnectAsync (BuildLocalOptions (Options, host, password) with
+			{
+			LocalProtocol = _localProtocol
+			}, cancellationToken);
 		}
 
 	/// <summary>
@@ -109,7 +123,10 @@ internal sealed class InteractiveConnection : IDisposable
 			try
 				{
 				_ownedLocalKey ??= LocalSigningKeyStore.Open (_localKeyName);
-				candidate = candidate with { LocalSigningKey = _ownedLocalKey };
+				candidate = candidate with
+					{
+					LocalSigningKey = _ownedLocalKey
+					};
 				}
 			catch (Exception exc) when (exc is ArgumentException or InvalidOperationException or CryptographicException)
 				{
@@ -120,7 +137,10 @@ internal sealed class InteractiveConnection : IDisposable
 		Powerwall newConnection;
 		try
 			{
-			newConnection = new Powerwall (candidate with { Logger = VerboseLogging.Logger });
+			newConnection = new Powerwall (candidate with
+				{
+				Logger = VerboseLogging.Logger
+				});
 			}
 		catch (Exception exc) when (exc is PowerwallInvalidConfigurationException or ArgumentException)
 			{
@@ -170,7 +190,10 @@ internal sealed class InteractiveConnection : IDisposable
 		if (string.IsNullOrWhiteSpace (siteId))
 			return;
 
-		Options = Options with { SiteId = siteId };
+		Options = Options with
+			{
+			SiteId = siteId
+			};
 		}
 
 	// Produces options that activate cloud mode with the supplied tokens, changing only the cloud credential

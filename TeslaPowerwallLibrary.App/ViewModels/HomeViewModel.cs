@@ -4,9 +4,9 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.Input;
 
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 using TeslaPowerwallLibrary.App.Services;
 
@@ -116,20 +116,20 @@ public sealed partial class HomeViewModel : ViewModelBase
 	/// <summary>Gets a description of the current battery flow direction.</summary>
 	public string BatteryFlowText => BatteryWatts switch
 		{
-		null => "Unavailable",
-		> 50 => "Discharging",
-		< -50 => "Charging",
-		_ => "Idle"
-		};
+			null => "Unavailable",
+			> 50 => "Discharging",
+			< -50 => "Charging",
+			_ => "Idle"
+			};
 
 	/// <summary>Gets a description of the current grid flow direction.</summary>
 	public string GridFlowText => GridWatts switch
 		{
-		null => "Unavailable",
-		> 50 => "Importing",
-		< -50 => "Exporting",
-		_ => "No flow"
-		};
+			null => "Unavailable",
+			> 50 => "Importing",
+			< -50 => "Exporting",
+			_ => "No flow"
+			};
 
 	/// <summary>Gets the formatted battery charge percentage.</summary>
 	public string BatteryPercentText => BatteryPercent is double p ? $"{p:0}%" : "--";
@@ -137,11 +137,11 @@ public sealed partial class HomeViewModel : ViewModelBase
 	/// <summary>Gets the formatted grid status.</summary>
 	public string GridStatusText => GridStatus switch
 		{
-		TeslaPowerwallLibrary.GridStatus.Up => "Grid connected",
-		TeslaPowerwallLibrary.GridStatus.Down => "Off-grid (islanded)",
-		TeslaPowerwallLibrary.GridStatus.Syncing => "Reconnecting…",
-		_ => "Grid status unknown"
-		};
+			TeslaPowerwallLibrary.GridStatus.Up => "Grid connected",
+			TeslaPowerwallLibrary.GridStatus.Down => "Off-grid (islanded)",
+			TeslaPowerwallLibrary.GridStatus.Syncing => "Reconnecting…",
+			_ => "Grid status unknown"
+			};
 
 	/// <summary>Gets the formatted backup time remaining.</summary>
 	public string TimeRemainingText
@@ -158,30 +158,30 @@ public sealed partial class HomeViewModel : ViewModelBase
 	private void OnSnapshotUpdated (object? sender, PowerFlowSnapshot snapshot) =>
 		RunOnUi (() =>
 			{
-			SolarWatts = snapshot.SolarWatts;
-			BatteryWatts = snapshot.BatteryWatts;
-			HomeWatts = snapshot.HomeWatts;
-			GridWatts = snapshot.GridWatts;
-			BatteryPercent = snapshot.BatteryPercent;
-			GridStatus = snapshot.GridStatus;
-			TimeRemainingHours = snapshot.TimeRemainingHours;
-			FreshnessText = $"Last response received {DateTimeOffset.Now:T}";
-			StatusMessage = null;
+				SolarWatts = snapshot.SolarWatts;
+				BatteryWatts = snapshot.BatteryWatts;
+				HomeWatts = snapshot.HomeWatts;
+				GridWatts = snapshot.GridWatts;
+				BatteryPercent = snapshot.BatteryPercent;
+				GridStatus = snapshot.GridStatus;
+				TimeRemainingHours = snapshot.TimeRemainingHours;
+				FreshnessText = $"Last response received {DateTimeOffset.Now:T}";
+				StatusMessage = null;
 			});
 
 	private void OnPollFailed (object? sender, string message) =>
 		RunOnUi (() =>
 			{
-			StatusMessage = message;
-			FreshnessText = "Refresh failed; values are from the last successful response.";
+				StatusMessage = message;
+				FreshnessText = "Refresh failed; values are from the last successful response.";
 			});
 
 	private void OnSiteLabelChanged (object? sender, EventArgs e) =>
 		RunOnUi (() =>
 			{
-			if (!string.Equals (SiteLabel, _connection.SiteLabel, StringComparison.Ordinal))
-				ClearReadings ();
-			SiteLabel = _connection.SiteLabel;
+				if (!string.Equals (SiteLabel, _connection.SiteLabel, StringComparison.Ordinal))
+					ClearReadings ();
+				SiteLabel = _connection.SiteLabel;
 			});
 
 	private void OnConnectionChanged (object? sender, EventArgs e) => RunOnUi (ClearReadings);

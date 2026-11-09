@@ -10,7 +10,9 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+
 using NUnit.Framework;
+
 using TeslaPowerwallLibrary.App.Services;
 using TeslaPowerwallLibrary.App.ViewModels;
 using TeslaPowerwallLibrary.Local;
@@ -21,6 +23,7 @@ namespace TeslaPowerwallLibrary.App.Tests;
 [TestFixture]
 public sealed class LocalDiscoveryPresentationTests
 	{
+	private static readonly string[] _expectedHosts = ["candidate.local:8443"];
 	/// <summary>Reopening settings resolves DHCP changes and retains IPv6 scope without changing the configured hostname.</summary>
 	[Test]
 	public async Task Settings_RefreshesAddressesWithoutPersistingAnIp ()
@@ -102,9 +105,12 @@ public sealed class LocalDiscoveryPresentationTests
 		{
 		using var connection = new PowerwallConnectionService ();
 		var model = new ConnectViewModel (connection, _ => Task.FromResult<IReadOnlyList<PowerwallHost>> (
-			new[] { new PowerwallHost ("candidate.local", 8443, new[] { IPAddress.Loopback }) })) { Host = "manual.local" };
+			new[] { new PowerwallHost ("candidate.local", 8443, new[] { IPAddress.Loopback }) }))
+			{
+			Host = "manual.local"
+			};
 		await model.DiscoverCommand.ExecuteAsync (null);
-		Assert.That (model.DiscoveredHosts, Is.EqualTo (new[] { "candidate.local:8443" }));
+		Assert.That (model.DiscoveredHosts, Is.EqualTo (_expectedHosts));
 		Assert.That (model.Host, Is.EqualTo ("manual.local"));
 		Assert.That (model.DiscoveryStatus, Does.Contain ("Found 1"));
 		Assert.That (connection.IsConnected, Is.False);
@@ -139,11 +145,19 @@ public sealed class LocalHostEditorTests
 		var resources = new ResourceDictionary { Source = new Uri ("/TeslaPowerwallApp;component/Themes/Theme.xaml", UriKind.Relative) };
 		var combo = new ComboBox
 			{
-			Resources = resources, Style = (Style)resources[typeof (ComboBox)], Width = 400,
-			IsEditable = true, IsTextSearchEnabled = false, ItemsSource = model.DiscoveredHosts
+			Resources = resources,
+			Style = (Style)resources[typeof (ComboBox)],
+			Width = 400,
+			IsEditable = true,
+			IsTextSearchEnabled = false,
+			ItemsSource = model.DiscoveredHosts
 			};
 		combo.SetBinding (ComboBox.TextProperty, new Binding (nameof (model.Host))
-			{ Source = model, Mode = BindingMode.TwoWay, UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged });
+			{
+			Source = model,
+			Mode = BindingMode.TwoWay,
+			UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+			});
 		combo.Measure (new Size (400, 100));
 		combo.Arrange (new Rect (0, 0, 400, 40));
 		combo.ApplyTemplate ();

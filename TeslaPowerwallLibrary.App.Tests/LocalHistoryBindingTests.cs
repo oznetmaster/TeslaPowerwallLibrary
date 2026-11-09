@@ -3,7 +3,9 @@
 
 using System;
 using System.Text.Json;
+
 using NUnit.Framework;
+
 using TeslaPowerwallLibrary.App.Services;
 
 namespace TeslaPowerwallLibrary.App.Tests;

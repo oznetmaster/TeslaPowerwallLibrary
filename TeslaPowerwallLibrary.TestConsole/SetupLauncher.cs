@@ -58,12 +58,12 @@ internal static class SetupLauncher
 
 		return result.Status switch
 			{
-			TeslaCloudLoginStatus.Success => new SetupLaunchResult (
-				SetupLaunchStatus.Success,
-				new CloudTokens (result.Tokens!.RefreshToken, result.Tokens.AccessToken, result.Tokens.Email),
-				null),
-			TeslaCloudLoginStatus.Cancelled => new SetupLaunchResult (SetupLaunchStatus.Cancelled, null, result.Message),
-			_ => new SetupLaunchResult (SetupLaunchStatus.Failed, null, result.Message)
-			};
+				TeslaCloudLoginStatus.Success => new SetupLaunchResult (
+					SetupLaunchStatus.Success,
+					new CloudTokens (result.Tokens!.RefreshToken, result.Tokens.AccessToken, result.Tokens.Email),
+					null),
+				TeslaCloudLoginStatus.Cancelled => new SetupLaunchResult (SetupLaunchStatus.Cancelled, null, result.Message),
+				_ => new SetupLaunchResult (SetupLaunchStatus.Failed, null, result.Message)
+				};
 		}
 	}

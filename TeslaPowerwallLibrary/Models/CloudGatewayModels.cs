@@ -1,3 +1,6 @@
+// Copyright © 2026 Neil Colvin.
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+
 using System.Text.Json.Serialization;
 
 namespace TeslaPowerwallLibrary.Models;
@@ -158,9 +161,15 @@ internal sealed record MappedSystemStatus
 		get; init;
 		}
 	[JsonPropertyName ("instantaneous_max_discharge_power")]
-	public double? InstantaneousMaxDischargePower { get; init; }
+	public double? InstantaneousMaxDischargePower
+		{
+		get; init;
+		}
 	[JsonPropertyName ("instantaneous_max_charge_power")]
-	public double? InstantaneousMaxChargePower { get; init; }
+	public double? InstantaneousMaxChargePower
+		{
+		get; init;
+		}
 	[JsonPropertyName ("instantaneous_max_apparent_power")]
 	public double? InstantaneousMaxApparentPower { get; init; } = 0;
 	[JsonPropertyName ("hardware_capability_charge_power")]
