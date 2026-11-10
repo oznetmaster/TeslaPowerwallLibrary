@@ -36,7 +36,6 @@
 		<RepositoryUrl>https://github.com/oznetmaster/TeslaPowerwallLibrary</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<PackageProjectUrl>https://github.com/oznetmaster/TeslaPowerwallLibrary</PackageProjectUrl>
-		<PublishRepositoryUrl>true</PublishRepositoryUrl>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 		<NoWarn>$(NoWarn);NU5104</NoWarn>
 		<ComVisible>false</ComVisible>
@@ -54,12 +53,8 @@
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)' == 'Debug'">
-		<DebugType>portable</DebugType>
-		<DebugSymbols>true</DebugSymbols>
 	</PropertyGroup>
 	<PropertyGroup Condition="'$(Configuration)' == 'Release'">
-		<DebugType>none</DebugType>
-		<DebugSymbols>false</DebugSymbols>
 	</PropertyGroup>
 	<PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
 		<DefineConstants>TRACE</DefineConstants>
@@ -184,4 +179,5 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <WarningsAsErrors>$(WarningsAsErrors);CS1591;CS1570;CS1571;CS1572;CS1573;CS1574;CS1580;CS1581;CS1584;CS1587;CS1658;CS1710;CS1711;CS1712</WarningsAsErrors>
   </PropertyGroup>
+  <Import Project="../build/LibrarySymbols.props" />
 </Project>

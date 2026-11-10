@@ -210,6 +210,20 @@ jobs:
               }
           }
 
+      - name: Verify portable symbols match the exact library build
+        uses: oznetmaster/BuildAutomation/.github/actions/library-symbols@dd6056146da4424c996c0c3a0f98651e16209098
+        with:
+          directory: ${{ env.ARTIFACT_DIR }}/nuget
+
+      - name: Retain matching packages and symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: library-packages-and-symbols
+          path: |
+            ${{ env.ARTIFACT_DIR }}/nuget/*.nupkg
+            ${{ env.ARTIFACT_DIR }}/nuget/*.snupkg
+          if-no-files-found: error
+
       - name: Authenticate to NuGet with GitHub OIDC
         id: nuget-login
         uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1
@@ -230,9 +244,16 @@ jobs:
           }
 
           foreach ($package in $packages) {
-              dotnet nuget push $package.FullName --api-key "$env:NUGET_API_KEY" --source "https://api.nuget.org/v3/index.json"
+              dotnet nuget push $package.FullName --api-key "$env:NUGET_API_KEY" --source "https://api.nuget.org/v3/index.json" --no-symbols
               if ($LASTEXITCODE -ne 0) { throw "NuGet publication failed for $($package.Name)." }
           }
+
+      - name: Publish verified portable symbol packages
+        uses: oznetmaster/BuildAutomation/.github/actions/library-symbols@dd6056146da4424c996c0c3a0f98651e16209098
+        with:
+          directory: ${{ env.ARTIFACT_DIR }}/nuget
+          publish: 'true'
+          nuget-key: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
@@ -243,6 +264,8 @@ jobs:
           body_path: RELEASE-NOTES.md
           prerelease: ${{ contains(steps.version.outputs.package_version, '-') }}
           files: |
+            ${{ env.ARTIFACT_DIR }}/nuget/*.nupkg
+            ${{ env.ARTIFACT_DIR }}/nuget/*.snupkg
             ${{ env.ARTIFACT_DIR }}/release/*.dll
             ${{ env.ARTIFACT_DIR }}/release/*.xml
             ${{ env.ARTIFACT_DIR }}/release/*.zip

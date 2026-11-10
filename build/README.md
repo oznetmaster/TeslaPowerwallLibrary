@@ -151,3 +151,7 @@ Every shared Cake task first checks the public and protected API documentation i
 Run `./build/Invoke-Shared.ps1 -Task xml-documentation` to check documentation without running the test suites. The dedicated CI workflow and the unconditional gate in every publishing job use the same check, including when recent test evidence is reused. Existing repository-specific documentation checks remain in place.
 
 Positional-record constructor parameters document their generated properties in source. DocFX exposes those descriptions as property summaries but does not fill Property Value. The reviewed `docfx_project/apidoc/positional-record-values.md` overwrites supply that same text for the value section without changing the record declarations or binaries. Keep these descriptions aligned with the record parameter comments; a new empty value section fails the rendered-output check.
+
+## Symbol packages
+
+All published binary library packages produce portable PDBs in a separate `.snupkg` from the same optimized Release build. The symbol package is retained with the GitHub assets and published to NuGet's symbol server for optional debugger downloads. Publication verifies that each PDB matches its DLL and framework. Dependency-only metapackages contain no DLLs and need no symbol package. `LibrarySymbols.props` is checked in and imported by the library projects, so normal clone/IDE builds need no additional tooling download. Existing releases and public versions are unchanged; this policy applies to subsequent releases.

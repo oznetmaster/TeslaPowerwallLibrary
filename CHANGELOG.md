@@ -4,6 +4,10 @@ All notable changes are documented here. This project follows [Semantic Versioni
 
 This changelog records shipped features, fixes, compatibility and runtime dependency changes. See [development and validation history](DEVELOPMENT-HISTORY.md) for tests, CI, build tooling and work not yet released.
 
+## Unreleased
+
+- Future binary library releases include separate portable-PDB symbol packages on GitHub and NuGet, verified against the matching Release DLLs for each framework.
+
 ## [2.5.1](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases/tag/v2.5.1) — 2026-11-09
 
 - Coordinate overlapping Owner/Fleet refreshes and delayed authentication failures so callers share one completed token rotation. Retain newly rotated credentials when an individual caller cancels and keep token notifications ordered.
