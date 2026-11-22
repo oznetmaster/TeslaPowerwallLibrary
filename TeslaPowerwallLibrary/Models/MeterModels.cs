@@ -256,6 +256,14 @@ public sealed record MeterAggregates
 		{
 		get; init;
 		}
+
+	/// <summary>Generator meter readings when the gateway reports a generator meter.</summary>
+	/// <value>Generator meter readings, or null when no generator meter is available.</value>
+	[JsonPropertyName ("generator"), JsonIgnore (Condition = JsonIgnoreCondition.WhenWritingNull)]
+	public MeterReading? Generator
+		{
+		get; init;
+		}
 	}
 
 #pragma warning restore CA1507

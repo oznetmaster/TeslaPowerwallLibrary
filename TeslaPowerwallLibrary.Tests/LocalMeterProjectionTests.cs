@@ -3,6 +3,7 @@
 
 using System.Text.Json;
 
+using TeslaPowerwallLibrary.Models;
 using TeslaPowerwallLibrary.Tedapi;
 
 namespace TeslaPowerwallLibrary.Tests;
@@ -14,6 +15,37 @@ public sealed class LocalMeterProjectionTests
 	private static readonly int[] _expectedChannels = [0, 2];
 	private static readonly double[] _expectedPowers = [200d, 0d];
 	private static readonly string[] _expectedLocations = ["site", "solar", "solar"];
+
+	[TestCase (true, 1450d)]
+	[TestCase (true, 0d)]
+	[TestCase (true, null)]
+	[TestCase (false, 0d)]
+	public void GeneratorAggregate_RequiresConfiguredMeterAndPreservesMissingPower (bool configured, double? reportedPower)
+		{
+		var configuration = new LocalConfiguration
+			{
+			Meters = configured ? new[] { new LocalMeterConfiguration { Location = "GeNeRaToR" } } : null
+			};
+		var telemetry = JsonSerializer.Deserialize<LocalTelemetry> (JsonSerializer.Serialize (new
+			{
+			control = new { meterAggregates = new[] { new { location = "GENERATOR", realPowerW = reportedPower } } }
+			}))!;
+		var aggregates = LocalMeterProjection.Aggregate (new LocalDeviceSnapshot { Configuration = configuration, Controller = telemetry });
+		Assert.That (aggregates.Generator is not null, Is.EqualTo (configured));
+		Assert.That (aggregates.Generator?.InstantPower, Is.EqualTo (configured ? reportedPower : null));
+		Assert.That (aggregates.Generator?.InstantTotalCurrent, Is.Null);
+		Assert.That (JsonSerializer.Serialize (aggregates).Contains ("\"generator\":"), Is.EqualTo (configured));
+		}
+
+	[Test]
+	public void NativeGeneratorMeter_RetainsReportedLifetimeCounters ()
+		{
+		var result = JsonSerializer.Deserialize<MeterAggregates> ("""{"generator":{"instant_power":0,"energy_exported":123.5}}""")!;
+		Assert.That (result.Generator!.InstantPower, Is.Zero);
+		Assert.That (result.Generator.EnergyExported, Is.EqualTo (123.5));
+		Assert.That (result.Generator.EnergyImported, Is.Null);
+		}
+
 	/// <summary>Wired and Wi-Fi remote meters retain the same configured CT identity, location and scale.</summary>
 	/// <param name="type">The configured remote-meter connection type.</param>
 	[TestCase ("trm_mb"), TestCase ("trm_wifi")]

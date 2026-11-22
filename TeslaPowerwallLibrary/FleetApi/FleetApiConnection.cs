@@ -1,6 +1,7 @@
 // Copyright © 2026 Neil Colvin.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -44,6 +45,8 @@ internal sealed class FleetApiConnection : IDisposable
 	private string _baseUrl;
 	private volatile bool _regionResolved;
 	private readonly OAuthSession _session;
+	private readonly Func<long> _elapsedMilliseconds;
+	private long _readCooldownUntil;
 
 	/// <summary>
 	/// Raised after every successful access-token refresh, carrying the current tokens and whether the
@@ -65,7 +68,7 @@ internal sealed class FleetApiConnection : IDisposable
 		{
 		}
 
-	internal FleetApiConnection (string clientId, string? accessToken, string? refreshToken, string baseUrl, TimeSpan timeout, HttpMessageHandler handler, ILogger? logger = null)
+	internal FleetApiConnection (string clientId, string? accessToken, string? refreshToken, string baseUrl, TimeSpan timeout, HttpMessageHandler handler, ILogger? logger = null, Func<long>? elapsedMilliseconds = null)
 		{
 		_log = logger ?? NullLogger.Instance;
 		_clientId = clientId;
@@ -75,6 +78,8 @@ internal sealed class FleetApiConnection : IDisposable
 		AccessTokenProvidedAtConstruction = accessToken is not null;
 		_httpClient = new HttpClient (handler) { Timeout = timeout };
 		_session = new (typeof (FleetApiConnection), accessToken, refreshToken, () => _httpClient.Dispose ());
+		Stopwatch clock = Stopwatch.StartNew ();
+		_elapsedMilliseconds = elapsedMilliseconds ?? (() => clock.ElapsedMilliseconds);
 		}
 
 	/// <summary>Gets a value indicating whether any usable token (access or refresh) is available.</summary>
@@ -392,6 +397,10 @@ internal sealed class FleetApiConnection : IDisposable
 		HttpMethod method, string uri, object? jsonBody, IReadOnlyDictionary<string, string>? query,
 		bool allowRetry, CancellationToken cancellationToken)
 		{
+		cancellationToken.ThrowIfCancellationRequested ();
+		if (method == HttpMethod.Get && _elapsedMilliseconds () < Volatile.Read (ref _readCooldownUntil))
+			return null;
+
 		OAuthSession.Snapshot credentials = _session.Current;
 		var url = $"{Volatile.Read (ref _baseUrl)}/{uri}";
 		if (query is { Count: > 0 })
@@ -422,6 +431,12 @@ internal sealed class FleetApiConnection : IDisposable
 
 		using (response)
 			{
+			if ((int)response.StatusCode == 429)
+				{
+				RecordReadCooldown (response);
+				LibraryLog.TeslaFleetAPIReturnedHTTP (_log, uri, 429);
+				return null;
+				}
 			if ((int)response.StatusCode is 401 or 403 && allowRetry)
 				{
 				LibraryLog.TeslaFleetAPISessionExpiredAttemptingTokenRefresh (_log);
@@ -454,6 +469,21 @@ internal sealed class FleetApiConnection : IDisposable
 				return null;
 
 			return payload;
+			}
+		}
+
+	private void RecordReadCooldown (HttpResponseMessage response)
+		{
+		var retryAfter = response.Headers.RetryAfter;
+		TimeSpan delay = retryAfter?.Delta ?? (retryAfter?.Date is { } date ? date - DateTimeOffset.UtcNow : TimeSpan.FromSeconds (10));
+		long until = _elapsedMilliseconds () + (long)Math.Ceiling (Math.Max (0, delay.TotalMilliseconds));
+		long existing = Volatile.Read (ref _readCooldownUntil);
+		while (until > existing)
+			{
+			long observed = Interlocked.CompareExchange (ref _readCooldownUntil, until, existing);
+			if (observed == existing)
+				return;
+			existing = observed;
 			}
 		}
 

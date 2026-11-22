@@ -176,7 +176,7 @@ public static partial class LocalMeterProjection
 	/// <summary>Builds location summaries, retaining controller power except for a bounded SolarMeterComms hold from configured remote meters.</summary>
 	/// <param name="configuration">Configured channel locations and scale factors.</param>
 	/// <param name="telemetry">Controller measurements and detailed meter readings.</param>
-	/// <returns>Site, solar, battery and load summaries; absent data is never replaced with zero.</returns>
+	/// <returns>Site, solar, battery, load and configured generator summaries; absent data is never replaced with zero.</returns>
 	public static MeterAggregates Aggregate (LocalConfiguration configuration, LocalTelemetry telemetry)
 		{
 		var meters = Create (configuration, telemetry);
@@ -219,7 +219,15 @@ public static partial class LocalMeterProjection
 				LastCommunicationTime = times.Length == 1 ? times[0] : null
 				};
 			}
-		var aggregates = new MeterAggregates { Site = At ("site"), Solar = At ("solar"), Battery = At ("battery"), Load = At ("load") };
+		bool hasGenerator = configuration.Meters?.Any (meter => string.Equals (meter?.Location, "generator", StringComparison.OrdinalIgnoreCase)) == true;
+		var aggregates = new MeterAggregates
+			{
+			Site = At ("site"),
+			Solar = At ("solar"),
+			Battery = At ("battery"),
+			Load = At ("load"),
+			Generator = hasGenerator ? At ("generator") ?? new MeterReading () : null
+			};
 		return LocalSolarMeterHold.Apply (aggregates, configuration, telemetry, telemetry, meters);
 		}
 

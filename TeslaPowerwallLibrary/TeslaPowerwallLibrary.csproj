@@ -22,13 +22,13 @@
 		<Product>TeslaPowerwallLibrary</Product>
 		<Copyright>Copyright © 2026 Neil Colvin</Copyright>
 		<AssemblyVersion>2.0.0.0</AssemblyVersion>
-		<FileVersion>2.5.1.0</FileVersion>
+		<FileVersion>2.5.2.0</FileVersion>
 		<PackageId>TeslaPowerwallLibrary</PackageId>
-		<Version>2.5.1</Version>
+		<Version>2.5.2</Version>
 		<!-- Retain AssemblyVersion 2.0.0.0 for existing binary consumers. -->
 		<EnablePackageValidation>true</EnablePackageValidation>
-		<PackageValidationBaselineVersion>2.5.0</PackageValidationBaselineVersion>
-		<PackageReleaseNotes>Coordinate overlapping Owner/Fleet token refreshes, reads, site changes and reconnects; prevent stale cache replacement and late session publication after disposal. Serialize token-file updates across cache instances and processes with atomic replacement. Retain native energy fetch failures instead of fabricated zeroes. Assembly identity and runtime dependencies remain compatible. See RELEASE-NOTES.md.</PackageReleaseNotes>
+		<PackageValidationBaselineVersion>2.5.1</PackageValidationBaselineVersion>
+		<PackageReleaseNotes>Preserve working TEDAPI sessions through transient reconnect failures. Coalesce FleetAPI reads and honor Retry-After. Fall back to native gateway uptime and expose configured generator telemetry. See RELEASE-NOTES.md.</PackageReleaseNotes>
 		<Authors>Neil Colvin</Authors>
 		<PackageTags>tesla;powerwall;smart-home;iot;rest;api;nuget</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>

@@ -4,9 +4,15 @@ All notable changes are documented here. This project follows [Semantic Versioni
 
 This changelog records shipped features, fixes, compatibility and runtime dependency changes. See [development and validation history](DEVELOPMENT-HISTORY.md) for tests, CI, build tooling and work not yet released.
 
-## Unreleased
+## [2.5.2](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases/tag/v2.5.2) — 2026-11-22
 
-- Future binary library releases include separate portable-PDB symbol packages on GitHub and NuGet, verified against the matching Release DLLs for each framework.
+- Preserve the working TEDAPI session when a reconnect fails transiently. Explicit authentication rejection or a confirmed gateway identity mismatch still clears the session and its cached readings.
+- Share concurrent FleetAPI cache-miss reads and honor HTTP `Retry-After` across Fleet reads. Forced reads remain separate and respect the cooldown.
+- Fall back to the native customer status endpoint when sync-board uptime is unavailable.
+- Include the nullable `MeterAggregates.Generator` reading when a generator meter is available. Detailed TEDAPI aggregates require a configured generator meter and preserve reported zeroes and missing values.
+- Publish matching portable PDBs in a separate symbol package on GitHub and NuGet.
+
+Assembly identity remains `2.0.0.0`. See the [release notes](RELEASE-NOTES.md).
 
 ## [2.5.1](https://github.com/oznetmaster/TeslaPowerwallLibrary/releases/tag/v2.5.1) — 2026-11-09
 

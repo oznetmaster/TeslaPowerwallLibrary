@@ -43,12 +43,21 @@ public sealed partial class TedapiTests
 	public async Task SystemInformation_PreservesMetadataAndCachesAcrossStatusCalls (PowerwallLocalProtocol protocol)
 		{
 		using RSA key = TestRsaKey.Create ();
+		int nativeStatusReads = 0, logins = 0;
 		using var handler = new ScriptedHandler (async (request, _) =>
 			{
+				if (request.RequestUri!.AbsolutePath == "/api/status")
+					{
+					nativeStatusReads++;
+					Assert.That (request.Headers.Authorization!.Scheme, Is.EqualTo ("Bearer"));
+					return new HttpResponseMessage (HttpStatusCode.NotFound);
+					}
 				if (request.RequestUri!.AbsolutePath == "/api/login/Basic")
 					{
 					var login = JsonSerializer.Deserialize<LocalLoginRequest> (await request.Content!.ReadAsStringAsync ())!;
-					Assert.That (login.Username, Is.EqualTo (protocol == PowerwallLocalProtocol.TedapiBearer ? "installer" : "customer"));
+					bool installer = protocol == PowerwallLocalProtocol.TedapiBearer && logins == 0;
+					logins++;
+					Assert.That (login.Username, Is.EqualTo (installer ? "installer" : "customer"));
 					Assert.That (login.ForceSiteManagerOff, Is.False);
 					return Text ("""{"token":"test-token"}""");
 					}
@@ -105,9 +114,11 @@ public sealed partial class TedapiTests
 		Assert.That (info.Update.StagedVersion, Is.Null);
 		int count = handler.Count;
 		Assert.That (await client.PollAsync ("/api/status"), Does.Contain ("26.34.0"));
-		Assert.That (handler.Count, Is.EqualTo (count + 1), "Status also reads detailed controller uptime once.");
+		Assert.That (nativeStatusReads, Is.EqualTo (1));
+		Assert.That (handler.Count, Is.EqualTo (count + (protocol == PowerwallLocalProtocol.TedapiSigned ? 2 : 3)));
+		count = handler.Count;
 		await client.PollAsync ("/api/status");
-		Assert.That (handler.Count, Is.EqualTo (count + 1), "Firmware and uptime reads should both be cached.");
+		Assert.That (handler.Count, Is.EqualTo (count), "Cached controller reads and the native-status backoff avoid further requests.");
 		}
 
 	/// <summary>Native counters use a customer token without changing the configured TEDAPI authentication.</summary>

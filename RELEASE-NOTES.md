@@ -1,3 +1,16 @@
+# TeslaPowerwallLibrary 2.5.2
+
+This patch improves local TEDAPI reconnects and telemetry, and reduces duplicate FleetAPI requests.
+
+- **Reconnect** preserves the working session during a transient reauthentication failure. Explicit authentication rejection or a confirmed gateway identity mismatch clears the session and its cached readings.
+- **FleetAPI** shares overlapping ordinary reads of the same cached endpoint. Forced reads remain separate. Both honor the read cooldown after an HTTP 429 response, using `Retry-After` when available.
+- **Gateway uptime** uses the native customer status endpoint when sync-board uptime is unavailable. The native start time and duration must both be reported.
+- **Generator telemetry** is available through `MeterAggregates.Generator`. Detailed TEDAPI aggregates include it when the gateway declares a generator meter. Reported zeroes remain zero, and unavailable readings remain null.
+
+NuGet version `2.5.2` uses file version `2.5.2.0` and assembly identity `2.0.0.0`. The .NET Framework 4.7.2 and .NET 10 targets and runtime dependencies are unchanged. The release includes matching portable symbols and updated companion application bundles.
+
+The final code passed 620 offline tests per workstation target and 52 focused regressions on Crestron processor Mono. The processor regressions used simulated Tesla responses. [Validation record](https://github.com/oznetmaster/TeslaPowerwallLibrary/blob/v2.5.2/release-validation/v2.5.2.json)
+
 # TeslaPowerwallLibrary 2.5.1
 
 This patch release fixes synchronization and lifetime races without adding commands, dependencies or public method signatures. Assembly identity remains `2.0.0.0`; NuGet/file versions are `2.5.1`/`2.5.1.0`. Package validation compares both targets with public 2.5.0.

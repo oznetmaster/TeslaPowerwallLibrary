@@ -1,0 +1,94 @@
+{
+  "schema": 1,
+  "version": "2.5.2",
+  "completedUtc": "2026-11-22T07:14:01.4832611Z",
+  "sourceBaseCommit": "4ec6aec9ce5c63ee73758e97a22a7b6ffca7308a",
+  "sourceFileHashEncoding": "UTF-8 without BOM, LF line endings",
+  "validatedSourceFiles": [
+    {
+      "path": "TeslaPowerwallLibrary.Tests/BackendConcurrencyTests.cs",
+      "sha256": "F7255412E97CA4AF5B7D69CEE3F1A1455301F44A415824502ED3E2FECBD3CD32"
+    },
+    {
+      "path": "TeslaPowerwallLibrary.Tests/FleetReadCooldownTests.cs",
+      "sha256": "5A4E92437B2135FA7596E7E61ADDE75DC6FD06C0F434724DCEF91D223B30BEC5"
+    },
+    {
+      "path": "TeslaPowerwallLibrary.Tests/LocalMeterProjectionTests.cs",
+      "sha256": "07B2DB5610342977F11843E1E81801764A555783AB59609971622FFE97D330BD"
+    },
+    {
+      "path": "TeslaPowerwallLibrary.Tests/TedapiTests.cs",
+      "sha256": "AF87D49839F524DCEE8DEB2556EEB774AE639E96D481DA34D5436955D62DCE17"
+    },
+    {
+      "path": "TeslaPowerwallLibrary.Tests/TedapiTests.SessionStatus.cs",
+      "sha256": "C3A77B142FD0B12229BBEDB03A196F1E2C36669D0A5A20004D0E55C1EF25F168"
+    },
+    {
+      "path": "TeslaPowerwallLibrary/FleetApi/FleetApiConnection.cs",
+      "sha256": "7F5A8B59BB0EC4A79AC4DFBC69417509EE2D59B8F6CD026EA836662709F84575"
+    },
+    {
+      "path": "TeslaPowerwallLibrary/FleetApi/PowerwallFleetApiClient.cs",
+      "sha256": "DD464BF0CD24F25AF2ABBF65B42FFD88ECD5F21EE5933284EBFA2A59A34C4C43"
+    },
+    {
+      "path": "TeslaPowerwallLibrary/Models/MeterModels.cs",
+      "sha256": "7B2A439A0662229D50917BF9092B17315695412BEAD0BD5129F2DA051FE6646C"
+    },
+    {
+      "path": "TeslaPowerwallLibrary/Tedapi/LocalMeterBusProjection.cs",
+      "sha256": "12334E7F8F07A5BC516ABF4E190EE45F22D596D925882D7223D18DAAE05D194C"
+    },
+    {
+      "path": "TeslaPowerwallLibrary/Tedapi/LocalMeterConfiguration.cs",
+      "sha256": "BB12B9F7EF79F82FBC2203A1A0E8FE9F3E6CAE9D9FAFED3798C3FDA90760E53C"
+    },
+    {
+      "path": "TeslaPowerwallLibrary/Tedapi/LocalNativeMeters.cs",
+      "sha256": "4CF8A946FC7B09056EC86BFE7BDC77ADAFEEF843D1F3765D8489FFA2C7EF9977"
+    },
+    {
+      "path": "TeslaPowerwallLibrary/Tedapi/LocalReadFailover.cs",
+      "sha256": "2218CD284536336716119166A8D598A68D3CA69A8F921E68E90E7C53AB882201"
+    },
+    {
+      "path": "TeslaPowerwallLibrary/Tedapi/PowerwallTedapiClient.cs",
+      "sha256": "9E4444EC5FCC830D8D417BC79B0D4AC63F35F19EC4B81B8D84540B67209DE5CB"
+    }
+  ],
+  "workstation": [
+    {
+      "framework": "net10.0",
+      "configuration": "Debug",
+      "passed": 620,
+      "failed": 0,
+      "skipped": 0,
+      "testReportSha256": "893869D1F591EFD9EF2EAED3A3348C26F99B7FCEB5E8A701FB6FFFEBAD2A5541"
+    },
+    {
+      "framework": "net472",
+      "configuration": "Debug",
+      "passed": 620,
+      "failed": 0,
+      "skipped": 0,
+      "testReportSha256": "86C0C82EF6DB05F4FD231374D4BE5481B1CBC0611707AF1482FB7DFAE77ABCB8"
+    }
+  ],
+  "processor": {
+    "runtime": "Crestron processor Mono",
+    "framework": "net472",
+    "configuration": "Debug",
+    "passed": 52,
+    "failed": 0,
+    "skipped": 0,
+    "scope": "Focused offline regressions covering all four fixes and nearby behavior, using simulated Tesla responses",
+    "testReportSha256": "938D4653F3AC5C872482924D72E8F0F4E6597259C19A8CF1A7748D6A76D2F0B2",
+    "temporaryHostRemoved": true,
+    "temporaryPackageRemoved": true,
+    "leaseReleased": true
+  },
+  "priorProcessorAttempt": "An earlier full offline run exceeded its stage timeout and was excluded from the passing validation. Its temporary host and package were removed, existing device identities were verified, and its lease was released.",
+  "publicationChanges": "Release documentation and package version metadata were added after the recorded local tests."
+}

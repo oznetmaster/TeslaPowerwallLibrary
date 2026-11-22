@@ -1,6 +1,6 @@
 # TeslaPowerwallLibrary
 
-**Version 2.5.1** hardens concurrent calls, OAuth token rotation, cache publication and disposal without adding device commands or runtime dependencies. The validated fresh battery observation API from 2.5.0 remains available. See [release notes and validation limits](RELEASE-NOTES.md).
+**Version 2.5.2** preserves working TEDAPI sessions during transient reconnect failures, reduces duplicate FleetAPI reads, and adds native gateway uptime fallback and generator telemetry. See the [release notes and validation results](RELEASE-NOTES.md).
 
 For shipped changes, see the [changelog](CHANGELOG.md). Test, CI and build history is recorded separately in [development and validation history](DEVELOPMENT-HISTORY.md).
 
@@ -331,7 +331,7 @@ Offline tests use NUnit 5.0.0, NUnit3TestAdapter 6.3.0, Microsoft.NET.Test.Sdk 1
 dotnet test TeslaPowerwallLibrary.Tests/TeslaPowerwallLibrary.Tests.csproj -c Release --filter "TestCategory!=Live" -p:GenerateDocfxDocumentation=false
 ```
 
-Offline tests need neither credentials nor a Powerwall. Live tests are explicit and separate; control tests require per-operation authorization. To check backward compatibility, package validation compares the 2.5.1 assemblies for both target frameworks with the released 2.5.0 baseline. No API differences are suppressed.
+Offline tests use simulated responses. Live tests are explicit and separate, and control tests require per-operation authorization. Package validation compares the 2.5.2 assemblies for both target frameworks with the released 2.5.1 baseline.
 
 ## Continuous integration tests
 

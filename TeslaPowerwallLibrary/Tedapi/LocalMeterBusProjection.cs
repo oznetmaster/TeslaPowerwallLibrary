@@ -75,7 +75,7 @@ public static partial class LocalMeterProjection
 			InstantAverageVoltage = Mean (island!.LoadLine1NeutralVolts, island.LoadLine2NeutralVolts, island.LoadLine3NeutralVolts),
 			Frequency = Mean (island.LoadLine1FrequencyHertz, island.LoadLine2FrequencyHertz, island.LoadLine3FrequencyHertz)
 			} : null;
-		return new MeterAggregates { Site = Fill (basis.Site, site), Solar = Fill (basis.Solar, solar), Battery = Fill (basis.Battery, battery), Load = Fill (basis.Load, load) };
+		return basis with { Site = Fill (basis.Site, site), Solar = Fill (basis.Solar, solar), Battery = Fill (basis.Battery, battery), Load = Fill (basis.Load, load) };
 		}
 
 	private static MeterReading? MeterComponent (IReadOnlyDictionary<string, IReadOnlyList<LocalComponent>>? families, string prefix, string voltageReference)

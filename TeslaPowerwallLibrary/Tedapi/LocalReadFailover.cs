@@ -35,20 +35,24 @@ public sealed partial class PowerwallTedapiClient
 		await _readRouteGate.WaitAsync (cancellationToken).ConfigureAwait (false);
 		try
 			{
-			_readFallbackActive = false;
-			_primaryReadFailures = 0;
-			_primaryNeedsAuthentication = true;
 			try
 				{
 				await AuthenticatePrimaryAsync (cancellationToken).ConfigureAwait (false);
-				ValidatePrimaryIdentity ();
+				_readFallbackActive = false;
+				_primaryReadFailures = 0;
 				_primaryNeedsAuthentication = false;
 				}
 			catch (Exception error) when (CanFailOver (error, cancellationToken))
 				{
 				var fallback = MatchingFallback ();
-				_din = fallback.DeviceIdentificationNumber;
-				TripReadFallback ();
+				string? din = fallback.DeviceIdentificationNumber;
+				cancellationToken.ThrowIfCancellationRequested ();
+				_lifetime.Commit (() =>
+					{
+					_din = din;
+					_primaryNeedsAuthentication = true;
+					TripReadFallback ();
+					});
 				}
 			}
 		finally { _readRouteGate.Release (); }
@@ -73,7 +77,6 @@ public sealed partial class PowerwallTedapiClient
 				if (_primaryNeedsAuthentication)
 					{
 					await AuthenticatePrimaryAsync (cancellationToken).ConfigureAwait (false);
-					ValidatePrimaryIdentity ();
 					_primaryNeedsAuthentication = false;
 					}
 				T value = await primary (recovering, cancellationToken).ConfigureAwait (false);
@@ -85,8 +88,6 @@ public sealed partial class PowerwallTedapiClient
 				}
 			catch (Exception error) when (CanFailOver (error, cancellationToken))
 				{
-				// Authentication clears DIN before sending. Retain only the already established route identity.
-				_din = _readRouteIdentity;
 				if (++_primaryReadFailures < 3 && !recovering)
 					throw;
 				TripReadFallback ();
@@ -114,16 +115,15 @@ public sealed partial class PowerwallTedapiClient
 		return fallback;
 		}
 
-	private void ValidatePrimaryIdentity ()
+	private void ValidatePrimaryIdentity (string din)
 		{
 		string? expected = _readRouteIdentity ?? _options.LocalFollowerConnection?.DeviceIdentificationNumber;
-		if (expected is not null && !string.Equals (expected, _din, StringComparison.Ordinal))
+		if (expected is not null && !string.Equals (expected, din, StringComparison.Ordinal))
 			{
-			_din = null;
-			_token = null;
+			// A confirmed identity change must fail closed, even when a transient failure would retain the session.
+			_lifetime.Commit (ResetPrimarySession);
 			throw new PowerwallInvalidConfigurationException ("The LAN and setup-network connections identify different Powerwalls. Connection was refused.");
 			}
-		_readRouteIdentity = _din;
 		}
 
 	private async Task ClearReadCacheAsync (CancellationToken cancellationToken)

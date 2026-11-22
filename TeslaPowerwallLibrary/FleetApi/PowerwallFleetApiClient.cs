@@ -2,6 +2,7 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -30,6 +31,8 @@ namespace TeslaPowerwallLibrary.FleetApi;
 /// not exposed for FleetAPI mode.
 /// Independent reads may overlap; authentication, controls and site changes are sequenced. Use one
 /// client per credential set: refresh coordination does not extend across independently constructed clients.
+/// Ordinary reads of the same cached endpoint share an in-flight fetch. Forced reads bypass that sharing.
+/// FleetAPI read cooldowns from HTTP 429 also apply to forced reads.
 /// Token callbacks must be thread-safe and non-blocking. Disposal cancels admitted operations and defers
 /// owned-resource cleanup until they drain. Returned mutable models require caller coordination.
 /// </remarks>
@@ -45,6 +48,7 @@ public sealed class PowerwallFleetApiClient : PowerwallClientBase, IEnergySiteCl
 	private readonly Dictionary<string, object> _fleetCache = [];
 	private readonly Dictionary<string, double> _fleetCacheTimes = [];
 	private readonly Dictionary<string, long> _fleetCacheVersions = [];
+	private readonly Dictionary<(string Name, long Generation), TaskCompletionSource<SiteFetchResult>> _pendingSiteReads = [];
 #pragma warning disable IDE0330 // Monitor semantics must match processor Mono.
 	private readonly object _cacheSync = new ();
 #pragma warning restore IDE0330
@@ -915,34 +919,103 @@ public sealed class PowerwallFleetApiClient : PowerwallClientBase, IEnergySiteCl
 		CancellationToken cancellationToken)
 		where T : class
 		{
-		long generation, sequence;
-		lock (_cacheSync)
+		while (true)
 			{
-			if (!force && _fleetCacheTimes.TryGetValue (name, out double at) && at > NowSeconds - ttlSeconds
-				&& _fleetCache.TryGetValue (name, out object? cached))
-				return cached as T;
-			generation = _cacheGeneration;
-			sequence = ++_fetchSequence;
-			}
-
-		T? response = await fetch (_connection!, cancellationToken).ConfigureAwait (false);
-		if (response is not null)
-			{
-			_lifetime.Commit (() =>
+			cancellationToken.ThrowIfCancellationRequested ();
+			TaskCompletionSource<SiteFetchResult>? pending = null;
+			long generation, sequence = 0;
+			lock (_cacheSync)
 				{
-					lock (_cacheSync)
-						{
-						if (generation != _cacheGeneration || (_fleetCacheVersions.TryGetValue (name, out long previous) && previous > sequence))
-							return;
-						_fleetCache[name] = response;
-						_fleetCacheTimes[name] = NowSeconds;
-						_fleetCacheVersions[name] = sequence;
-						}
-				});
-			LibraryLog.FleetapiRetrievedData (_log, name);
-			}
+				if (!force && _fleetCacheTimes.TryGetValue (name, out double at) && at > NowSeconds - ttlSeconds
+					&& _fleetCache.TryGetValue (name, out object? cached))
+					return (T)cached;
 
-		return response;
+				generation = _cacheGeneration;
+				if (force || !_pendingSiteReads.TryGetValue ((name, generation), out pending))
+					{
+					sequence = ++_fetchSequence;
+					if (!force)
+						{
+						pending = new (TaskCreationOptions.RunContinuationsAsynchronously);
+						_pendingSiteReads.Add ((name, generation), pending);
+						}
+					}
+				}
+
+			if (sequence != 0)
+				return await FetchSiteDataAsync (name, generation, sequence, fetch, pending, cancellationToken).ConfigureAwait (false);
+
+			SiteFetchResult shared = await WaitForSiteFetchAsync (pending!.Task, cancellationToken).ConfigureAwait (false);
+			if (shared.Retry)
+				continue; // The caller that owned this request cancelled. Elect a new request.
+			shared.Error?.Throw ();
+			return (T?)shared.Response;
+			}
+		}
+
+	private async Task<T?> FetchSiteDataAsync<T> (string name, long generation, long sequence,
+		Func<FleetApiConnection, CancellationToken, Task<T?>> fetch, TaskCompletionSource<SiteFetchResult>? pending,
+		CancellationToken cancellationToken) where T : class
+		{
+		SiteFetchResult completion = default;
+		try
+			{
+			T? response = await fetch (_connection!, cancellationToken).ConfigureAwait (false);
+			cancellationToken.ThrowIfCancellationRequested ();
+			if (response is not null)
+				{
+				_lifetime.Commit (() =>
+						{
+						lock (_cacheSync)
+							{
+							if (generation != _cacheGeneration || (_fleetCacheVersions.TryGetValue (name, out long previous) && previous > sequence))
+								return;
+							_fleetCache[name] = response;
+							_fleetCacheTimes[name] = NowSeconds;
+							_fleetCacheVersions[name] = sequence;
+							}
+						});
+				LibraryLog.FleetapiRetrievedData (_log, name);
+				}
+			completion = new (response);
+			return response;
+			}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			{
+			completion = new (null, Retry: true);
+			throw;
+			}
+		catch (Exception error)
+			{
+			completion = new (null, ExceptionDispatchInfo.Capture (error));
+			throw;
+			}
+		finally
+			{
+			if (pending is not null)
+				{
+				lock (_cacheSync)
+					{
+					_pendingSiteReads.Remove ((name, generation));
+					_ = pending.TrySetResult (completion);
+					}
+				}
+			}
+		}
+
+	private readonly record struct SiteFetchResult (object? Response, ExceptionDispatchInfo? Error = null, bool Retry = false);
+
+	private static async Task<SiteFetchResult> WaitForSiteFetchAsync (Task<SiteFetchResult> pending, CancellationToken cancellationToken)
+		{
+#if NETFRAMEWORK
+		var cancelled = new TaskCompletionSource<bool> (TaskCreationOptions.RunContinuationsAsynchronously);
+		using var registration = cancellationToken.Register (() => cancelled.TrySetResult (true));
+		await Task.WhenAny (pending, cancelled.Task).ConfigureAwait (false);
+		cancellationToken.ThrowIfCancellationRequested ();
+		return await pending.ConfigureAwait (false);
+#else
+		return await pending.WaitAsync (cancellationToken).ConfigureAwait (false);
+#endif
 		}
 
 	private async Task<List<EnergyProduct>?> FetchEnergySitesAsync (CancellationToken cancellationToken)

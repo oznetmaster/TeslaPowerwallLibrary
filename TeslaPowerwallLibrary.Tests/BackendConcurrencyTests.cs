@@ -15,6 +15,40 @@ namespace TeslaPowerwallLibrary.Tests;
 [TestFixture]
 public sealed class BackendConcurrencyTests
 	{
+	[Test]
+	public async Task FleetOverlappingCacheMisses_ShareTheSameRequest ()
+		{
+		using var rig = new Rig (fleet: true);
+		Task<string?> first = rig.Client.PollAsync ("/api/operation");
+		await Ready (rig.Handler.FirstEntered.Task);
+		Task<string?> second = rig.Client.PollAsync ("/api/operation");
+		_ = rig.Handler.ReleaseFirst.TrySetResult (true);
+		_ = rig.Handler.ReleaseSecond.TrySetResult (true);
+		string? response = await Ready (first);
+		Assert.That (response, Is.Not.Null);
+		Assert.That (await Ready (second), Is.EqualTo (response));
+		Assert.That (rig.Handler.Reads, Is.EqualTo (1));
+		}
+
+	[TestCase (false)]
+	[TestCase (true)]
+	public async Task FleetSharedReads_CancelOnlyTheRequestingCaller (bool cancelLeader)
+		{
+		using var rig = new Rig (fleet: true);
+		using var cancellation = new CancellationTokenSource ();
+		Task<string?> first = rig.Client.PollAsync ("/api/operation", cancellationToken: cancelLeader ? cancellation.Token : default);
+		await Ready (rig.Handler.FirstEntered.Task);
+		Task<string?> second = rig.Client.PollAsync ("/api/operation", cancellationToken: cancelLeader ? default : cancellation.Token);
+		cancellation.Cancel ();
+		_ = rig.Handler.ReleaseFirst.TrySetResult (true);
+		_ = rig.Handler.ReleaseSecond.TrySetResult (true);
+		Task<string?> cancelled = cancelLeader ? first : second;
+		Task<string?> surviving = cancelLeader ? second : first;
+		await Assert.ThatAsync (async () => await Ready (cancelled), Throws.InstanceOf<OperationCanceledException> ());
+		Assert.That (await Ready (surviving), Is.Not.Null);
+		Assert.That (rig.Handler.Reads, Is.EqualTo (cancelLeader ? 2 : 1));
+		}
+
 	[TestCase (false)]
 	[TestCase (true)]
 	public async Task OlderReadFinishingLast_CannotReplaceNewerCachedSnapshot (bool fleet)
